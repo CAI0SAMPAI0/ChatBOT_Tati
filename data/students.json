@@ -1,0 +1,18 @@
+{
+  "professor": {
+    "name": "Professor",
+    "password": "00624b02e1f9b996a3278f559d5d55313552ad2c0bafc82adfd975c12df61eaf",
+    "role": "professor",
+    "level": "Advanced",
+    "focus": "General Conversation",
+    "created_at": "2026-03-07T08:23:29.796924"
+  },
+  "caio_based": {
+    "name": "Caio Sampaio",
+    "password": "cfe3939ee319e35c269b2706be9d93f4630fc0e24613457b31ab7e058fea8a60",
+    "role": "student",
+    "level": "Intermediate",
+    "focus": "General Conversation",
+    "created_at": "2026-03-07T08:23:56.388379"
+  }
+}
