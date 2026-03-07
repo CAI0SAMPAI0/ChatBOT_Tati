@@ -18,7 +18,7 @@
 
 ---
 
-### 1. 🎙️ Modo Conversa (estilo ChatGPT Advanced Voice)
+### 1. 🎙️ Modo Conversa (estilo ChatGPT Advanced Voice) - já está feito
 
 **O que é:**
 Um botão fixo na tela que ativa um modo de conversa contínua por voz — o aluno fala, a IA detecta o silêncio, transcreve, responde em texto e vocaliza automaticamente. Enquanto a IA fala, se o aluno começar a falar, a IA para (barge-in).

@@ -1,3 +1,4 @@
 .env
 data/conversations/caio_based/
 data/history/caio_based/
+__pycache__/
