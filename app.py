@@ -15,6 +15,7 @@ from database import (
 )
 from transcriber import transcribe_bytes
 from tts import text_to_speech, tts_available
+from file_reader import extract_file
 
 init_db()
 API_KEY      = os.getenv("ANTHROPIC_API_KEY", "")
@@ -97,20 +98,38 @@ def get_or_create_conv(username):
         st.session_state.conv_id = new_conversation(username)
     return st.session_state.conv_id
 
-def send_to_claude(username, user, conv_id, text):
-    """Envia mensagem para Claude, salva resposta e gera áudio TTS se disponível."""
+def send_to_claude(username, user, conv_id, text, image_b64=None, image_media_type=None):
+    """Envia mensagem para Claude (texto ou imagem), salva resposta e gera TTS."""
     import base64 as b64
     client  = anthropic.Anthropic(api_key=API_KEY)
     context = f"\n\nStudent: Name={user['name']}, Level={user['level']}, Focus={user['focus']}."
     msgs    = load_conversation(username, conv_id)
-    api_msgs = [{"role":"user" if m["role"]=="user" else "assistant","content":m["content"]} for m in msgs]
-    resp = client.messages.create(model="claude-haiku-4-5", max_tokens=400,
-                                   system=SYSTEM_PROMPT+context, messages=api_msgs)
+
+    # Monta histórico
+    api_msgs = []
+    for m in msgs:
+        api_msgs.append({
+            "role": "user" if m["role"] == "user" else "assistant",
+            "content": m["content"]
+        })
+
+    # Se tiver imagem, substitui a última mensagem do usuário por conteúdo multimodal
+    if image_b64 and image_media_type and api_msgs and api_msgs[-1]["role"] == "user":
+        api_msgs[-1]["content"] = [
+            {"type": "image", "source": {"type": "base64", "media_type": image_media_type, "data": image_b64}},
+            {"type": "text",  "text": text}
+        ]
+
+    resp = client.messages.create(
+        model="claude-haiku-4-5", max_tokens=400,
+        system=SYSTEM_PROMPT + context,
+        messages=api_msgs
+    )
     reply_text = resp.content[0].text
     append_message(username, conv_id, "assistant", reply_text)
 
-    # ── TTS: gera áudio e persiste no session_state ───────────────────────────
-    st.session_state.pop("_tts_audio", None)  # limpa anterior
+    # ── TTS ───────────────────────────────────────────────────────────────────
+    st.session_state.pop("_tts_audio", None)
     if tts_available():
         audio_bytes = text_to_speech(reply_text)
         if audio_bytes:
@@ -356,22 +375,19 @@ btn.onclick = function() {{
         "📎", key="file_upload", label_visibility="collapsed",
         type=["mp3","wav","ogg","m4a","webm","flac","pdf","doc","docx","txt","png","jpg","jpeg","webp"]
     )
-    if uploaded and uploaded != st.session_state.get("_last_file"):
-        st.session_state["_last_file"] = uploaded
-        fname  = uploaded.name
-        suffix = Path(fname).suffix.lower()
-        raw    = uploaded.read()
-        ext_map = {
-            ".mp3":"Áudio",".wav":"Áudio",".ogg":"Áudio",".m4a":"Áudio",
-            ".webm":"Áudio",".flac":"Áudio",
-            ".pdf":"PDF",".doc":"Word",".docx":"Word",".txt":"Texto",
-            ".png":"Imagem",".jpg":"Imagem",".jpeg":"Imagem",".webp":"Imagem"
-        }
-        kind = ext_map.get(suffix, "Arquivo")
+    if uploaded and uploaded.name != st.session_state.get("_last_file"):
+        st.session_state["_last_file"] = uploaded.name
+        fname = uploaded.name
+        raw   = uploaded.read()
         if not API_KEY: st.error("⚠️ Configure ANTHROPIC_API_KEY"); st.stop()
-        if kind == "Áudio":
+
+        result = extract_file(raw, fname)
+        kind   = result["kind"]
+        label  = result["label"]
+
+        if kind == "audio":
             with st.spinner("🔄 Transcrevendo áudio..."):
-                text = transcribe_bytes(raw, suffix=suffix, language="en")
+                text = transcribe_bytes(raw, suffix=Path(fname).suffix.lower(), language="en")
             if text.startswith("❌") or text.startswith("⚠️"):
                 st.error(text)
             else:
@@ -382,23 +398,42 @@ btn.onclick = function() {{
                 except Exception as e: st.error(f"❌ {e}")
                 st.session_state.speaking = False
                 st.rerun()
-        elif kind == "Texto":
-            txt_content = raw.decode("utf-8", errors="ignore")[:3000]
-            msg = f"📄 [Texto: '{fname}']\n\n{txt_content}\n\nPlease help me understand this."
-            append_message(username, conv_id, "user", msg)
+
+        elif kind == "text":
+            extracted = result["text"]
+            if extracted.startswith("❌"):
+                st.error(extracted)
+            elif not extracted:
+                st.warning(f"⚠️ Não foi possível extrair texto de '{fname}'.")
+            else:
+                preview = extracted[:200].replace('\n',' ')
+                msg = (f"📄 [{label}: '{fname}']\n\n{extracted}\n\n"
+                       f"Please help me understand this content — explain vocabulary, grammar, "
+                       f"and key ideas. Teach me from it.")
+                append_message(username, conv_id, "user",
+                               f"📄 [{label}: '{fname}'] — {preview}{'…' if len(extracted)>200 else ''}")
+                st.session_state.speaking = True
+                try: send_to_claude(username, user, conv_id, msg)
+                except Exception as e: st.error(f"❌ {e}")
+                st.session_state.speaking = False
+                st.rerun()
+
+        elif kind == "image":
+            b64_img    = result["b64"]
+            media_type = result["media_type"]
+            msg_text   = (f"📸 [Imagem: '{fname}']\n"
+                          f"Please look at this image and help me learn English from it. "
+                          f"Describe what you see, point out useful vocabulary and any text visible.")
+            append_message(username, conv_id, "user", f"📸 [Imagem: '{fname}']")
             st.session_state.speaking = True
-            try: send_to_claude(username, user, conv_id, msg)
+            try: send_to_claude(username, user, conv_id, msg_text,
+                                image_b64=b64_img, image_media_type=media_type)
             except Exception as e: st.error(f"❌ {e}")
             st.session_state.speaking = False
             st.rerun()
+
         else:
-            msg = f"📎 [{kind}: '{fname}'] Please help me with this file."
-            append_message(username, conv_id, "user", msg)
-            st.session_state.speaking = True
-            try: send_to_claude(username, user, conv_id, msg)
-            except Exception as e: st.error(f"❌ {e}")
-            st.session_state.speaking = False
-            st.rerun()
+            st.warning(f"⚠️ Formato '{label}' não suportado ainda.")
 
     # ── JS: move audio_input e file_uploader para dentro do stBottom ─────────
     st.markdown("""
