@@ -5,7 +5,19 @@
     "role": "professor",
     "level": "Advanced",
     "focus": "General Conversation",
-    "created_at": "2026-03-07T08:23:29.796924"
+    "created_at": "2026-03-07T08:23:29.796924",
+    "profile": {
+      "theme": "dark",
+      "language": "pt-BR",
+      "accent_color": "#2d7d59",
+      "voice_lang": "en",
+      "speech_lang": "en-UK",
+      "nickname": "Tati",
+      "occupation": "",
+      "ai_style": "Warm & Encouraging",
+      "ai_tone": "Teacher",
+      "custom_instructions": ""
+    }
   },
   "caio_based": {
     "name": "Caio Sampaio",
@@ -19,7 +31,13 @@
       "occupation": "Sistemas de Informação",
       "ai_style": "Formal & Professional",
       "ai_tone": "Teacher",
-      "custom_instructions": "Sempre me corrija e dê-me sugestões"
-    }
+      "custom_instructions": "Sempre me corrija e dê-me sugestões",
+      "theme": "dark",
+      "language": "pt-BR",
+      "accent_color": "#201870",
+      "voice_lang": "en",
+      "speech_lang": "en-US"
+    },
+    "email": "cmsampaio71@gmail.com"
   }
 }

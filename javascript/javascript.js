@@ -118,53 +118,6 @@ function pavCheckAutoLogin() {
     recognition.start();
   };
 
-
-/*function pavMoveToChatBar() {
-  const parent = window.parent ? window.parent.document : document;
-
-  const bottom = parent.querySelector('[data-testid="stBottom"]');
-  if (!bottom) { setTimeout(pavMoveToChatBar, 300); return; }
-  if (bottom.querySelector('.pav-extras')) return; // já foi movido
-
-  const aw = parent.querySelector('[data-testid="stAudioInput"]');
-  const fw = parent.querySelector('[data-testid="stFileUploader"]');
-  if (!aw || !fw) { setTimeout(pavMoveToChatBar, 300); return; }
-
-  // Container de extras
-  const extras = parent.createElement('div');
-  extras.className = 'pav-extras';
-
-  // Botão de anexar (＋)
-  const ab = parent.createElement('button');
-  ab.className = 'pav-icon-btn';
-  ab.title = 'Anexar arquivo';
-  ab.innerHTML = '＋';
-  ab.onclick = () => {
-    const i = fw.querySelector('input[type="file"]');
-    if (i) i.click();
-  };
-
-  // Botão de voz (🎤)
-  const mb = parent.createElement('button');
-  mb.className = 'pav-icon-btn';
-  mb.title = 'Gravar voz';
-  mb.innerHTML = '🎤';
-  mb.onclick = () => {
-    const b = aw.querySelector('button');
-    if (b) b.click();
-  };
-
-  extras.appendChild(ab);
-  extras.appendChild(mb);
-  bottom.insertBefore(extras, bottom.firstChild);
-
-  // Esconde os widgets originais (mantendo pointer-events no input de arquivo)
-  aw.style.cssText = 'position:fixed;bottom:-999px;left:-9999px;width:1px;height:1px;overflow:hidden;opacity:0';
-  fw.style.cssText = 'position:fixed;bottom:-999px;left:-9999px;width:1px;height:1px;overflow:hidden;opacity:0';
-  const fileInput = fw.querySelector('input[type="file"]');
-  if (fileInput) fileInput.style.pointerEvents = 'auto';
-}*/
-
 /* ════════════════════════════════════════════════════════════════════════════
    3. VOICE MODE — hide file uploader (injetado quando modo voz está ativo)
    ════════════════════════════════════════════════════════════════════════════ */

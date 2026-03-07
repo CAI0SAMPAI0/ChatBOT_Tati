@@ -12,14 +12,13 @@ from datetime import datetime
 from database import (
     init_db, authenticate, register_student, load_students,
     new_conversation, list_conversations, load_conversation,
-    append_message, get_all_students_stats,
+    append_message, get_all_students_stats, delete_conversation,
     update_profile, update_password
 )
 from transcriber import transcribe_bytes
 from tts import text_to_speech, tts_available
 from file_reader import extract_file
 
-# Importa o FontAwesome para os ícones
 st.markdown('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">', unsafe_allow_html=True)
 
 init_db()
@@ -27,7 +26,6 @@ API_KEY    = os.getenv("ANTHROPIC_API_KEY", "")
 PHOTO_PATH = os.getenv("PROFESSOR_PHOTO", "assets/professor.jpg")
 PROF_NAME  = os.getenv("PROFESSOR_NAME",  "Professor Avatar")
 
-# Cria um contador para limpar o gravador de áudio automaticamente
 if "audio_key" not in st.session_state:
     st.session_state.audio_key = 0
 
@@ -42,11 +40,50 @@ def get_photo_b64():
 
 PHOTO_B64 = get_photo_b64()
 
+# ── Avatar individual do usuário ──────────────────────────────────────────────
+AVATARS_DIR = Path("data/avatars")
+AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+
+def get_user_avatar_b64(username: str):
+    for ext in ("jpg", "jpeg", "png", "webp"):
+        p = AVATARS_DIR / f"{username}.{ext}"
+        if p.exists():
+            mime = "jpeg" if ext in ("jpg","jpeg") else ext
+            return f"data:image/{mime};base64,{base64.b64encode(p.read_bytes()).decode()}"
+    return None
+
+def save_user_avatar(username: str, raw: bytes, suffix: str) -> str:
+    suffix = suffix.lower().lstrip(".")
+    if suffix == "jpg": suffix = "jpeg"
+    for ext in ("jpg","jpeg","png","webp"):
+        old_p = AVATARS_DIR / f"{username}.{ext}"
+        if old_p.exists(): old_p.unlink()
+    dest = AVATARS_DIR / f"{username}.{suffix}"
+    dest.write_bytes(raw)
+    return f"data:image/{suffix};base64,{base64.b64encode(raw).decode()}"
+
+def remove_user_avatar(username: str):
+    for ext in ("jpg","jpeg","png","webp"):
+        p = AVATARS_DIR / f"{username}.{ext}"
+        if p.exists(): p.unlink()
+
+def user_avatar_html(username: str, size: int = 36, fallback_emoji: str = "🎓") -> str:
+    b64 = get_user_avatar_b64(username)
+    if b64:
+        return (f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
+                f'background:url({b64}) center/cover;border:1.5px solid #f0a500;'
+                f'flex-shrink:0;"></div>')
+    return (f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
+            f'background:linear-gradient(135deg,#1e2a3a,#2a3a50);'
+            f'display:flex;align-items:center;justify-content:center;'
+            f'font-size:{int(size*.5)}px;flex-shrink:0;">{fallback_emoji}</div>')
+
 def avatar_html(size=52, speaking=False):
-    cls = "speaking" if speaking else ""
-    if PHOTO_B64:
+    cls   = "speaking" if speaking else ""
+    photo = get_photo_b64()   # sempre fresco — pega upload recente da professora
+    if photo:
         return (f'<div class="avatar-wrap {cls}" style="width:{size}px;height:{size}px">'
-                f'<img src="{PHOTO_B64}" class="avatar-img"/><div class="avatar-ring"></div></div>')
+                f'<img src="{photo}" class="avatar-img"/><div class="avatar-ring"></div></div>')
     return (f'<div class="avatar-circle {cls}" '
             f'style="width:{size}px;height:{size}px;font-size:{int(size*.48)}px">🧑‍🏫</div>')
 
@@ -59,21 +96,93 @@ def load_css(path: str):
 
 load_css("styles/style.css")
 
+# ── CSS responsivo global ──────────────────────────────────────────────────────
+st.markdown("""<style>
+/* Garante que o conteúdo principal sempre se ajuste à sidebar */
+section[data-testid="stMain"] > div {
+    transition: all .25s ease;
+    max-width: 100% !important;
+}
+/* Remove largura máxima artificial do Streamlit */
+.main .block-container {
+    max-width: 100% !important;
+    padding-left: clamp(10px, 2vw, 40px) !important;
+    padding-right: clamp(10px, 2vw, 40px) !important;
+    padding-top: 1rem !important;
+}
+/* Sidebar responsiva */
+section[data-testid="stSidebar"] {
+    min-width: 220px !important;
+    max-width: 340px !important;
+}
+/* Botões e elementos se adaptam */
+div[data-testid="stButton"] button {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* Tablets */
+@media (max-width: 1024px) {
+    .main .block-container {
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+    }
+}
+/* Mobile */
+@media (max-width: 768px) {
+    section[data-testid="stSidebar"] { min-width: 0 !important; }
+    .main .block-container {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+        padding-bottom: 80px !important;
+    }
+    div.bubble { max-width: 92% !important; font-size: .82rem !important; }
+    div.prof-header h1 { font-size: 1rem !important; }
+    div.prof-header { padding: 10px 8px !important; }
+    .bav-s, .bav-u { display: none !important; }
+}
+</style>""", unsafe_allow_html=True)
+
 SYSTEM_PROMPT = f"""You are a digital avatar of an English teacher called {PROF_NAME} — warm, witty, and encouraging.
 Students: teenagers (False Beginner/Pre-Intermediate) and adults focused on Business/News.
-Teaching Style:
-- Neuro-learning: guide students to discover their own errors. Never just give the answer.
-  Example: If they say "he go" → "Quick check — what ending do we add for he/she/it? 😊"
+
+TEACHING STYLE:
+- Neuro-learning: guide students to discover errors. Never just give the answer.
+  Example: "he go" → "What ending do we add for he/she/it?"
 - Sandwich: 1) Validate 2) Guide with question 3) Encourage.
-- SHORT responses. **Bold** grammar points. End with ONE engaging question.
-Rules: Simple English. Teens→Fortnite/Netflix/TikTok. Adults→LinkedIn/news.
-Celebrate progress 🎉. Portuguese → acknowledge briefly, switch to English."""
+- SHORT conversational responses. Bold grammar points when appropriate.
+- End responses with ONE engaging question.
+- Use emojis and formatting (bold, etc.) ONLY if the student uses them or explicitly asks.
+  Otherwise respond in plain, natural text.
+
+RULES:
+- Simple English. Teens→Fortnite/Netflix/TikTok refs. Adults→LinkedIn/news.
+- Portuguese → acknowledge briefly, switch to English.
+- NEVER start a conversation uninvited. Wait for the student to speak first.
+
+ACTIVITY GENERATION:
+- When asked to create exercises, worksheets or activities, generate complete, well-structured content.
+- Support: fill-in-the-blank, multiple choice, reading comprehension, dialogue writing,
+  grammar drills, vocabulary lists, translation, error correction, etc.
+- When the student asks for a FILE (PDF, Word/DOCX), respond ONLY with a special JSON block
+  on its own line, no other text, in this exact format:
+  <<<GENERATE_FILE>>>
+  {{"format":"pdf","filename":"activity.pdf","title":"Exercise Title","content":"Full content here with \\n for line breaks"}}
+  <<<END_FILE>>>
+  Use "pdf" or "docx" as format. Put ALL the exercise content inside "content".
+  The system will intercept this and generate the real file for download."""
 
 # ── Session state ─────────────────────────────────────────────────────────────
-_defaults = {"logged_in":False,"user":None,"page":"chat","speaking":False,
-             "conv_id":None,"voice_mode":False}
-for k,v in _defaults.items():
-    if k not in st.session_state: st.session_state[k] = v
+_defaults = {
+    "logged_in": False, "user": None, "page": "chat", "speaking": False,
+    "conv_id": None, "voice_mode": False,
+    # File staging — arquivo selecionado aguardando envio
+    "staged_file": None,       # dict com info do arquivo
+    "staged_file_name": None,  # nome original
+}
+for k, v in _defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 # ── Auto-login via localStorage ───────────────────────────────────────────────
 if not st.session_state.logged_in:
@@ -116,10 +225,23 @@ def send_to_claude(username, user, conv_id, text, image_b64=None, image_media_ty
         api_msgs[-1]["content"] = [
             {"type":"image","source":{"type":"base64","media_type":image_media_type,"data":image_b64}},
             {"type":"text","text":text}]
+
+    # Atividades/arquivos precisam de mais tokens
+    is_activity = any(w in text.lower() for w in
+        ["pdf","word","docx","atividade","exercício","exercicio","worksheet",
+         "activity","exercise","generate","criar arquivo","crie um","make a"])
+    max_tok = 2000 if is_activity else 400
+
     resp = client.messages.create(
-        model="claude-haiku-4-5", max_tokens=400,
+        model="claude-haiku-4-5", max_tokens=max_tok,
         system=SYSTEM_PROMPT + context, messages=api_msgs)
     reply_text = resp.content[0].text
+
+    # Interceptar pedido de geração de arquivo
+    if "<<<GENERATE_FILE>>>" in reply_text:
+        generated = _intercept_file_generation(reply_text, username, conv_id)
+        return generated
+
     tts_b64_str = None
     if tts_available():
         audio_bytes = text_to_speech(reply_text)
@@ -128,6 +250,121 @@ def send_to_claude(username, user, conv_id, text, image_b64=None, image_media_ty
             st.session_state["_tts_audio"] = tts_b64_str
     append_message(username, conv_id, "assistant", reply_text, tts_b64=tts_b64_str)
     return reply_text
+
+
+def _intercept_file_generation(reply_text: str, username: str, conv_id: str) -> str:
+    """Intercepta resposta com <<<GENERATE_FILE>>> e gera o arquivo real."""
+    import json, re, tempfile, os
+    try:
+        match = re.search(r'<<<GENERATE_FILE>>>\s*(\{.*?\})\s*<<<END_FILE>>>', reply_text, re.DOTALL)
+        if not match:
+            append_message(username, conv_id, "assistant", reply_text)
+            return reply_text
+        meta = json.loads(match.group(1))
+        fmt      = meta.get("format","pdf").lower()
+        title    = meta.get("title","Activity")
+        raw_content = meta.get("content","")
+        filename = meta.get("filename", f"activity.{fmt}")
+        if not filename.endswith(f".{fmt}"):
+            filename = f"{filename}.{fmt}"
+
+        # Gerar o arquivo
+        out_dir = Path("data/generated")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / filename
+
+        if fmt == "pdf":
+            _generate_pdf(title, raw_content, out_path)
+        else:
+            _generate_docx(title, raw_content, out_path)
+
+        # Salvar referência no session_state para download
+        with open(out_path, "rb") as f:
+            file_bytes = f.read()
+        b64_file = base64.b64encode(file_bytes).decode()
+        st.session_state["_pending_download"] = {
+            "b64": b64_file,
+            "filename": filename,
+            "mime": "application/pdf" if fmt == "pdf" else
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        }
+
+        display_msg = f"📎 Arquivo gerado: **{filename}**\n\n_{title}_\n\nClique em **⬇ Baixar arquivo** abaixo para salvar."
+        append_message(username, conv_id, "assistant", display_msg, is_file=True)
+        return display_msg
+
+    except Exception as e:
+        err = f"Desculpe, não consegui gerar o arquivo: {e}"
+        append_message(username, conv_id, "assistant", err)
+        return err
+
+
+def _generate_pdf(title: str, content: str, out_path: Path):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+
+    doc = SimpleDocTemplate(str(out_path), pagesize=A4,
+        leftMargin=2.5*cm, rightMargin=2.5*cm, topMargin=2.5*cm, bottomMargin=2.5*cm)
+    styles = getSampleStyleSheet()
+    story = []
+
+    title_style = ParagraphStyle("t", parent=styles["Title"],
+        fontSize=18, spaceAfter=6, textColor=colors.HexColor("#1a1a2e"), alignment=TA_CENTER)
+    sub_style   = ParagraphStyle("s", parent=styles["Normal"],
+        fontSize=9, textColor=colors.HexColor("#888888"), alignment=TA_CENTER, spaceAfter=14)
+    body_style  = ParagraphStyle("b", parent=styles["Normal"],
+        fontSize=11, leading=18, spaceAfter=8)
+
+    story.append(Paragraph(title, title_style))
+    story.append(Paragraph(f"Teacher {PROF_NAME}", sub_style))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#f0a500")))
+    story.append(Spacer(1, 0.4*cm))
+
+    for line in content.split("\\n"):
+        if line.strip():
+            story.append(Paragraph(line.strip(), body_style))
+        else:
+            story.append(Spacer(1, 0.2*cm))
+
+    doc.build(story)
+
+
+def _generate_docx(title: str, content: str, out_path: Path):
+    from docx import Document
+    from docx.shared import Pt, RGBColor, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    doc = Document()
+    # Margens
+    for sec in doc.sections:
+        sec.top_margin = Cm(2.5); sec.bottom_margin = Cm(2.5)
+        sec.left_margin = Cm(2.5); sec.right_margin = Cm(2.5)
+
+    # Título
+    h = doc.add_heading(title, 0)
+    h.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    for run in h.runs:
+        run.font.color.rgb = RGBColor(0x1a,0x1a,0x2e)
+
+    sub = doc.add_paragraph(f"Teacher {PROF_NAME}")
+    sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    sub.runs[0].font.size = Pt(9)
+    sub.runs[0].font.color.rgb = RGBColor(0x88,0x88,0x88)
+
+    doc.add_paragraph()  # espaço
+
+    for line in content.split("\\n"):
+        if line.strip():
+            p = doc.add_paragraph(line.strip())
+            p.style.font.size = Pt(11)
+        else:
+            doc.add_paragraph()
+
+    doc.save(str(out_path))
 
 def js_save_user(u):
     components.html(f"<script>localStorage.setItem('pav_user','{u}');</script>", height=0)
@@ -196,309 +433,190 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# LOGIN — widgets nativos Streamlit + CSS customizado
+# LOGIN — moderno e profissional
 # ══════════════════════════════════════════════════════════════════════════════
 def show_login():
-    # CSS específico da tela de login
-    st.markdown("""
-<style>
-/* Esconde elementos padrão do Streamlit na tela de login */
-[data-testid="stSidebar"]         { display: none !important; }
-[data-testid="stHeader"]          { display: none !important; }
-[data-testid="stToolbar"]         { display: none !important; }
-[data-testid="stDecoration"]      { display: none !important; }
-footer                            { display: none !important; }
-.stApp > div:first-child          { padding: 0 !important; }
-
-/* Centraliza o conteúdo */
-.login-outer {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #080c12;
-  position: relative;
-  overflow: hidden;
-  padding: 20px;
-}
-
-/* Orbs de fundo */
-.login-outer::before {
-  content: '';
-  position: fixed;
-  width: 500px; height: 500px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(240,165,0,.12), transparent 70%);
-  top: -120px; right: -100px;
-  animation: drift 12s ease-in-out infinite alternate;
-  pointer-events: none;
-}
-.login-outer::after {
-  content: '';
-  position: fixed;
-  width: 400px; height: 400px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(224,92,42,.10), transparent 70%);
-  bottom: -100px; left: -80px;
-  animation: drift 12s ease-in-out infinite alternate-reverse;
-  pointer-events: none;
-}
-@keyframes drift {
-  from { transform: translate(0,0) scale(1); }
-  to   { transform: translate(30px,20px) scale(1.08); }
-}
-
-/* Card */
-.login-card {
-  background: #131b28;
-  border: 1px solid #1e2a3a;
-  border-radius: 24px;
-  padding: 40px 36px 32px;
-  width: 100%;
-  max-width: 420px;
-  box-shadow: 0 24px 80px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.03);
-  position: relative;
-  z-index: 1;
-}
-
-/* Avatar */
-.login-avatar-wrap {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-.login-avatar-img {
-  width: 88px; height: 88px;
-  border-radius: 50%;
-  border: 2.5px solid #f0a500;
-  object-fit: cover; object-position: top;
-  box-shadow: 0 0 0 5px rgba(240,165,0,.12), 0 0 32px rgba(240,165,0,.2);
-}
-.login-avatar-emoji {
-  width: 88px; height: 88px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #f0a500, #e05c2a);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 40px;
-  box-shadow: 0 0 0 5px rgba(240,165,0,.12), 0 0 32px rgba(240,165,0,.2);
-}
-
-/* Título */
-.login-title {
-  text-align: center;
-  margin-bottom: 24px;
-}
-.login-title h2 {
-  font-size: 1.5rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, #f0a500, #e05c2a);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin: 0 0 4px;
-}
-.login-title p {
-  font-size: .8rem;
-  color: #7a8899;
-  margin: 0;
-}
-
-/* Tabs customizadas */
-.login-tabs {
-  display: flex;
-  background: rgba(255,255,255,.04);
-  border-radius: 12px;
-  padding: 4px;
-  margin-bottom: 20px;
-}
-.login-tab {
-  flex: 1;
-  text-align: center;
-  padding: 8px;
-  border-radius: 9px;
-  cursor: pointer;
-  font-size: .83rem;
-  font-weight: 600;
-  color: #7a8899;
-  transition: all .2s;
-  border: none;
-  background: none;
-}
-.login-tab.active {
-  background: #0f1520;
-  color: #e6edf3;
-  box-shadow: 0 2px 8px rgba(0,0,0,.3);
-}
-
-/* Streamlit input overrides */
-.stTextInput label {
-  font-size: .72rem !important;
-  color: #7a8899 !important;
-  font-weight: 600 !important;
-  text-transform: uppercase !important;
-  letter-spacing: .8px !important;
-}
-.stTextInput input {
-  background: rgba(255,255,255,.05) !important;
-  border: 1px solid #2a3a50 !important;
-  border-radius: 10px !important;
-  color: #e6edf3 !important;
-  font-family: 'Sora', sans-serif !important;
-  font-size: .88rem !important;
-}
-.stTextInput input:focus {
-  border-color: #f0a500 !important;
-  box-shadow: 0 0 0 3px rgba(240,165,0,.12) !important;
-}
-
-/* Submit button */
-.stForm [data-testid="stFormSubmitButton"] button,
-div[data-testid="stButton"] > button.login-btn {
-  background: linear-gradient(135deg, #f0a500, #e05c2a) !important;
-  border: none !important;
-  border-radius: 12px !important;
-  color: #000 !important;
-  font-weight: 700 !important;
-  font-size: .9rem !important;
-  padding: 12px !important;
-  width: 100% !important;
-  letter-spacing: .3px !important;
-  box-shadow: 0 4px 20px rgba(240,165,0,.25) !important;
-  transition: all .2s !important;
-}
-.stForm [data-testid="stFormSubmitButton"] button:hover {
-  transform: translateY(-1px) !important;
-  box-shadow: 0 6px 28px rgba(240,165,0,.35) !important;
-}
-
-/* Força largura dos forms */
-.login-form-wrap {
-  max-width: 420px;
-  margin: 0 auto;
-}
-
-/* Footer */
-.login-footer {
-  text-align: center;
-  font-size: .7rem;
-  color: #2a3a4a;
-  margin-top: 20px;
-}
-
-/* Oculta o stApp background padrão */
-.stApp { background: #080c12 !important; }
-</style>
-""", unsafe_allow_html=True)
-
-    # ── Controle de aba via session_state ─────────────────────────────────────
+    # ── Controle de aba ───────────────────────────────────────────────────────
     if "_login_tab" not in st.session_state:
         st.session_state["_login_tab"] = "login"
 
-    # ── Cabeçalho visual ──────────────────────────────────────────────────────
-    avatar_tag = (f'<div class="login-avatar-img" style="background:url({PHOTO_B64}) center/cover;border-radius:50%;width:88px;height:88px;border:2.5px solid #f0a500;box-shadow:0 0 0 5px rgba(240,165,0,.12),0 0 32px rgba(240,165,0,.2);margin:0 auto 20px;"></div>'
-                  if PHOTO_B64 else '<div class="login-avatar-emoji" style="width:88px;height:88px;border-radius:50%;background:linear-gradient(135deg,#f0a500,#e05c2a);display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 20px;">🧑‍🏫</div>')
+    # ── CSS global da página de login ─────────────────────────────────────────
+    st.markdown("""<style>
+[data-testid="stSidebar"]    { display:none!important; }
+[data-testid="stHeader"]     { display:none!important; }
+[data-testid="stToolbar"]    { display:none!important; }
+[data-testid="stDecoration"] { display:none!important; }
+footer                       { display:none!important; }
+.stApp                       { background:#060a10!important; }
+.block-container             { padding-top:0!important; max-width:100%!important; }
+section.main > div           { padding:0!important; }
 
-    st.markdown(f"""
-<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#080c12;padding:20px;position:relative;">
-<div style="background:#131b28;border:1px solid #1e2a3a;border-radius:24px;padding:36px 32px 28px;width:100%;max-width:420px;box-shadow:0 24px 80px rgba(0,0,0,.5);position:relative;z-index:1;">
-  {avatar_tag}
-  <div style="text-align:center;margin-bottom:24px;">
-    <h2 style="font-size:1.4rem;font-weight:800;background:linear-gradient(135deg,#f0a500,#e05c2a);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0 0 4px;">{PROF_NAME}</h2>
-    <p style="font-size:.8rem;color:#7a8899;margin:0;">Your personal English practice companion</p>
+.stTextInput label {
+  font-size:.7rem!important; color:#4a5a6a!important;
+  font-weight:700!important; text-transform:uppercase!important;
+  letter-spacing:1px!important;
+}
+.stTextInput input {
+  background:rgba(255,255,255,.04)!important;
+  border:1px solid #1e2a3a!important; border-radius:10px!important;
+  color:#e6edf3!important; font-size:.88rem!important;
+  transition:border-color .2s,box-shadow .2s!important;
+}
+.stTextInput input:focus {
+  border-color:#f0a500!important;
+  box-shadow:0 0 0 3px rgba(240,165,0,.12)!important;
+}
+.stForm [data-testid="stFormSubmitButton"] button {
+  background:linear-gradient(135deg,#f0a500,#e05c2a)!important;
+  border:none!important; border-radius:12px!important;
+  color:#060a10!important; font-weight:800!important;
+  font-size:.9rem!important; padding:14px!important;
+  width:100%!important; letter-spacing:.5px!important;
+  box-shadow:0 4px 24px rgba(240,165,0,.3)!important;
+  transition:all .25s!important; margin-top:8px!important;
+}
+.stForm [data-testid="stFormSubmitButton"] button:hover {
+  transform:translateY(-2px)!important;
+  box-shadow:0 8px 32px rgba(240,165,0,.45)!important;
+}
+div[data-testid="stButton"] button {
+  border-radius:10px!important; font-size:.82rem!important;
+  font-weight:600!important; transition:all .2s!important;
+}
+/* Esconde o "Press Enter to submit form" nativo do Streamlit */
+[data-testid="InputInstructions"] { display:none!important; }
+small[data-testid="InputInstructions"] { display:none!important; }
+</style>""", unsafe_allow_html=True)
+
+    # ── Header visual via components.html (sem comentários HTML que bugam st.markdown) ──
+    avatar_src = PHOTO_B64 if PHOTO_B64 else ""
+    components.html(f"""<!DOCTYPE html><html><head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;700;800&display=swap');
+*{{box-sizing:border-box;margin:0;padding:0;}}
+html,body{{background:#060a10;font-family:'Sora',sans-serif;overflow:hidden;}}
+.bg{{position:fixed;inset:0;background:#060a10;overflow:hidden;}}
+.orb1{{position:absolute;width:560px;height:560px;border-radius:50%;
+       background:radial-gradient(circle,rgba(240,165,0,.12),transparent 70%);
+       top:-160px;right:-120px;animation:d1 14s ease-in-out infinite alternate;}}
+.orb2{{position:absolute;width:420px;height:420px;border-radius:50%;
+       background:radial-gradient(circle,rgba(224,92,42,.09),transparent 70%);
+       bottom:-110px;left:-90px;animation:d2 14s ease-in-out infinite alternate;}}
+.grid{{position:absolute;inset:0;
+       background-image:linear-gradient(rgba(240,165,0,.03) 1px,transparent 1px),
+                        linear-gradient(90deg,rgba(240,165,0,.03) 1px,transparent 1px);
+       background-size:48px 48px;}}
+@keyframes d1{{from{{transform:translate(0,0) scale(1);}}to{{transform:translate(24px,16px) scale(1.06);}}}}
+@keyframes d2{{from{{transform:translate(0,0) scale(1);}}to{{transform:translate(-18px,14px) scale(1.04);}}}}
+.card{{position:relative;z-index:1;background:linear-gradient(180deg,#0f1824,#0a1020);
+       border:1px solid #1a2535;border-radius:24px;
+       padding:36px 32px 28px;width:100%;max-width:440px;margin:0 auto;
+       box-shadow:0 32px 80px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.03);}}
+.wrap{{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}}
+.avatar-img{{width:88px;height:88px;border-radius:50%;
+             object-fit:cover;object-position:top;
+             border:2.5px solid #f0a500;display:block;margin:0 auto 18px;
+             box-shadow:0 0 0 6px rgba(240,165,0,.1),0 0 36px rgba(240,165,0,.22);}}
+.avatar-emoji{{width:88px;height:88px;border-radius:50%;
+               background:linear-gradient(135deg,#f0a500,#e05c2a);
+               display:flex;align-items:center;justify-content:center;
+               font-size:40px;margin:0 auto 18px;
+               box-shadow:0 0 0 6px rgba(240,165,0,.1),0 0 36px rgba(240,165,0,.22);}}
+h2{{font-size:1.55rem;font-weight:800;text-align:center;margin:0 0 5px;
+    background:linear-gradient(135deg,#f0a500 30%,#e05c2a 100%);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;}}
+p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px;}}
+.line{{width:44px;height:2px;background:linear-gradient(90deg,#f0a500,#e05c2a);
+       border-radius:2px;margin:12px auto 0;opacity:.55;}}
+</style></head><body>
+<div class="bg"><div class="orb1"></div><div class="orb2"></div><div class="grid"></div></div>
+<div class="wrap">
+  <div class="card">
+    {"<img class='avatar-img' src='" + avatar_src + "'/>" if avatar_src else "<div class='avatar-emoji'>🧑‍🏫</div>"}
+    <h2>{PROF_NAME}</h2>
+    <p>Your personal English practice companion</p>
+    <div class="line"></div>
   </div>
 </div>
-</div>
-""", unsafe_allow_html=True)
+</body></html>""", height=320, scrolling=False)
 
-    # ── Tabs ──────────────────────────────────────────────────────────────────
-    col_login, col_reg = st.columns(2)
-    with col_login:
-        if st.button("🔑 Entrar", use_container_width=True, key="tab_btn_login",
-                     type="primary" if st.session_state["_login_tab"]=="login" else "secondary"):
-            st.session_state["_login_tab"] = "login"
-            st.rerun()
-    with col_reg:
-        if st.button("✨ Criar Conta", use_container_width=True, key="tab_btn_reg",
-                     type="primary" if st.session_state["_login_tab"]=="reg" else "secondary"):
-            st.session_state["_login_tab"] = "reg"
-            st.rerun()
+    # ── Formulários Streamlit centralizados ───────────────────────────────────
+    _, col, _ = st.columns([1, 2.2, 1])
+    with col:
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("🔑 Entrar", use_container_width=True, key="tab_btn_login",
+                         type="primary" if st.session_state["_login_tab"]=="login" else "secondary"):
+                st.session_state["_login_tab"] = "login"; st.rerun()
+        with c2:
+            if st.button("✨ Criar Conta", use_container_width=True, key="tab_btn_reg",
+                         type="primary" if st.session_state["_login_tab"]=="reg" else "secondary"):
+                st.session_state["_login_tab"] = "reg"; st.rerun()
 
-    # ── Mensagens de feedback ─────────────────────────────────────────────────
-    login_err = st.session_state.pop("_login_err", "")
-    reg_err   = st.session_state.pop("_reg_err",   "")
-    reg_ok    = st.session_state.pop("_reg_ok",    False)
-    reg_name  = st.session_state.pop("_reg_name",  "")
+        st.markdown("<div style='height:2px'></div>", unsafe_allow_html=True)
 
-    if login_err: st.error(f"❌ {login_err}")
-    if reg_err:   st.error(f"❌ {reg_err}")
-    if reg_ok:    st.success(f"✅ Conta criada! Bem-vindo(a), {reg_name}! Faça login.")
+        # ── Feedbacks ─────────────────────────────────────────────────────────
+        login_err = st.session_state.pop("_login_err", "")
+        reg_err   = st.session_state.pop("_reg_err",   "")
+        reg_ok    = st.session_state.pop("_reg_ok",    False)
+        reg_name  = st.session_state.pop("_reg_name",  "")
+        if login_err: st.error(f"❌ {login_err}")
+        if reg_err:   st.error(f"❌ {reg_err}")
+        if reg_ok:    st.success(f"✅ Conta criada! Bem-vindo(a), {reg_name}! Faça login.")
 
-    # ── Formulário de LOGIN ───────────────────────────────────────────────────
-    if st.session_state["_login_tab"] == "login":
-        with st.form("form_login", clear_on_submit=False):
-            u = st.text_input("Username", placeholder="seu.usuario", key="li_u")
-            p = st.text_input("Senha", type="password", placeholder="••••••••", key="li_p")
-            submitted = st.form_submit_button("Entrar →", use_container_width=True)
-            if submitted:
-                if not u or not p:
-                    st.error("❌ Preencha todos os campos.")
-                else:
-                    user = authenticate(u, p)
-                    if user:
-                        st.session_state.update(
-                            logged_in=True,
-                            user={"username": u, **user},
-                            page="dashboard" if user["role"] == "professor" else "chat",
-                            conv_id=None
-                        )
-                        js_save_user(u)
-                        st.rerun()
+        # ── Form LOGIN ────────────────────────────────────────────────────────
+        if st.session_state["_login_tab"] == "login":
+            with st.form("form_login", clear_on_submit=False):
+                u = st.text_input("Username", placeholder="seu.usuario", key="li_u")
+                p = st.text_input("Senha", type="password", placeholder="••••••••", key="li_p")
+                submitted = st.form_submit_button("Entrar →", use_container_width=True)
+                if submitted:
+                    if not u or not p:
+                        st.error("❌ Preencha todos os campos.")
                     else:
-                        st.error("❌ Usuário ou senha incorretos.")
+                        user = authenticate(u, p)
+                        if user:
+                            real_u = user.get("_resolved_username", u.lower())
+                            st.session_state.update(
+                                logged_in=True,
+                                user={"username": real_u, **user},
+                                page="dashboard" if user["role"]=="professor" else "chat",
+                                conv_id=None
+                            )
+                            js_save_user(real_u)
+                            st.rerun()
+                        else:
+                            st.error("❌ Usuário ou senha incorretos.")
 
-    # ── Formulário de REGISTRO ────────────────────────────────────────────────
-    else:
-        with st.form("form_reg", clear_on_submit=False):
-            rn = st.text_input("Nome completo", placeholder="João Silva",     key="r_n")
-            re = st.text_input("E-mail",        placeholder="joao@email.com", key="r_e")
-            ru = st.text_input("Username",       placeholder="joao.silva",    key="r_u")
-            rp = st.text_input("Senha", type="password",
-                               placeholder="mínimo 6 caracteres",             key="r_p")
-            submitted = st.form_submit_button("Criar Conta →", use_container_width=True)
-            if submitted:
-                if not rn or not re or not ru or not rp:
-                    st.error("❌ Preencha todos os campos.")
-                elif "@" not in re:
-                    st.error("❌ E-mail inválido.")
-                elif len(rp) < 6:
-                    st.error("❌ Senha muito curta (mínimo 6 caracteres).")
-                else:
-                    ok, msg = register_student(ru, rn, rp, email=re)
-                    if ok:
-                        components.html(f"""<script>
-const PAV_EMAILJS={{publicKey:'',serviceId:'',templateId:''}};
-if(PAV_EMAILJS.publicKey){{
-  const s=document.createElement('script');
-  s.src='https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js';
-  s.onload=()=>{{
-    emailjs.init(PAV_EMAILJS.publicKey);
-    emailjs.send(PAV_EMAILJS.serviceId,PAV_EMAILJS.templateId,{{
-      to_name:{json.dumps(rn)},to_email:{json.dumps(re)},
-      username:{json.dumps(ru)},app_name:{json.dumps(PROF_NAME)},
-      login_url:window.parent.location.origin
-    }});
-  }};
-  document.head.appendChild(s);
-}}
-</script>""", height=0)
-                        st.session_state["_reg_ok"]   = True
-                        st.session_state["_reg_name"]  = rn
-                        st.session_state["_login_tab"] = "login"
-                        st.rerun()
+        # ── Form REGISTRO ─────────────────────────────────────────────────────
+        else:
+            with st.form("form_reg", clear_on_submit=False):
+                rn = st.text_input("Nome completo", placeholder="João Silva",     key="r_n")
+                re = st.text_input("E-mail",        placeholder="joao@email.com", key="r_e")
+                ru = st.text_input("Username",       placeholder="joao.silva",    key="r_u")
+                rp = st.text_input("Senha", type="password",
+                                   placeholder="mínimo 6 caracteres",             key="r_p")
+                submitted = st.form_submit_button("Criar Conta →", use_container_width=True)
+                if submitted:
+                    if not rn or not re or not ru or not rp:
+                        st.error("❌ Preencha todos os campos.")
+                    elif "@" not in re:
+                        st.error("❌ E-mail inválido.")
+                    elif len(rp) < 6:
+                        st.error("❌ Senha muito curta (mínimo 6 caracteres).")
                     else:
-                        st.error(f"❌ {msg}")
+                        ok, msg = register_student(ru, rn, rp, email=re)
+                        if ok:
+                            st.session_state["_reg_ok"]   = True
+                            st.session_state["_reg_name"]  = rn
+                            st.session_state["_login_tab"] = "login"
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {msg}")
 
-    st.markdown(f'<div style="text-align:center;font-size:.7rem;color:#2a3a4a;margin-top:16px;">© 2025 · {PROF_NAME} · AI English Coach</div>',
-                unsafe_allow_html=True)
+        st.markdown(f'<p style="text-align:center;font-size:.65rem;color:#1a2535;margin-top:16px;">© 2025 · {PROF_NAME} · AI English Coach</p>',
+                    unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -509,22 +627,44 @@ def show_profile():
     username = user["username"]
     profile  = user.get("profile", {})
 
+    # CSS: garante que o file uploader de foto NUNCA seja escondido nesta página
+    st.markdown("""<style>
+[data-testid="stFileUploader"] {
+    position: static !important;
+    top: auto !important; left: auto !important;
+    width: auto !important; height: auto !important;
+    overflow: visible !important; opacity: 1 !important;
+    pointer-events: auto !important;
+}
+[data-testid="stFileUploaderDropzone"] {
+    display: flex !important; visibility: visible !important;
+}
+</style>""", unsafe_allow_html=True)
+
     st.markdown("## ⚙️ Configurações do Perfil")
     st.markdown("---")
 
+    is_prof = user.get("role") == "professor"
+
+    # Listas de nivel e foco — professora tem opcoes extras
+    level_opts = ["False Beginner","Pre-Intermediate","Intermediate","Business English","Advanced","Native"]
+    focus_opts  = ["General Conversation","Sports & Games","Business & News","Series & Pop Culture","Teaching"]
+
+    # Valor seguro para index (evita ValueError se valor nao esta na lista)
+    def safe_index(lst, val, default=0):
+        try: return lst.index(val)
+        except ValueError: return default
+
     tab_geral, tab_pers, tab_conta = st.tabs(["🎨 Geral", "🧠 Personalização", "👤 Conta"])
 
-    # ── ABA GERAL ─────────────────────────────────────────────────────────────
     with tab_geral:
         st.markdown("### Aparência")
         col1, col2 = st.columns(2)
         with col1:
             theme = st.selectbox("Tema", ["dark","light","system"],
-                index=["dark","light","system"].index(profile.get("theme","dark")),
-                key="pf_theme")
-            lang = st.selectbox("Idioma da interface", ["pt-BR","en-US","en-GB"],
-                index=["pt-BR","en-US","en-GB"].index(profile.get("language","pt-BR")),
-                key="pf_lang")
+                index=safe_index(["dark","light","system"], profile.get("theme","dark")), key="pf_theme")
+            lang = st.selectbox("Idioma da interface", ["pt-BR","en-US","en-UK"],
+                index=safe_index(["pt-BR","en-US","en-UK"], profile.get("language","pt-BR")), key="pf_lang")
         with col2:
             accent = st.color_picker("Cor de destaque",
                 value=profile.get("accent_color","#f0a500"), key="pf_accent")
@@ -534,88 +674,115 @@ def show_profile():
         with col3:
             voice_lang = st.selectbox("Idioma da transcrição (Whisper)",
                 ["en","pt","es","fr","de"],
-                index=["en","pt","es","fr","de"].index(profile.get("voice_lang","en")),
-                key="pf_vlang")
+                index=safe_index(["en","pt","es","fr","de"], profile.get("voice_lang","en")), key="pf_vlang")
         with col4:
             speech_lang = st.selectbox("Sotaque (Text-to-Speech fallback)",
-                ["en-US","en-GB","pt-BR"],
-                index=["en-US","en-GB","pt-BR"].index(profile.get("speech_lang","en-US")),
-                key="pf_slang")
+                ["en-US","en-UK","pt-BR"],
+                index=safe_index(["en-US","en-UK","pt-BR"], profile.get("speech_lang","en-US")), key="pf_slang")
 
         if st.button("💾 Salvar Geral", key="save_geral"):
-            update_profile(username, {
-                "theme": theme, "language": lang,
-                "accent_color": accent,
-                "voice_lang": voice_lang, "speech_lang": speech_lang,
-            })
-            # Atualiza session_state
+            update_profile(username, {"theme": theme, "language": lang,
+                "accent_color": accent, "voice_lang": voice_lang, "speech_lang": speech_lang})
             u = load_students().get(username, {})
             st.session_state.user = {"username": username, **u}
             st.success("✅ Configurações salvas!")
 
-    # ── ABA PERSONALIZAÇÃO ────────────────────────────────────────────────────
     with tab_pers:
         st.markdown("### Sobre Você")
         col1, col2 = st.columns(2)
         with col1:
-            nickname   = st.text_input("Apelido (como a IA te chama)",
-                value=profile.get("nickname",""), key="pf_nick")
-            occupation = st.text_input("Ocupação",
-                value=profile.get("occupation",""), placeholder="ex: Desenvolvedor, Estudante",
-                key="pf_occ")
+            nickname   = st.text_input("Apelido", value=profile.get("nickname",""), key="pf_nick")
+            occupation = st.text_input("Ocupação", value=profile.get("occupation",""),
+                placeholder="ex: Professora, Desenvolvedor", key="pf_occ")
         with col2:
-            level = st.selectbox("Nível de inglês",
-                ["False Beginner","Pre-Intermediate","Intermediate","Business English"],
-                index=["False Beginner","Pre-Intermediate","Intermediate","Business English"]
-                      .index(user.get("level","False Beginner")),
-                key="pf_level")
-            focus = st.selectbox("Foco das aulas",
-                ["General Conversation","Sports & Games","Business & News","Series & Pop Culture"],
-                index=["General Conversation","Sports & Games","Business & News","Series & Pop Culture"]
-                      .index(user.get("focus","General Conversation")),
-                key="pf_focus")
+            # Professora vê lista expandida de níveis
+            level = st.selectbox("Nível de inglês", level_opts,
+                index=safe_index(level_opts, user.get("level","False Beginner")), key="pf_level")
+            focus = st.selectbox("Foco", focus_opts,
+                index=safe_index(focus_opts, user.get("focus","General Conversation")), key="pf_focus")
 
-        st.markdown("### Estilo da IA")
-        col3, col4 = st.columns(2)
-        with col3:
-            ai_style = st.selectbox("Tom das conversas",
-                ["Warm & Encouraging","Formal & Professional","Fun & Casual","Strict & Direct"],
-                index=["Warm & Encouraging","Formal & Professional","Fun & Casual","Strict & Direct"]
-                      .index(profile.get("ai_style","Warm & Encouraging")),
-                key="pf_aistyle")
-        with col4:
-            ai_tone = st.selectbox("Papel da IA",
-                ["Teacher","Conversation Partner","Tutor","Business Coach"],
-                index=["Teacher","Conversation Partner","Tutor","Business Coach"]
-                      .index(profile.get("ai_tone","Teacher")),
-                key="pf_aitone")
-
-        custom = st.text_area("Instruções personalizadas para a IA",
-            value=profile.get("custom_instructions",""),
-            placeholder="ex: Sempre me corrija quando eu errar o Past Simple. Use exemplos de tecnologia.",
-            height=100, key="pf_custom")
+        # Campos de IA só para alunos
+        if not is_prof:
+            st.markdown("### Estilo da IA")
+            col3, col4 = st.columns(2)
+            ai_style_opts = ["Warm & Encouraging","Formal & Professional","Fun & Casual","Strict & Direct"]
+            ai_tone_opts  = ["Teacher","Conversation Partner","Tutor","Business Coach"]
+            with col3:
+                ai_style = st.selectbox("Tom das conversas", ai_style_opts,
+                    index=safe_index(ai_style_opts, profile.get("ai_style","Warm & Encouraging")), key="pf_aistyle")
+            with col4:
+                ai_tone = st.selectbox("Papel da IA", ai_tone_opts,
+                    index=safe_index(ai_tone_opts, profile.get("ai_tone","Teacher")), key="pf_aitone")
+            custom = st.text_area("Instruções personalizadas para a IA",
+                value=profile.get("custom_instructions",""),
+                placeholder="ex: Sempre me corrija quando eu errar o Past Simple.",
+                height=100, key="pf_custom")
+        else:
+            ai_style = profile.get("ai_style","Warm & Encouraging")
+            ai_tone  = profile.get("ai_tone","Teacher")
+            custom   = profile.get("custom_instructions","")
 
         if st.button("💾 Salvar Personalização", key="save_pers"):
-            update_profile(username, {
-                "nickname": nickname, "occupation": occupation,
-                "ai_style": ai_style, "ai_tone": ai_tone,
-                "custom_instructions": custom,
-                "level": level, "focus": focus,
-            })
+            update_profile(username, {"nickname": nickname, "occupation": occupation,
+                "ai_style": ai_style, "ai_tone": ai_tone, "custom_instructions": custom,
+                "level": level, "focus": focus})
             u = load_students().get(username, {})
             st.session_state.user = {"username": username, **u}
             st.success("✅ Perfil salvo!")
 
-    # ── ABA CONTA ─────────────────────────────────────────────────────────────
     with tab_conta:
+        # ── Foto de perfil ────────────────────────────────────────────────────
+        st.markdown("### 📸 Foto de Perfil")
+        cur_avatar = get_user_avatar_b64(username)
+        MAX_BYTES  = 15 * 1024 * 1024  # 15 MB
+
+        col_av, col_btns = st.columns([1, 3])
+        with col_av:
+            if cur_avatar:
+                st.markdown(
+                    f'<div style="width:88px;height:88px;border-radius:50%;'
+                    f'background:url({cur_avatar}) center/cover;'
+                    f'border:2.5px solid #f0a500;'
+                    f'box-shadow:0 0 0 4px rgba(240,165,0,.15);"></div>',
+                    unsafe_allow_html=True)
+            else:
+                st.markdown(
+                    '<div style="width:88px;height:88px;border-radius:50%;'
+                    'background:linear-gradient(135deg,#1e2a3a,#2a3a50);'
+                    'display:flex;align-items:center;justify-content:center;'
+                    'font-size:36px;border:2px solid #30363d;">🎓</div>',
+                    unsafe_allow_html=True)
+        with col_btns:
+            photo_file = st.file_uploader(
+                "Alterar foto — JPG, PNG ou WEBP (máx 15 MB)",
+                type=["jpg","jpeg","png","webp"],
+                key="pf_photo_upload")
+            if photo_file:
+                file_id = f"{photo_file.name}_{photo_file.size}"
+                if st.session_state.get("_last_photo_saved") != file_id:
+                    raw_photo = photo_file.read()
+                    if len(raw_photo) > MAX_BYTES:
+                        st.error("❌ Foto muito grande. Máximo 15 MB.")
+                    else:
+                        suffix = Path(photo_file.name).suffix.lstrip(".")
+                        save_user_avatar(username, raw_photo, suffix)
+                        st.session_state["_last_photo_saved"] = file_id
+                        st.success("✅ Foto salva! Ela aparecerá no chat.")
+            if cur_avatar:
+                if st.button("🗑️ Remover foto", key="pf_remove_photo"):
+                    remove_user_avatar(username)
+                    st.session_state.pop("_last_photo_saved", None)
+                    st.success("Foto removida.")
+                    st.rerun()
+
+        st.markdown("---")
+        # ── Informações básicas ───────────────────────────────────────────────
         st.markdown("### Informações da Conta")
         col1, col2 = st.columns(2)
         with col1:
-            full_name = st.text_input("Nome completo",
-                value=user.get("name",""), key="pf_fname")
+            full_name = st.text_input("Nome completo", value=user.get("name",""), key="pf_fname")
         with col2:
-            email = st.text_input("E-mail",
-                value=user.get("email",""), key="pf_email")
+            email = st.text_input("E-mail", value=user.get("email",""), key="pf_email")
 
         st.markdown(f"**Username:** `{username}`")
         st.markdown(f"**Conta criada em:** {user.get('created_at','')[:10]}")
@@ -627,6 +794,7 @@ def show_profile():
             st.success("✅ Dados atualizados!")
 
         st.markdown("---")
+        # ── Alterar senha ─────────────────────────────────────────────────────
         st.markdown("### Alterar Senha")
         col3, col4 = st.columns(2)
         with col3:
@@ -640,19 +808,21 @@ def show_profile():
             elif new_pw != conf_pw:
                 st.error("As senhas não coincidem.")
             else:
-                from database import update_password
                 update_password(username, new_pw)
                 st.success("✅ Senha alterada!")
 
-    if st.button("← Voltar ao Chat", key="back_chat"):
-        st.session_state.page = "chat"
-        st.rerun()
+    st.markdown("---")
+    # Botão de voltar — professora vai ao dashboard, aluno vai ao chat
+    back_label = "← Voltar ao Dashboard" if is_prof else "← Voltar ao Chat"
+    back_page  = "dashboard" if is_prof else "chat"
+    if st.button(back_label, key="back_chat"):
+        st.session_state.page = back_page; st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MODO CONVERSA
+# MODO CONVERSA (Voice Mode)
 # ══════════════════════════════════════════════════════════════════════════════
-def _vm_process_audio(raw: bytes, lang: str) -> None:
+def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
     txt = transcribe_bytes(raw, suffix=".webm", language=lang)
     if not txt or txt.startswith("❌") or txt.startswith("⚠️"):
         st.session_state["_vm_error"] = txt or "Não entendi. Tente novamente."
@@ -662,6 +832,7 @@ def _vm_process_audio(raw: bytes, lang: str) -> None:
         st.session_state["_vm_error"] = "❌ ANTHROPIC_API_KEY não configurada."
         return
     user    = st.session_state.user
+    username = user["username"]
     history = st.session_state.get("_vm_history", [])
     context = f"\n\nStudent: Name={user['name']}, Level={user['level']}, Focus={user['focus']}."
     history.append({"role":"user","content":txt})
@@ -678,14 +849,20 @@ def _vm_process_audio(raw: bytes, lang: str) -> None:
         if ab: tts_b64 = base64.b64encode(ab).decode()
     st.session_state["_vm_reply"]   = reply
     st.session_state["_vm_tts_b64"] = tts_b64
+    # Salvar no histórico da conversa em tempo real
+    append_message(username, conv_id, "user",      txt,   audio=True)
+    append_message(username, conv_id, "assistant", reply, tts_b64=tts_b64 or None)
 
 
 def show_voice_mode():
     user     = st.session_state.user
+    username = user["username"]
     profile  = user.get("profile", {})
-    # Idioma vem do perfil do usuário
     whisper_lang    = profile.get("voice_lang",  "en")
     speech_lang_val = profile.get("speech_lang", "en-US")
+
+    # Garante que há uma conversa ativa para salvar o histórico de voz
+    conv_id = get_or_create_conv(username)
 
     if st.button("✕ Fechar Modo Voz", key="close_voice_inner"):
         st.session_state.voice_mode = False
@@ -694,15 +871,8 @@ def show_voice_mode():
             st.session_state.pop(k, None)
         st.rerun()
 
-    # Esconde file uploader VISUALMENTE — sem pointer-events:none (JS precisa injetar no input)
-    st.markdown("""<style>
-[data-testid="stFileUploader"]{
-  position:fixed!important;top:-9999px!important;left:-9999px!important;
-  width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;
-}
-</style>""", unsafe_allow_html=True)
-
-    # Recebe áudio
+    # CSS: esconde APENAS o uploader oculto do voice mode usando nth-of-type via wrapper
+    # O wrapper .vm-audio-hidden é injetado via JS após o render para não afetar outros uploaders
     audio_upload = st.file_uploader(
         "vm_audio", key="vm_audio_upload", label_visibility="collapsed",
         type=["webm","wav","ogg","mp4","m4a"])
@@ -712,7 +882,7 @@ def show_voice_mode():
             st.session_state["_vm_last_upload"] = uid
             for k in ["_vm_reply","_vm_tts_b64","_vm_user_said","_vm_error"]:
                 st.session_state.pop(k, None)
-            _vm_process_audio(audio_upload.read(), whisper_lang)
+            _vm_process_audio(audio_upload.read(), whisper_lang, conv_id)
             st.rerun()
 
     user_said = st.session_state.get("_vm_user_said", "")
@@ -883,14 +1053,12 @@ async function startRec(){{
   analyser=audioCtx.createAnalyser(); analyser.fftSize=512;
   audioCtx.createMediaStreamSource(micStream).connect(analyser);
 
-  // Escolhe o melhor formato disponível
   const mime=['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg']
              .find(m=>MediaRecorder.isTypeSupported(m))||'';
-
   try{{
     mediaRec=new MediaRecorder(micStream,mime?{{mimeType:mime}}:{{}});
   }}catch(e){{
-    mediaRec=new MediaRecorder(micStream);  // fallback sem options
+    mediaRec=new MediaRecorder(micStream);
   }}
   chunks=[];
   mediaRec.ondataavailable=e=>{{ if(e.data&&e.data.size>0) chunks.push(e.data); }};
@@ -918,40 +1086,33 @@ function stopRec(){{
 
 function uploadAudio(blob){{
   if(blob.size<1500){{ resetToIdle(); return; }}
-
   const par=window.parent.document;
-
-  // Injeta CSS de ocultação visual (NUNCA pointer-events:none no container)
+  // Esconde apenas audio (não stFileUploader — o de foto precisa aparecer no perfil)
   if(!par.getElementById('vm-hide-css')){{
     const s=par.createElement('style'); s.id='vm-hide-css';
-    s.textContent=`
-      [data-testid="stFileUploader"]{{
-        position:fixed!important;top:-9999px!important;left:-9999px!important;
-        width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;
-      }}
-      audio{{display:none!important;}}
-      [data-testid="stStatusWidget"],.stSpinner,[data-testid="stSpinner"]{{display:none!important;}}
-    `;
+    s.textContent=`audio{{display:none!important;}}`;
     par.head.appendChild(s);
   }}
-
-  // Retry até 8x (300ms entre tentativas) — DOM pode ainda estar montando
   function tryInject(attempt){{
     let input=par.querySelector('[data-testid="stFileUploader"] input[type="file"]')
            || par.querySelector('[data-testid="stFileUploaderDropzone"] input[type="file"]')
-           || par.querySelector('section[data-testid="stFileUploader"] input')
            || Array.from(par.querySelectorAll('input[type="file"]')).find(i=>i.accept&&i.accept.includes('webm'));
-
     if(!input){{
       if(attempt<8){{ setTimeout(()=>tryInject(attempt+1),300); return; }}
       showErr('Mic input não encontrado — recarregue a página.');
       resetToIdle(); return;
     }}
-
-    // Força pointer-events no input e pai imediato
+    // Esconde o widget inteiro do vm_audio_upload
+    let uploaderWidget = input;
+    for(let i=0;i<6;i++){{
+      if(uploaderWidget && uploaderWidget.getAttribute && uploaderWidget.getAttribute('data-testid')==='stFileUploader'){{ break; }}
+      if(uploaderWidget) uploaderWidget=uploaderWidget.parentElement;
+    }}
+    if(uploaderWidget && uploaderWidget.getAttribute && uploaderWidget.getAttribute('data-testid')==='stFileUploader'){{
+      uploaderWidget.style.cssText='position:fixed!important;top:-9999px!important;left:-9999px!important;width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;';
+    }}
     input.style.cssText+='pointer-events:auto!important;';
     if(input.parentElement) input.parentElement.style.pointerEvents='auto';
-
     const ext=blob.type.includes('ogg')?'ogg':(blob.type.includes('mp4')?'mp4':'webm');
     const file=new File([blob],`vm_${{Date.now()}}.${{ext}}`,{{type:blob.type||'audio/webm'}});
     const dt=new DataTransfer(); dt.items.add(file);
@@ -1005,6 +1166,83 @@ window.addEventListener('load',()=>{{
 # ══════════════════════════════════════════════════════════════════════════════
 # CHAT
 # ══════════════════════════════════════════════════════════════════════════════
+def _process_and_send_file(username, user, conv_id, raw, filename, extra_text=""):
+    """
+    Processa um arquivo e envia para o Claude, com texto adicional opcional.
+    Retorna True se foi processado com sucesso.
+    """
+    result = extract_file(raw, filename)
+    kind, label = result["kind"], result["label"]
+
+    if kind == "audio":
+        with st.spinner("🔄 Transcrevendo áudio..."):
+            text = transcribe_bytes(raw, suffix=Path(filename).suffix.lower(), language="en")
+        if text.startswith("❌") or text.startswith("⚠️"):
+            st.error(text)
+            return False
+        # ✅ SEM emoji de microfone — apenas o texto transcrito limpo
+        user_display = text
+        if extra_text:
+            user_display = f"{extra_text}\n\n[Áudio transcrito: {text}]"
+        append_message(username, conv_id, "user", user_display, audio=True)
+        claude_msg = f"[Áudio: '{filename}']\n{text}"
+        if extra_text:
+            claude_msg = f"{extra_text}\n\n[Áudio: '{filename}']\n{text}"
+        st.session_state.speaking = True
+        try:
+            send_to_claude(username, user, conv_id, claude_msg)
+        except Exception as e:
+            st.error(f"❌ {e}")
+        st.session_state.speaking = False
+        return True
+
+    elif kind == "text":
+        extracted = result["text"]
+        if extracted.startswith("❌"):
+            st.error(extracted)
+            return False
+        if not extracted:
+            st.warning(f"Sem texto em '{filename}'.")
+            return False
+        preview = extracted[:200].replace('\n', ' ')
+        user_display = f"📄 [{label}: '{filename}'] — {preview}{'…' if len(extracted) > 200 else ''}"
+        if extra_text:
+            user_display = f"{extra_text}\n\n{user_display}"
+        append_message(username, conv_id, "user", user_display)
+        claude_msg = (f"📄 [{label}: '{filename}']\n\n{extracted}\n\n"
+                      "Please help me understand this content — explain vocabulary, grammar, and key ideas.")
+        if extra_text:
+            claude_msg = f"{extra_text}\n\n{claude_msg}"
+        st.session_state.speaking = True
+        try:
+            send_to_claude(username, user, conv_id, claude_msg)
+        except Exception as e:
+            st.error(f"❌ {e}")
+        st.session_state.speaking = False
+        return True
+
+    elif kind == "image":
+        user_display = f"📸 [Imagem: '{filename}']"
+        if extra_text:
+            user_display = f"{extra_text}\n\n{user_display}"
+        append_message(username, conv_id, "user", user_display)
+        claude_msg = f"📸 [Imagem: '{filename}']\nPlease look at this image and help me learn English from it."
+        if extra_text:
+            claude_msg = f"{extra_text}\n\n{claude_msg}"
+        st.session_state.speaking = True
+        try:
+            send_to_claude(username, user, conv_id, claude_msg,
+                           image_b64=result["b64"], image_media_type=result["media_type"])
+        except Exception as e:
+            st.error(f"❌ {e}")
+        st.session_state.speaking = False
+        return True
+
+    else:
+        st.warning(f"⚠️ Formato '{label}' não suportado.")
+        return False
+
+
 def show_chat():
     user     = st.session_state.user
     username = user["username"]
@@ -1016,57 +1254,127 @@ def show_chat():
         show_voice_mode()
         return
 
+    # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
-        st.markdown(f"""<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-            {avatar_html(44)}<div>
-            <div style="font-weight:600;font-size:.9rem;">{PROF_NAME}</div>
-            <div style="font-size:.7rem;color:#8b949e;"><span class="status-dot"></span>Online</div>
-            </div></div><hr style="border-color:#30363d;margin:6px 0 12px">""",
-            unsafe_allow_html=True)
+        # ── CSS sidebar estilo ChatGPT ────────────────────────────────────────
+        st.markdown("""<style>
+        section[data-testid="stSidebar"] { overflow: hidden; }
+        section[data-testid="stSidebar"] > div:first-child {
+            height: 100vh; display: flex; flex-direction: column;
+            padding: 0 !important; gap: 0;
+        }
+        div.sidebar-footer { margin-top: auto; }
+        </style>""", unsafe_allow_html=True)
 
-        user_msgs = len([m for m in messages if m["role"]=="user"])
-        st.markdown(f"""<div style="background:#0d1117;border:1px solid #30363d;border-radius:8px;
-            padding:10px 12px;margin-bottom:10px;font-size:.82rem;">
-            <div style="color:#8b949e;font-size:.68rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">
-                👤 {user['name'].split()[0]} · {user['level']}</div>
-            <div style="display:flex;justify-content:space-between;padding:2px 0;">
-                <span>Msgs hoje</span>
-                <span style="color:#f0a500;font-family:'JetBrains Mono',monospace">{user_msgs}</span>
-            </div></div>""", unsafe_allow_html=True)
+        # ── Topo: professora ──────────────────────────────────────────────────
+        st.markdown(f"""<div style="padding:14px 14px 10px;border-bottom:1px solid #21262d;flex-shrink:0;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                {avatar_html(40)}<div>
+                <div style="font-weight:600;font-size:.88rem;">{PROF_NAME}</div>
+                <div style="font-size:.68rem;color:#8b949e;"><span class="status-dot"></span>Online</div>
+                </div></div></div>""", unsafe_allow_html=True)
 
-        if st.button("🎙️ Modo Conversa", use_container_width=True, key="btn_voice"):
+        if st.button("➕  Nova conversa", use_container_width=True, key="btn_new"):
+            st.session_state.conv_id = new_conversation(username); st.rerun()
+        if st.button("🎙️  Modo Conversa", use_container_width=True, key="btn_voice"):
             st.session_state.voice_mode = True; st.rerun()
 
-        st.markdown("""<div style="font-size:.72rem;color:#8b949e;text-transform:uppercase;
-            letter-spacing:1px;margin-bottom:8px;">🕘 Conversas</div>""", unsafe_allow_html=True)
-
-        if st.button("➕ Nova conversa", use_container_width=True, key="btn_new"):
-            st.session_state.conv_id = new_conversation(username); st.rerun()
+        # ── Histórico rolável ─────────────────────────────────────────────────
+        st.markdown('<div style="font-size:.68rem;color:#8b949e;text-transform:uppercase;'
+                    'letter-spacing:1px;padding:10px 4px 4px;">Conversas</div>',
+                    unsafe_allow_html=True)
 
         convs = list_conversations(username)
         if not convs:
-            st.markdown('<div style="font-size:.78rem;color:#8b949e;padding:6px 2px;">Nenhuma conversa ainda.</div>',
+            st.markdown('<div style="font-size:.78rem;color:#8b949e;padding:6px 4px;">Nenhuma conversa ainda.</div>',
                         unsafe_allow_html=True)
         for c in convs:
             is_active = c["id"] == conv_id
-            prefix = "▶ " if is_active else ""
-            if st.button(f"{prefix}{c['title']}", key=f"conv_{c['id']}",
-                         use_container_width=True,
-                         help=f"📅 {c['date']} · 💬 {c['count']} msgs"):
-                st.session_state.conv_id = c["id"]; st.rerun()
-            st.markdown(f'<div style="font-size:.65rem;color:#8b949e;margin:-10px 0 4px 4px;">'
+            label = ("▶ " if is_active else "") + c["title"]
+            col_conv, col_del = st.columns([5, 1])
+            with col_conv:
+                if st.button(label, key=f"conv_{c['id']}",
+                             use_container_width=True, help=f"📅 {c['date']} · 💬 {c['count']} msgs"):
+                    st.session_state.conv_id = c["id"]; st.rerun()
+            with col_del:
+                if st.button("🗑", key=f"del_{c['id']}", help="Excluir conversa"):
+                    delete_conversation(username, c["id"])
+                    if st.session_state.conv_id == c["id"]:
+                        st.session_state.conv_id = None
+                    st.rerun()
+            st.markdown(f'<div style="font-size:.62rem;color:#6e7681;margin:-10px 0 2px 6px;">'
                         f'📅 {c["date"]} · 💬 {c["count"]} msg</div>', unsafe_allow_html=True)
 
-        st.markdown("<hr style='border-color:#30363d;margin:10px 0'>", unsafe_allow_html=True)
-        if user["role"]=="professor":
-            if st.button("📊 Painel", use_container_width=True):
-                st.session_state.page="dashboard"; st.rerun()
-        if st.button("⚙️ Perfil", use_container_width=True, key="btn_profile"):
-            st.session_state.page="profile"; st.rerun()
-        if st.button("🚪 Sair", use_container_width=True):
-            js_clear_user()
-            st.session_state.update(logged_in=False, user=None, conv_id=None); st.rerun()
+        # ── Rodapé fixo ───────────────────────────────────────────────────────
+        user_msgs   = len([m for m in messages if m["role"]=="user"])
+        uav_sidebar = user_avatar_html(username, size=34, fallback_emoji="🎓")
+        st.markdown('<div class="sidebar-footer">', unsafe_allow_html=True)
+        st.markdown("<hr style='border-color:#21262d;margin:8px 0 0'>", unsafe_allow_html=True)
+        st.markdown(f"""<div style="padding:8px 12px;display:flex;align-items:center;gap:10px;">
+            {uav_sidebar}
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:.82rem;white-space:nowrap;
+                overflow:hidden;text-overflow:ellipsis;">{user['name'].split()[0]}</div>
+              <div style="color:#8b949e;font-size:.68rem;">{user['level']} · {user_msgs} msgs</div>
+            </div></div>""", unsafe_allow_html=True)
 
+        # Botões do rodapé em 2 colunas (ou 3 se professor)
+        if user["role"] == "professor":
+            col_a, col_b = st.columns(2)
+            with col_a:
+                if st.button("📊 Painel", use_container_width=True, key="btn_dash", help="Painel"):
+                    st.session_state.page = "dashboard"; st.rerun()
+            with col_b:
+                if st.button("⚙️ Perfil", use_container_width=True, key="btn_profile", help="Perfil"):
+                    st.session_state.page = "profile"; st.rerun()
+            if st.button("🚪 Sair", use_container_width=True, key="btn_sair"):
+                js_clear_user()
+                st.session_state.update(logged_in=False, user=None, conv_id=None); st.rerun()
+        else:
+            col_a, col_b = st.columns(2)
+            with col_a:
+                if st.button("⚙️ Perfil", use_container_width=True, key="btn_profile"):
+                    st.session_state.page = "profile"; st.rerun()
+            with col_b:
+                if st.button("🚪 Sair", use_container_width=True, key="btn_sair"):
+                    js_clear_user()
+                    st.session_state.update(logged_in=False, user=None, conv_id=None); st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── CSS responsivo: chat input compacto + layout se ajusta à sidebar ────────
+    st.markdown("""<style>
+/* ── Chat input compacto e fixo no fundo ──────────────────────────── */
+[data-testid="stChatInput"] textarea {
+    max-height: 120px !important;
+    min-height: 44px !important;
+    font-size: .88rem !important;
+}
+[data-testid="stChatInputContainer"] {
+    padding: 6px 10px !important;
+}
+/* Espaço extra no fundo para não cobrir o último balão */
+.main .block-container { padding-bottom: 80px !important; }
+
+/* ── Responsivo: main area acompanha a sidebar automaticamente ────── */
+/* O Streamlit já faz isso via CSS vars — garantir que nada quebre */
+section[data-testid="stMain"] {
+    transition: margin-left .3s ease !important;
+}
+
+/* ── Mobile: sidebar some, conteúdo ocupa tela toda ──────────────── */
+@media (max-width: 768px) {
+    .main .block-container { padding: 0 8px 80px !important; }
+    [data-testid="stChatInput"] textarea { font-size: .82rem !important; }
+    div.bubble { max-width: 90% !important; font-size: .82rem !important; }
+    div.prof-header h1 { font-size: 1rem !important; }
+}
+@media (max-width: 480px) {
+    div.bubble { max-width: 96% !important; }
+    [data-testid="stChatInput"] textarea { font-size: .78rem !important; }
+}
+</style>""", unsafe_allow_html=True)
+
+    # ── Header ────────────────────────────────────────────────────────────────
     st.markdown(f"""<div class="prof-header">
         {avatar_html(56, speaking)}
         <div class="prof-info">
@@ -1074,168 +1382,296 @@ def show_chat():
             <p><span class="status-dot"></span>Online · {user['level']} · {user['focus']}</p>
         </div></div>""", unsafe_allow_html=True)
 
+    # ── Mensagem de boas-vindas ───────────────────────────────────────────────
     if not messages:
-        name_display = user.get("profile",{}).get("nickname","") or user['name'].split()[0]
-        greeting = (f"Hey, {name_display}! 👋 Great to see you!\n\n"
-                    f"Ready to practice? **What have you been up to lately?** "
-                    f"Tell me in English — no worries about mistakes! 😊")
-        append_message(username, conv_id, "assistant", greeting)
-        messages = load_conversation(username, conv_id)
+        name_display = user.get("profile",{}).get("nickname","") or user["name"].split()[0]
+        # Sem mensagem automática — a IA responde quando o aluno falar primeiro
+        pass
 
+    # ── Histórico de mensagens ────────────────────────────────────────────────
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
     for i, msg in enumerate(messages):
         content = msg["content"].replace("\n","<br>")
         t       = msg.get("time","")
-        if msg["role"]=="assistant":
-            av      = avatar_html(36, speaking and i==len(messages)-1)
-            tts_b64 = msg.get("tts_b64","")
+        if msg["role"] == "assistant":
+            av       = avatar_html(36, speaking and i==len(messages)-1)
+            tts_b64  = msg.get("tts_b64","")
+            is_file  = msg.get("is_file", False)  # mensagens de arquivo não têm áudio
             st.markdown(
                 f'<div class="bubble-row bot"><div class="bav-s">{av}</div><div>'
                 f'<div class="bubble bot">{content}</div></div></div>',
                 unsafe_allow_html=True)
             if tts_b64:
+                # TTS pré-gerado
                 components.html(render_audio_player(tts_b64, t, f"msg_{i}_{conv_id}"),
                                 height=44, scrolling=False)
+            elif not is_file:
+                # Botão ouvir via Web Speech API — precisa de components.html para executar JS
+                clean_text = (msg["content"]
+                    .replace("\\", "").replace("`", "")
+                    .replace("'", "\\'").replace('"', '\\"')
+                    .replace("\n", " ").replace("\r", "")
+                    .replace("*", "").replace("#", ""))[:600]
+                components.html(f"""<!DOCTYPE html><html><head>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box;}}
+html,body{{background:transparent;overflow:hidden;}}
+.row{{display:flex;align-items:center;gap:8px;padding:2px 0 0 46px;}}
+.ts{{font-size:.6rem;color:#8b949e;font-family:'JetBrains Mono',monospace;}}
+.btn{{background:none;border:1px solid #30363d;border-radius:16px;
+      color:#8b949e;font-size:.68rem;padding:2px 10px;cursor:pointer;
+      transition:all .15s;white-space:nowrap;}}
+.btn:hover,.btn.on{{border-color:#f0a500;color:#f0a500;}}
+</style></head><body>
+<div class="row">
+  <span class="ts">{t}</span>
+  <button class="btn" id="btn">▶ Ouvir</button>
+</div>
+<script>
+(function(){{
+  var txt = '{clean_text}';
+  var btn = document.getElementById('btn');
+  var speaking = false;
+  btn.onclick = function() {{
+    if (speaking) {{
+      speechSynthesis.cancel();
+      speaking = false;
+      btn.textContent = '▶ Ouvir';
+      btn.classList.remove('on');
+      return;
+    }}
+    var u = new SpeechSynthesisUtterance(txt);
+    u.lang = 'en-US'; u.rate = 0.95; u.pitch = 1.05;
+    speechSynthesis.getVoices(); // força carregamento
+    setTimeout(function() {{
+      var vv = speechSynthesis.getVoices();
+      var pick = vv.find(v => v.lang === 'en-US') || vv.find(v => v.lang.startsWith('en'));
+      if (pick) u.voice = pick;
+      u.onstart = function() {{ speaking = true; btn.textContent = '⏹ Parar'; btn.classList.add('on'); }};
+      u.onend = u.onerror = function() {{ speaking = false; btn.textContent = '▶ Ouvir'; btn.classList.remove('on'); }};
+      speechSynthesis.cancel();
+      speechSynthesis.speak(u);
+    }}, 100);
+  }};
+}})();
+</script></body></html>""", height=28, scrolling=False)
             else:
                 st.markdown(f'<div class="btime" style="margin-left:46px;">{t}</div>',
                             unsafe_allow_html=True)
         else:
-            extra = " audio-msg" if msg.get("audio") else ""
-            icon  = "🎙️ " if msg.get("audio") else ""
+            # ✅ Áudio sem emoji de microfone prefixado — ícone fica só no balão
+            is_audio  = msg.get("audio", False)
+            extra     = " audio-msg" if is_audio else ""
+            uav_html  = user_avatar_html(username, size=36, fallback_emoji="🎓")
             st.markdown(
-                f'<div class="bubble-row user"><div class="bav-u">🎓</div><div>'
-                f'<div class="bubble user{extra}">{icon}{content}</div>'
-                f'<div class="btime">{t}</div></div></div>',
+                f'<div class="bubble-row user" style="justify-content:flex-end;padding-left:50%;">'
+                f'<div class="bav-u" style="margin-right:8px;flex-shrink:0;">{uav_html}</div>'
+                f'<div style="display:flex;flex-direction:column;align-items:flex-end;">'
+                f'<div class="bubble user{extra}">{content}</div>'
+                f'<div class="btime" style="text-align:right;">{t}</div></div></div>',
                 unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    prompt = st.chat_input("Type a message")
+    # ══════════════════════════════════════════════════════════════════════════
+    # FILE STAGING — banner de arquivo pendente
+    # ══════════════════════════════════════════════════════════════════════════
+    staged = st.session_state.get("staged_file")
+    if staged:
+        fname = staged.get("name", "arquivo")
+        fkind = staged.get("kind", "file")
+        icon  = {"audio":"🎵","text":"📄","image":"📸"}.get(fkind, "📎")
+
+        st.markdown(f"""
+<div style="background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.25);
+     border-radius:10px;padding:10px 14px;margin:6px 0;
+     display:flex;align-items:center;justify-content:space-between;gap:10px;">
+  <span style="font-size:.85rem;color:#e6edf3;">{icon} <b>{fname}</b>
+    <span style="color:#8b949e;font-size:.75rem;"> · anexado</span></span>
+  <span style="font-size:.7rem;color:#f0a500;">↩ Digite uma mensagem ou envie</span>
+</div>
+""", unsafe_allow_html=True)
+
+        if st.button("✕ Remover anexo", key="remove_staged"):
+            st.session_state.staged_file = None
+            st.session_state.staged_file_name = None
+            st.rerun()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # DOWNLOAD DE ARQUIVO GERADO PELA IA
+    # ══════════════════════════════════════════════════════════════════════════
+    pending_dl = st.session_state.get("_pending_download")
+    if pending_dl:
+        import base64 as _b64
+        b64_data = pending_dl["b64"]
+        fname    = pending_dl["filename"]
+        mime     = pending_dl["mime"]
+        st.markdown(f"""
+<div style="background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.35);
+     border-radius:10px;padding:10px 16px;margin:8px 0;display:flex;
+     align-items:center;justify-content:space-between;gap:12px;">
+  <span style="font-size:.85rem;color:#e6edf3;">📎 <b>{fname}</b> pronto para download</span>
+  <a href="data:{mime};base64,{b64_data}" download="{fname}"
+     style="background:linear-gradient(135deg,#f0a500,#e05c2a);color:#060a10;
+     font-weight:700;font-size:.78rem;padding:6px 16px;border-radius:20px;
+     text-decoration:none;white-space:nowrap;">⬇ Baixar arquivo</a>
+</div>""", unsafe_allow_html=True)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CHAT INPUT — texto + envio com arquivo
+    # ══════════════════════════════════════════════════════════════════════════
+    prompt = st.chat_input("Type a message…")
     if prompt:
-      with st.chat_message("user"):
-        st.write(prompt)
-        #if not API_KEY: st.error("Configure ANTHROPIC_API_KEY no .env"); st.stop()
-        append_message(username, conv_id, "user", prompt)
-        #st.session_state.speaking = True
-        with st.chat_message("assistant", avatar=PHOTO_B64 or "🧑‍🏫"):
-          with st.spinner("A Teacher Tati está digitando..."):
+        if not API_KEY:
+            st.error("Configure ANTHROPIC_API_KEY no .env"); st.stop()
+
+        staged = st.session_state.get("staged_file")
+
+        if staged:
+            # Envia arquivo + texto juntos
+            _process_and_send_file(
+                username, user, conv_id,
+                staged["raw"], staged["name"],
+                extra_text=prompt
+            )
+            st.session_state.staged_file = None
+            st.session_state.staged_file_name = None
+        else:
+            # Só texto
+            append_message(username, conv_id, "user", prompt)
+            st.session_state.speaking = True
             try:
-                # Aqui você chama o Anthropic (Claude)
-                # OBS: Lembre-se de passar o histórico completo se desejar, aqui estou passando só o prompt atual para simplificar
-                client = anthropic.Anthropic(api_key=API_KEY)
-                
-                resposta_claude = client.messages.create(
-                    model="claude-3-haiku-20240307", # Ou o modelo que você preferir (sonnet, opus)
-                    max_tokens=1000,
-                    system="Você é a Teacher Tati, uma professora de inglês empática. Use o método sanduíche para corrigir os alunos.", # Coloque seu prompt do método Sanduíche aqui
-                    messages=[
-                        {"role": "user", "content": prompt}
-                    ]
-                )
-                
-                # Extrai o texto da resposta da IA
-                resposta_ia = resposta_claude.content[0].text
-                
-                # 4. Mostra o texto da IA na tela
-                st.write(resposta_ia)
-                
-                # 5. Gera a voz da Teacher Tati em background (ElevenLabs)
-                tts_b64 = None
-                if tts_available():
-                    audio_bytes = text_to_speech(resposta_ia)
-                    if audio_bytes:
-                        # Converte para base64 para salvar no banco, se necessário
-                        tts_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-                        
-                        # Mostra o player de áudio na tela embaixo do texto
-                        st.audio(audio_bytes, format="audio/mpeg")
-                
-                # 6. Salva a resposta da IA no banco de dados (junto com o áudio em base64, se houver)
-                append_message(username, conv_id, "assistant", resposta_ia, tts_b64=tts_b64)
-
+                send_to_claude(username, user, conv_id, prompt)
             except Exception as e:
-                st.error(f"Ops! Deu um erro de comunicação com a Teacher Tati: {e}")
+                st.error(f"❌ {e}")
+            st.session_state.speaking = False
 
-    audio_val = st.audio_input(" ", key=f"voice_input_{st.session_state.audio_key}", label_visibility="collapsed")
+        st.rerun()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # GRAVADOR DE ÁUDIO NATIVO (st.audio_input)
+    # ══════════════════════════════════════════════════════════════════════════
+    audio_val = st.audio_input(" ", key=f"voice_input_{st.session_state.audio_key}",
+                               label_visibility="collapsed")
     if audio_val and audio_val != st.session_state.get("_last_audio"):
         st.session_state["_last_audio"] = audio_val
         with st.spinner("Transcrevendo..."):
             txt = transcribe_bytes(audio_val.read(), ".wav", "en")
         if txt and not txt.startswith("❌") and not txt.startswith("⚠️"):
             if not API_KEY: st.error("Configure ANTHROPIC_API_KEY"); st.stop()
+            # ✅ Salva sem emoji de microfone prefixado
             append_message(username, conv_id, "user", txt, audio=True)
             st.session_state.speaking = True
-            try:    send_to_claude(username, user, conv_id, txt)
-            except Exception as e: st.error(f"❌ {e}")
+            try:
+                send_to_claude(username, user, conv_id, txt)
+            except Exception as e:
+                st.error(f"❌ {e}")
             st.session_state.speaking = False
             st.session_state.audio_key += 1
             st.rerun()
-        elif txt: st.error(txt)
+        elif txt:
+            st.error(txt)
 
-    uploaded = st.file_uploader("📎", key="file_upload", label_visibility="collapsed",
-        type=["mp3","wav","ogg","m4a","webm","flac","pdf","doc","docx","txt","png","jpg","jpeg","webp"])
+    # ══════════════════════════════════════════════════════════════════════════
+    # FILE UPLOADER — agora faz STAGING (não envia automaticamente)
+    # ══════════════════════════════════════════════════════════════════════════
+    uploaded = st.file_uploader(
+        "📎", key="file_upload", label_visibility="collapsed",
+        type=["mp3","wav","ogg","m4a","webm","flac",
+              "pdf","doc","docx","txt","png","jpg","jpeg","webp"])
+
     if uploaded and uploaded.name != st.session_state.get("_last_file"):
         st.session_state["_last_file"] = uploaded.name
         raw = uploaded.read()
-        if not API_KEY: st.error("Configure ANTHROPIC_API_KEY"); st.stop()
         result = extract_file(raw, uploaded.name)
-        kind, label = result["kind"], result["label"]
-        if kind=="audio":
-            with st.spinner("🔄 Transcrevendo áudio..."):
-                text = transcribe_bytes(raw, suffix=Path(uploaded.name).suffix.lower(), language="en")
-            if text.startswith("❌") or text.startswith("⚠️"): st.error(text)
-            else:
-                append_message(username, conv_id, "user", f"🎙️ [Áudio: '{uploaded.name}']\n{text}", audio=True)
-                st.session_state.speaking = True
-                try:    send_to_claude(username, user, conv_id, f"🎙️ [Áudio: '{uploaded.name}']\n{text}")
-                except Exception as e: st.error(f"❌ {e}")
-                st.session_state.speaking = False; st.rerun()
-        elif kind=="text":
-            extracted = result["text"]
-            if extracted.startswith("❌"): st.error(extracted)
-            elif not extracted: st.warning(f"Sem texto em '{uploaded.name}'.")
-            else:
-                preview = extracted[:200].replace('\n',' ')
-                msg = (f"📄 [{label}: '{uploaded.name}']\n\n{extracted}\n\n"
-                       "Please help me understand this content — explain vocabulary, grammar, and key ideas.")
-                append_message(username, conv_id, "user",
-                               f"📄 [{label}: '{uploaded.name}'] — {preview}{'…' if len(extracted)>200 else ''}")
-                st.session_state.speaking = True
-                try:    send_to_claude(username, user, conv_id, msg)
-                except Exception as e: st.error(f"❌ {e}")
-                st.session_state.speaking = False; st.rerun()
-        elif kind=="image":
-            msg_text = (f"📸 [Imagem: '{uploaded.name}']\nPlease look at this image and help me learn English from it.")
-            append_message(username, conv_id, "user", f"📸 [Imagem: '{uploaded.name}']")
-            st.session_state.speaking = True
-            try:    send_to_claude(username, user, conv_id, msg_text,
-                                   image_b64=result["b64"], image_media_type=result["media_type"])
-            except Exception as e: st.error(f"❌ {e}")
-            st.session_state.speaking = False; st.rerun()
-        else: st.warning(f"⚠️ Formato '{label}' não suportado.")
 
-    st.markdown("""<script>
-(function moveToChatBar(){
-  const bottom=window.parent.document.querySelector('[data-testid="stBottom"]');
-  if(!bottom){setTimeout(moveToChatBar,300);return;}
-  if(bottom.querySelector('.pav-extras')) return;
-  const aw=window.parent.document.querySelector('[data-testid="stAudioInput"]');
-  const fw=window.parent.document.querySelector('[data-testid="stFileUploader"]');
-  if(!aw||!fw){setTimeout(moveToChatBar,300);return;}
-  const extras=window.parent.document.createElement('div');
-  extras.className='pav-extras';
-  const mb=window.parent.document.createElement('button');
-  mb.className='pav-icon-btn'; mb.title='Gravar voz'; mb.innerHTML='🎤';
-  mb.onclick=()=>{const b=aw.querySelector('button');if(b)b.click();};
-  const ab=window.parent.document.createElement('button');
-  ab.className='pav-icon-btn'; ab.title='Anexar arquivo'; ab.innerHTML='＋';
-  ab.onclick=()=>{const i=fw.querySelector('input[type="file"]');if(i)i.click();};
-  extras.appendChild(ab); extras.appendChild(mb);
-  bottom.insertBefore(extras,bottom.firstChild);
-  aw.style.cssText='position:fixed;bottom:-999px;left:-9999px;width:1px;height:1px;overflow:hidden;opacity:0';
-  fw.style.cssText='position:fixed;bottom:-999px;left:-9999px;width:1px;height:1px;overflow:hidden;opacity:0';
-  fw.querySelector('input[type="file"]').style.pointerEvents='auto';
-})();
-</script>""", unsafe_allow_html=True)
+        # ✅ STAGING — guarda o arquivo, não envia ainda
+        st.session_state.staged_file = {
+            "raw":  raw,
+            "name": uploaded.name,
+            "kind": result["kind"],
+            "result": result,
+        }
+        st.session_state.staged_file_name = uploaded.name
+        st.rerun()
+
+    # ── JS: move anexo para a chat bar ───────────────────────────────────────
+    components.html("""
+<script>
+function pavMoveToChatBar() {
+  const parent = window.parent ? window.parent.document : document;
+  const chatInputContainer = parent.querySelector('[data-testid="stChatInput"]');
+  if (!chatInputContainer) return;
+  if (chatInputContainer.querySelector('.pav-extras')) return;
+
+  const extras = parent.createElement('div');
+  extras.className = 'pav-extras';
+
+  const ab = parent.createElement('button');
+  ab.className = 'pav-icon-btn';
+  ab.title = 'Anexar arquivo';
+  ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
+  ab.onclick = () => {
+    const fw = parent.querySelector('[data-testid="stFileUploader"]');
+    if (fw) {
+      const fileInput = fw.querySelector('input[type="file"]');
+      if (fileInput) fileInput.click();
+    }
+  };
+
+  extras.appendChild(ab);
+  const chatInner = chatInputContainer.querySelector('div');
+  if (chatInner) chatInner.style.position = 'relative';
+  chatInputContainer.appendChild(extras);
+
+  const fw = parent.querySelector('[data-testid="stFileUploader"]');
+  if (fw) {
+    fw.style.cssText = 'position:fixed!important;bottom:-999px!important;left:-9999px!important;opacity:0!important;width:1px!important;height:1px!important;pointer-events:none!important;';
+    const fi = fw.querySelector('input[type="file"]');
+    if (fi) fi.style.pointerEvents = 'auto';
+  }
+}
+
+function pavFixAudioInput() {
+  const par = window.parent ? window.parent.document : document;
+  const ai  = par.querySelector('[data-testid="stAudioInput"]');
+  const ci  = par.querySelector('[data-testid="stChatInput"]');
+  if (!ai || !ci) return;
+
+  const rect = ci.getBoundingClientRect();
+  
+  // Estilo da caixa principal (agora transparente e sem bordas)
+  ai.style.cssText = `
+    position: fixed !important;
+    bottom: ${window.parent.innerHeight - rect.top + 42}px !important;
+    left: ${rect.left}px !important;
+    width: ${rect.width}px !important;
+    z-index: 99 !important;
+    background: transparent !important; 
+    border: none !important;
+    padding: 0 !important;
+    height: 52px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: none !important;
+  `;
+  
+  // Arranca o fundo cinza e bordas das caixinhas internas do Streamlit
+  const inners = ai.querySelectorAll('div');
+  inners.forEach(d => {
+      d.style.background = 'transparent';
+      d.style.border = 'none';
+      d.style.boxShadow = 'none';
+  });
+
+  const lbl = ai.querySelector('label');
+  if (lbl) lbl.style.display = 'none';
+}
+
+setInterval(pavMoveToChatBar, 1000);
+setInterval(pavFixAudioInput, 500);
+</script>
+""", height=0)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1243,117 +1679,65 @@ def show_chat():
 # ══════════════════════════════════════════════════════════════════════════════
 def show_dashboard():
     with st.sidebar:
+        user = st.session_state.user
         st.markdown(f"""<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-            {avatar_html(44)}<div style="font-weight:600">{PROF_NAME}</div></div>
+            {avatar_html(44)}<div>
+            <div style="font-weight:600;font-size:.9rem;">{PROF_NAME}</div>
+            <div style="font-size:.7rem;color:#8b949e;"><span class="status-dot"></span>Professora</div>
+            </div></div>
             <hr style="border-color:#30363d;margin:6px 0 12px">""", unsafe_allow_html=True)
-        if st.button("💬 Chat", use_container_width=True): st.session_state.page="chat"; st.rerun()
+        if st.button("📊 Dashboard", use_container_width=True, type="primary"): pass
+        if st.button("💬 Usar como Aluno", use_container_width=True, key="dash_chat"):
+            st.session_state.page = "chat"; st.rerun()
+        if st.button("⚙️ Meu Perfil", use_container_width=True, key="dash_profile"):
+            st.session_state.page = "profile"; st.rerun()
         if st.button("🚪 Sair", use_container_width=True):
-            js_clear_user(); st.session_state.update(logged_in=False,user=None); st.rerun()
+            js_clear_user(); st.session_state.update(logged_in=False, user=None); st.rerun()
 
     st.markdown("## 📊 Painel do Professor")
     st.markdown("---")
+    col_h1, col_h2 = st.columns([4,1])
+    with col_h2:
+        if st.button("💬 Entrar no Chat", use_container_width=True):
+            st.session_state.page = "chat"; st.rerun()
+    st.markdown("---")
     stats = get_all_students_stats()
     today = datetime.now().strftime("%Y-%m-%d")
-    c1,c2,c3,c4=st.columns(4)
+    c1,c2,c3,c4 = st.columns(4)
     for col,val,lbl in zip([c1,c2,c3,c4],
-        [len(stats),sum(s["messages"] for s in stats),sum(s["corrections"] for s in stats),
+        [len(stats), sum(s["messages"] for s in stats), sum(s["corrections"] for s in stats),
          sum(1 for s in stats if s["last_active"][:10]==today)],
         ["Alunos","Mensagens","Correções","Ativos Hoje"]):
         col.markdown(f'<div class="stat-card"><div class="val">{val}</div><div class="lbl">{lbl}</div></div>',
                      unsafe_allow_html=True)
     st.markdown("<br>")
     st.markdown("### 👥 Alunos")
-    if not stats: st.info("Nenhum aluno ainda.")
+    if not stats:
+        st.info("Nenhum aluno ainda.")
     else:
-        badge={"False Beginner":"badge-blue","Pre-Intermediate":"badge-green",
-               "Intermediate":"badge-gold","Business English":"badge-gold"}
-        rows="".join(f"""<tr>
+        badge = {"False Beginner":"badge-blue","Pre-Intermediate":"badge-green",
+                 "Intermediate":"badge-gold","Business English":"badge-gold"}
+        rows = "".join(f"""<tr>
             <td><b>{s['name']}</b><br><span style="color:#8b949e;font-size:.75rem">@{s['username']}</span></td>
             <td><span class="badge {badge.get(s['level'],'badge-blue')}">{s['level']}</span></td>
             <td>{s['focus']}</td>
             <td style="font-family:'JetBrains Mono',monospace;color:#f0a500">{s['messages']}</td>
             <td style="font-family:'JetBrains Mono',monospace;color:#f0a500">{s['corrections']}</td>
             <td style="color:#8b949e">{s['last_active']}</td>
-        </tr>""" for s in sorted(stats,key=lambda x:x["messages"],reverse=True))
+        </tr>""" for s in sorted(stats, key=lambda x: x["messages"], reverse=True))
         st.markdown(f'<div style="background:var(--surface);border:1px solid var(--border);'
                     f'border-radius:12px;overflow:hidden"><table class="dash-table"><thead>'
                     f'<tr><th>Aluno</th><th>Nível</th><th>Foco</th><th>Msgs</th>'
                     f'<th>Correções</th><th>Último Acesso</th></tr></thead>'
                     f'<tbody>{rows}</tbody></table></div>', unsafe_allow_html=True)
-    st.markdown("<br>")
-    st.markdown("### <i class='fa-solid fa-comments'></i> Histórico do Aluno", unsafe_allow_html=True)
-    #st.markdown("### Histórico do Aluno")
-    students = load_students()
-    opts = {u:d["name"] for u,d in students.items() if d["role"]=="student"}
-    if opts:
-        sel = st.selectbox("Selecione",list(opts.keys()),
-                           format_func=lambda u:f"{opts[u]} (@{u})")
-        convs = list_conversations(sel)
-        if convs:
-            csel = st.selectbox("Conversa",convs,
-                                format_func=lambda c:f"{c['date']} — {c['title']} ({c['count']} msgs)")
-            hist = load_conversation(sel, csel["id"])
-            with st.expander(f"📖 {len(hist)} mensagens"):
-                for m in hist:
-                    who  = PROF_NAME if m["role"]=="assistant" else opts[sel]
-                    icon = "<i class='fa-solid fa-chalkboard-user'></i>" if m["role"]=="assistant" else "<i class='fa-solid fa-user-graduate'></i>"
-                    atag = " <i class='fa-solid fa-microphone'></i>" if m.get("audio") else ""
-                    st.markdown(f"**{icon} {who}{atag}** `{m.get('date','')} {m.get('time','')}`\n\n{m['content']}\n\n---", unsafe_allow_html=True)
-                    '''icon = "🧑‍🏫" if m["role"]=="assistant" else "🎓"
-                    atag = " 🎙️" if m.get("audio") else ""
-                    st.markdown(f"**{icon} {who}{atag}** `{m.get('date','')} {m.get('time','')}`"
-                                f"\n\n{m['content']}\n\n---")'''
-        else: st.info("Aluno ainda não conversou.")
 
-# Injeta o JavaScript para mover o Microfone e o Anexo para dentro do st.chat_input
-components.html("""
-<script>
-function pavMoveToChatBar() {
-  const parent = window.parent ? window.parent.document : document;
-  
-  const chatInputContainer = parent.querySelector('[data-testid="stChatInput"]');
-  if (!chatInputContainer) return; 
-  if (chatInputContainer.querySelector('.pav-extras')) return; 
 
-  const extras = parent.createElement('div');
-  extras.className = 'pav-extras';
 
-  // ─── APENAS O BOTÃO DE ANEXO (CLIP) ───
-  const ab = parent.createElement('button');
-  ab.className = 'pav-icon-btn';
-  ab.title = 'Anexar arquivo';
-  ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
-  
-  ab.onclick = () => {
-    const fw = parent.querySelector('[data-testid="stFileUploader"]');
-    if (fw) {
-        const fileInput = fw.querySelector('input[type="file"]');
-        if (fileInput) fileInput.click();
-    }
-  };
 
-  extras.appendChild(ab);
-  
-  const chatInner = chatInputContainer.querySelector('div');
-  if(chatInner) chatInner.style.position = 'relative';
-  chatInputContainer.appendChild(extras);
-
-  // Esconde APENAS o File Uploader. O Áudio agora fica livre na tela!
-  const fw = parent.querySelector('[data-testid="stFileUploader"]');
-  if (fw) {
-      fw.style.cssText = 'position: fixed !important; bottom: -999px !important; left: -9999px !important; opacity: 0 !important; width: 1px !important; height: 1px !important; pointer-events: none !important;';
-      const fileInput = fw.querySelector('input[type="file"]');
-      if (fileInput) fileInput.style.pointerEvents = 'auto'; // Mantém o clipe clicável
-  }
-}
-
-setInterval(pavMoveToChatBar, 1000);
-</script>
-""", height=0)
 # ══════════════════════════════════════════════════════════════════════════════
 # ROTEADOR
 # ══════════════════════════════════════════════════════════════════════════════
 if not st.session_state.logged_in:       show_login()
-elif st.session_state.page=="profile":   show_profile()
-elif st.session_state.page=="dashboard": show_dashboard()
+elif st.session_state.page == "profile": show_profile()
+elif st.session_state.page == "dashboard": show_dashboard()
 else:                                    show_chat()
