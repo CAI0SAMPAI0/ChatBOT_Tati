@@ -370,6 +370,58 @@ def append_message(username, conv_id, role, content,
         }).execute()
 
 
+# ── Avatar do usuário (Supabase Storage) ─────────────────────────────────────
+
+AVATAR_BUCKET = "avatars"
+
+def save_user_avatar_db(username: str, raw: bytes, mime: str) -> bool:
+    """Salva foto de perfil no Supabase Storage. Retorna True se ok."""
+    db   = get_client()
+    path = f"{username}/avatar"
+    try:
+        # Tenta remover versão anterior (ignora erro se não existir)
+        try:
+            db.storage.from_(AVATAR_BUCKET).remove([path])
+        except Exception:
+            pass
+        db.storage.from_(AVATAR_BUCKET).upload(
+            path, raw,
+            file_options={"content-type": mime, "upsert": "true"},
+        )
+        return True
+    except Exception as e:
+        print(f"[avatar upload error] {e}")
+        return False
+
+
+def get_user_avatar_db(username: str) -> tuple[bytes, str] | None:
+    """Retorna (bytes, mime) da foto do usuário ou None."""
+    db   = get_client()
+    path = f"{username}/avatar"
+    try:
+        raw = db.storage.from_(AVATAR_BUCKET).download(path)
+        # Tenta detectar mime pelo header mágico
+        mime = "image/jpeg"
+        if raw[:4] == b"\x89PNG":
+            mime = "image/png"
+        elif raw[:4] == b"RIFF":
+            mime = "image/webp"
+        return raw, mime
+    except Exception:
+        return None
+
+
+def remove_user_avatar_db(username: str) -> bool:
+    """Remove foto de perfil do Supabase Storage."""
+    db   = get_client()
+    path = f"{username}/avatar"
+    try:
+        db.storage.from_(AVATAR_BUCKET).remove([path])
+        return True
+    except Exception:
+        return False
+
+
 # ── Stats do professor ────────────────────────────────────────────────────────
 
 def get_all_students_stats() -> list:

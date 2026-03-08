@@ -22,7 +22,8 @@ from database import (
     new_conversation, list_conversations, load_conversation,
     append_message, get_all_students_stats, delete_conversation,
     update_profile, update_password,
-    create_session, validate_session, delete_session   # sessões persistentes
+    create_session, validate_session, delete_session,
+    save_user_avatar_db, get_user_avatar_db, remove_user_avatar_db # sessões persistentes
 )
 from transcriber import transcribe_bytes
 from tts import text_to_speech, tts_available
@@ -223,38 +224,25 @@ def get_photo_b64() -> str | None:
 PHOTO_B64 = get_photo_b64()
 
 # ── Avatares individuais dos alunos ───────────────────────────────────────────
-AVATARS_DIR = Path("data/avatars")
-AVATARS_DIR.mkdir(parents=True, exist_ok=True)
-
+@st.cache_data(ttl=300, show_spinner=False)
 def get_user_avatar_b64(username: str) -> str | None:
-    """Retorna a foto de perfil do usuário como data-URI, ou None."""
-    for ext in ("jpg", "jpeg", "png", "webp"):
-        p = AVATARS_DIR / f"{username}.{ext}"
-        if p.exists():
-            mime = "jpeg" if ext in ("jpg", "jpeg") else ext
-            return f"data:image/{mime};base64,{base64.b64encode(p.read_bytes()).decode()}"
-    return None
+    """Retorna a foto de perfil do usuário como data-URI, usando Supabase Storage."""
+    result = get_user_avatar_db(username)
+    if not result:
+        return None
+    raw, mime = result
+    return f"data:{mime};base64,{base64.b64encode(raw).decode()}"
 
 def save_user_avatar(username: str, raw: bytes, suffix: str) -> str:
-    """Salva a foto de perfil do usuário e retorna o data-URI."""
+    """Salva a foto de perfil no Supabase Storage e retorna o data-URI."""
     suffix = suffix.lower().lstrip(".")
-    if suffix == "jpg":
-        suffix = "jpeg"
-    # Remove arquivos anteriores de qualquer extensão
-    for ext in ("jpg", "jpeg", "png", "webp"):
-        old = AVATARS_DIR / f"{username}.{ext}"
-        if old.exists():
-            old.unlink()
-    dest = AVATARS_DIR / f"{username}.{suffix}"
-    dest.write_bytes(raw)
-    return f"data:image/{suffix};base64,{base64.b64encode(raw).decode()}"
+    mime   = "image/jpeg" if suffix in ("jpg", "jpeg") else f"image/{suffix}"
+    save_user_avatar_db(username, raw, mime)
+    return f"data:{mime};base64,{base64.b64encode(raw).decode()}"
 
 def remove_user_avatar(username: str) -> None:
-    """Remove a foto de perfil do usuário."""
-    for ext in ("jpg", "jpeg", "png", "webp"):
-        p = AVATARS_DIR / f"{username}.{ext}"
-        if p.exists():
-            p.unlink()
+    """Remove a foto de perfil do Supabase Storage."""
+    remove_user_avatar_db(username)
 
 def user_avatar_html(username: str, size: int = 36, fallback_emoji: str = "🎓") -> str:
     """Retorna HTML de avatar circular do usuário (foto ou emoji fallback)."""
@@ -1040,6 +1028,17 @@ def show_profile() -> None:
 [data-testid="stFileUploaderDropzone"] { display: flex !important; visibility: visible !important; }
 </style>""", unsafe_allow_html=True)
 
+    _ac = profile.get("accent_color", "#f0a500")
+    st.markdown(f"""<script>
+(function(){{
+  function hexToRgb(h){{h=h.replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];var n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255].join(',');}}
+  var ac="{_ac}",rgb=hexToRgb(ac),r=document.documentElement;
+  r.style.setProperty('--accent-full',ac);
+  r.style.setProperty('--bubble-bg','rgba('+rgb+',.12)');
+  r.style.setProperty('--bubble-border','rgba('+rgb+',.3)');
+}})();
+</script>""", unsafe_allow_html=True)
+
     st.markdown("## ⚙️ Configurações do Perfil")
     st.markdown("---")
 
@@ -1078,7 +1077,6 @@ def show_profile() -> None:
                 "accent_color": accent, "voice_lang": voice_lang, "speech_lang": speech_lang})
             u = load_students().get(username, {})
             # Atualiza session_state para refletir cor imediatamente
-            st.session_state.user = {"username": username, **u}
             st.session_state.user = {"username": username, **u}
             st.success("✅ Configurações salvas!")
 
@@ -1159,11 +1157,14 @@ def show_profile() -> None:
                     else:
                         suffix = Path(photo_file.name).suffix.lstrip(".")
                         save_user_avatar(username, raw_photo, suffix)
+                        get_user_avatar_b64.clear()  # invalida cache
                         st.session_state["_last_photo_saved"] = file_id
-                        st.success("✅ Foto salva! Ela aparecerá no chat.")
+                        st.success("✅ Foto salva!")
+                        st.rerun()
             if cur_avatar:
                 if st.button(t("remove_photo", ui_lang), key="pf_remove_photo"):
                     remove_user_avatar(username)
+                    get_user_avatar_b64.clear()  # invalida cache
                     st.session_state.pop("_last_photo_saved", None)
                     st.success("Foto removida."); st.rerun()
 
@@ -1919,6 +1920,30 @@ def show_chat() -> None:
     if st.session_state.voice_mode:
         show_voice_mode()
         return
+
+    # ── Injeta cor de destaque do usuário no Streamlit principal ────────────
+    _ac = profile.get("accent_color", "#f0a500")
+    st.markdown(f"""<script>
+(function(){{
+  function hexToRgb(h){{
+    h=h.replace('#','');
+    if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var n=parseInt(h,16);
+    return [(n>>16)&255,(n>>8)&255,n&255].join(',');
+  }}
+  var ac="{_ac}";
+  var rgb=hexToRgb(ac);
+  var r=document.documentElement;
+  r.style.setProperty('--accent-full',ac);
+  r.style.setProperty('--accent-70','rgba('+rgb+',.7)');
+  r.style.setProperty('--accent-40','rgba('+rgb+',.4)');
+  r.style.setProperty('--accent-30','rgba('+rgb+',.3)');
+  r.style.setProperty('--accent-15','rgba('+rgb+',.15)');
+  r.style.setProperty('--bubble-bg','rgba('+rgb+',.12)');
+  r.style.setProperty('--bubble-border','rgba('+rgb+',.3)');
+  r.style.setProperty('--bubble-text','#e6edf3');
+}})();
+</script>""", unsafe_allow_html=True)
 
     # ── JS: para todo áudio ao trocar de conversa ou recarregar ──────────────
     components.html("""<!DOCTYPE html><html><body><script>
