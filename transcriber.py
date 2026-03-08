@@ -118,7 +118,7 @@ def _detect_and_transcribe(model, tmp_path: str, hint_lang: str) -> tuple[str, s
         },
     )
 
-    # Estágio 1: detecção automática (language=None)
+    # Estágio 1: detecção automática (language=None → Whisper decide)
     try:
         segs, info = model.transcribe(tmp_path, language=None, **common_params)
         detected = getattr(info, "language", None) or hint_lang
@@ -146,7 +146,7 @@ def _detect_and_transcribe(model, tmp_path: str, hint_lang: str) -> tuple[str, s
 def transcribe_bytes(
     audio_bytes: bytes,
     suffix: str = ".wav",
-    language: str = "auto",   # "auto" | "en" | "pt" | etc.
+    language: str = None,   # None = detecção automática | "en" | "pt" | etc.
 ) -> str:
     """
     Transcreve bytes de áudio e retorna o texto.
@@ -154,15 +154,16 @@ def transcribe_bytes(
     Args:
         audio_bytes: conteúdo do arquivo de áudio
         suffix:      extensão do arquivo (.wav, .mp3, .webm, .ogg…)
-        language:    "auto" (recomendado para bilíngue) | "en" | "pt" | outro código
+        language:    None ou "auto" → detecção automática (recomendado para bilíngue)
+                     "en", "pt" ou outro código ISO → força o idioma
 
     Returns:
         Texto transcrito (com correções aplicadas) ou mensagem de erro.
 
     Comportamento bilíngue:
-        - "auto": detecta automaticamente se o aluno falou em pt ou en.
-          Funciona bem para a maioria dos casos no app Teacher Tati.
-        - "en" / "pt": força o idioma (use quando tiver certeza).
+        - None / "auto": detecta automaticamente se o aluno falou em pt ou en.
+          Recomendado para o app Teacher Tati.
+        - "en" / "pt": força o idioma (use quando tiver certeza absoluta).
     """
     tmp_path = None
     try:
@@ -172,10 +173,11 @@ def transcribe_bytes(
             tmp.write(audio_bytes)
             tmp_path = tmp.name
 
-        # Normaliza o hint de idioma
-        hint = "en" if language == "auto" else language
+        # Normaliza: "auto" ou None → detecção automática
+        use_auto = language in ("auto", None, "")
+        hint = "en" if use_auto else language
 
-        if language == "auto":
+        if use_auto:
             text, detected_lang = _detect_and_transcribe(model, tmp_path, hint)
         else:
             # Transcrição direta no idioma especificado

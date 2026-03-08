@@ -1265,7 +1265,7 @@ def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
     Transcreve o áudio gravado, envia ao Claude e armazena
     a resposta + TTS no session_state para o JS exibir.
     """
-    txt = transcribe_bytes(raw, suffix=".webm", language="auto")
+    txt = transcribe_bytes(raw, suffix=".webm", language=None)
     if not txt or txt.startswith("❌") or txt.startswith("⚠️"):
         st.session_state["_vm_error"] = txt or "Não entendi. Tente novamente."
         return
@@ -2326,7 +2326,7 @@ html,body{{background:transparent;overflow:hidden;}}
     if audio_val and audio_val != st.session_state.get("_last_audio"):
         st.session_state["_last_audio"] = audio_val
         with st.spinner("Transcrevendo..."):
-            txt = transcribe_bytes(audio_val.read(), ".wav", "auto")
+            txt = transcribe_bytes(audio_val.read(), ".wav", None)
         if txt and not txt.startswith("❌") and not txt.startswith("⚠️"):
             if not API_KEY: st.error("Configure ANTHROPIC_API_KEY"); st.stop()
             append_message(username, conv_id, "user", txt, audio=True)
