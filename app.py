@@ -1173,10 +1173,16 @@ section[data-testid="stMain"]>div{padding:0!important;}
     vm_error  = st.session_state.get("_vm_error",     "")
     history   = st.session_state.get("_vm_history",   [])
 
-    # Foto da professora — tati.png em assets/
+    # Foto da professora — prioriza tati.png
     photo_src = ""
-    for p in [Path("assets/tati.png"), Path("assets/tati.jpg"),
-              Path("assets/professor.jpg"), Path(PHOTO_PATH)]:
+    _photo_candidates = [
+        Path("assets/tati.png"),
+        Path("assets/tati.jpg"),
+        Path("assets/tati.jpeg"),
+        Path(__file__).parent / "assets" / "tati.png",
+        Path(__file__).parent / "assets" / "tati.jpg",
+    ]
+    for p in _photo_candidates:
         if p.exists():
             ext  = p.suffix.lstrip(".").lower()
             mime = "jpeg" if ext in ("jpg","jpeg") else ext
