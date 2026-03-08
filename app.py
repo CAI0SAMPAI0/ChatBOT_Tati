@@ -1320,7 +1320,7 @@ html,body{{
   width:100%;height:100%;display:flex;align-items:center;
   justify-content:center;font-size:60px;background:#0f1824;
 }}
-.av-name{{color:var(--accent-full);font-weight:700;font-size:.95rem;}}
+.av-name{{color:#e6edf3;font-weight:700;font-size:.95rem;}}
 .av-status{{color:#8b949e;font-size:.72rem;min-height:18px;letter-spacing:.3px;}}
 
 /* ── Área de mensagens ── */
