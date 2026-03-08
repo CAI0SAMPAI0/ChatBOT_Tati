@@ -2101,7 +2101,7 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
     for i, msg in enumerate(messages):
         content  = msg["content"].replace("\n", "<br>")
-        t        = msg.get("time", "")
+        msg_time = msg.get("time", "")
 
         if msg["role"] == "assistant":
             tts_b64 = msg.get("tts_b64", "")
@@ -2111,7 +2111,7 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
                 f'{tati_av_html}'
                 f'<div>'
                 f'<div class="msg-bubble bot">{content}</div>'
-                f'<div class="msg-time">{t}</div>'
+                f'<div class="msg-time">{msg_time}</div>'
                 f'</div></div>',
                 unsafe_allow_html=True)
             if tts_b64:
@@ -2161,7 +2161,7 @@ html,body{{background:transparent;overflow:hidden;}}
 }})();
 </script></body></html>""", height=28, scrolling=False)
             else:
-                st.markdown(f'<div class="msg-time" style="margin-left:40px;">{t}</div>',
+                st.markdown(f'<div class="msg-time" style="margin-left:40px;">{msg_time}</div>',
                             unsafe_allow_html=True)
         else:
             is_audio = msg.get("audio", False)
@@ -2170,7 +2170,7 @@ html,body{{background:transparent;overflow:hidden;}}
                 f'<div class="msg-row user-row">'
                 f'<div>'
                 f'<div class="msg-bubble user{extra}">{content}</div>'
-                f'<div class="msg-time">{t}</div>'
+                f'<div class="msg-time">{msg_time}</div>'
                 f'</div></div>',
                 unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
