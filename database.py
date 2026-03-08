@@ -1,17 +1,16 @@
 """
-database.py — Teacher Tati · Supabase (PostgreSQL) backend
-Substitui o SQLite local por Supabase para persistência real no deploy.
+database.py — Teacher Tati · Supabase (PostgreSQL) backend v2
+Usa funções RPC do Supabase para queries otimizadas (menos round-trips).
 
 Configuração no .env / Streamlit Secrets:
     SUPABASE_URL  = https://xxxx.supabase.co
-    SUPABASE_KEY  = eyJhbGci...  (anon key ou service_role key)
+    SUPABASE_KEY  = eyJhbGci...
 """
 
 import os
 import hashlib
 import secrets
 from datetime import datetime
-from pathlib import Path
 import json
 
 from supabase import create_client, Client
@@ -34,60 +33,10 @@ def hash_password(p: str) -> str:
     return hashlib.sha256(p.encode()).hexdigest()
 
 
-# ── Init DB — garante usuários padrão ────────────────────────────────────────
-# No Supabase as tabelas são criadas pelo SQL abaixo (cole no SQL Editor):
-#
-# -- USERS
-# create table if not exists users (
-#   username    text primary key,
-#   name        text not null,
-#   password    text not null,
-#   role        text not null default 'student',
-#   email       text default '',
-#   level       text default 'False Beginner',
-#   focus       text default 'General Conversation',
-#   created_at  text not null,
-#   profile     jsonb default '{}'::jsonb
-# );
-#
-# -- CONVERSATIONS
-# create table if not exists conversations (
-#   id          text not null,
-#   username    text not null,
-#   created_at  text not null,
-#   primary key (id, username)
-# );
-#
-# -- MESSAGES
-# create table if not exists messages (
-#   id          bigserial primary key,
-#   conv_id     text not null,
-#   username    text not null,
-#   role        text not null,
-#   content     text not null,
-#   audio       boolean default false,
-#   is_file     boolean default false,
-#   tts_b64     text default '',
-#   time        text not null,
-#   date        text not null,
-#   timestamp   text not null
-# );
-#
-# -- SESSIONS
-# create table if not exists sessions (
-#   token       text primary key,
-#   username    text not null,
-#   created_at  text not null,
-#   last_seen   text not null
-# );
-#
-# -- Índices para performance
-# create index if not exists idx_messages_username_conv on messages(username, conv_id);
-# create index if not exists idx_conversations_username on conversations(username);
-# create index if not exists idx_sessions_token on sessions(token);
+# ── Init DB ───────────────────────────────────────────────────────────────────
 
 def init_db():
-    """Garante que os usuários padrão existem. Tabelas são criadas via SQL Editor."""
+    """Garante que os usuários padrão existem."""
     db = get_client()
     _ensure_default_users(db)
 
@@ -119,7 +68,6 @@ def _ensure_default_users(db: Client):
         },
     ]
     for u in defaults:
-        # upsert ignora se já existir
         db.table("users").upsert(u, on_conflict="username", ignore_duplicates=True).execute()
 
 
@@ -158,7 +106,6 @@ def authenticate(username: str, password: str) -> dict | None:
 def register_student(username, name, password, email="",
                      level="False Beginner", focus="General Conversation"):
     db = get_client()
-    # Verifica se já existe
     existing = db.table("users").select("username").eq("username", username).execute().data
     if existing:
         return False, "Username já existe."
@@ -191,13 +138,11 @@ def update_profile(username: str, patch: dict) -> bool:
         return False
     row = row[0]
 
-    # Campos de nível superior
     top_fields = {}
     for f in ("name", "email", "level", "focus"):
         if f in patch:
             top_fields[f] = patch.pop(f)
 
-    # Atualiza perfil JSON
     profile = row.get("profile") or {}
     profile.update(patch)
 
@@ -230,15 +175,25 @@ def create_session(username: str) -> str:
 
 
 def validate_session(token: str) -> dict | None:
+    """Usa RPC para validar e atualizar last_seen em uma única query."""
     if not token:
         return None
-    db  = get_client()
-    row = db.table("sessions").select("username").eq("token", token).execute().data
-    if not row:
-        return None
-    username = row[0]["username"]
-    # Atualiza last_seen
-    db.table("sessions").update({"last_seen": datetime.now().isoformat()}).eq("token", token).execute()
+    db = get_client()
+
+    # Tenta usar a função RPC otimizada
+    try:
+        result = db.rpc("validate_session", {"p_token": token}).execute()
+        username = result.data
+        if not username:
+            return None
+    except Exception:
+        # Fallback para query direta se a função RPC não existir
+        row = db.table("sessions").select("username").eq("token", token).execute().data
+        if not row:
+            return None
+        username = row[0]["username"]
+        db.table("sessions").update({"last_seen": datetime.now().isoformat()}).eq("token", token).execute()
+
     return load_students().get(username)
 
 
@@ -253,7 +208,6 @@ def new_conversation(username: str) -> str:
     cid = datetime.now().strftime("%Y%m%d_%H%M%S")
     now = datetime.now().isoformat()
     db  = get_client()
-    # upsert evita duplicata se chamado duas vezes no mesmo segundo
     db.table("conversations").upsert(
         {"id": cid, "username": username, "created_at": now},
         on_conflict="id,username",
@@ -263,13 +217,50 @@ def new_conversation(username: str) -> str:
 
 
 def delete_conversation(username: str, conv_id: str):
+    """Usa RPC para deletar conversa e mensagens atomicamente."""
     db = get_client()
-    db.table("messages").delete().eq("username", username).eq("conv_id", conv_id).execute()
-    db.table("conversations").delete().eq("username", username).eq("id", conv_id).execute()
+    try:
+        db.rpc("delete_conversation", {
+            "p_username": username,
+            "p_conv_id":  conv_id,
+        }).execute()
+    except Exception:
+        # Fallback
+        db.table("messages").delete().eq("username", username).eq("conv_id", conv_id).execute()
+        db.table("conversations").delete().eq("username", username).eq("id", conv_id).execute()
 
 
 def list_conversations(username: str) -> list:
-    db    = get_client()
+    """Usa RPC — era N+1 queries, agora é 1 query só."""
+    db = get_client()
+    try:
+        rows = db.rpc("list_conversations", {"p_username": username}).execute().data or []
+    except Exception:
+        # Fallback para query direta
+        return _list_conversations_fallback(username, db)
+
+    result = []
+    for r in rows:
+        if not r.get("title"):
+            continue
+        title = r["title"]
+        if len(title) == 45:
+            title += "..."
+        try:
+            date = datetime.strptime(r["id"], "%Y%m%d_%H%M%S").strftime("%d/%m %H:%M")
+        except Exception:
+            date = r["id"][:13]
+        result.append({
+            "id":    r["id"],
+            "title": title,
+            "date":  date,
+            "count": r.get("msg_count", 0),
+        })
+    return result
+
+
+def _list_conversations_fallback(username: str, db: Client) -> list:
+    """Fallback para list_conversations sem RPC."""
     convs = (
         db.table("conversations")
         .select("id, created_at")
@@ -282,19 +273,28 @@ def list_conversations(username: str) -> list:
     for c in convs:
         msgs = (
             db.table("messages")
-            .select("role, content, date")
+            .select("content")
             .eq("username", username)
             .eq("conv_id", c["id"])
             .eq("role", "user")
             .order("id")
+            .limit(1)
             .execute()
             .data or []
         )
         if not msgs:
             continue
+        count = (
+            db.table("messages")
+            .select("id", count="exact")
+            .eq("username", username)
+            .eq("conv_id", c["id"])
+            .eq("role", "user")
+            .execute()
+            .count or 0
+        )
         first = msgs[0]["content"]
         title = first[:45] + ("..." if len(first) > 45 else "")
-        count = len(msgs)
         try:
             date = datetime.strptime(c["id"], "%Y%m%d_%H%M%S").strftime("%d/%m %H:%M")
         except Exception:
@@ -304,57 +304,103 @@ def list_conversations(username: str) -> list:
 
 
 def load_conversation(username: str, conv_id: str) -> list:
-    db   = get_client()
-    rows = (
-        db.table("messages")
-        .select("*")
-        .eq("username", username)
-        .eq("conv_id", conv_id)
-        .order("id")
-        .execute()
-        .data or []
-    )
+    """Usa RPC para carregar conversa."""
+    db = get_client()
+    try:
+        rows = db.rpc("load_conversation", {
+            "p_username": username,
+            "p_conv_id":  conv_id,
+        }).execute().data or []
+        # Renomeia colunas que foram escapadas no SQL (time/date/timestamp são reservadas)
+        for r in rows:
+            if "msg_time" in r:
+                r["time"]      = r.pop("msg_time")
+                r["date"]      = r.pop("msg_date")
+                r["timestamp"] = r.pop("msg_timestamp")
+    except Exception:
+        rows = (
+            db.table("messages")
+            .select("*")
+            .eq("username", username)
+            .eq("conv_id", conv_id)
+            .order("id")
+            .execute()
+            .data or []
+        )
     return rows
 
 
 def append_message(username, conv_id, role, content,
                    audio=False, tts_b64=None, is_file=False):
+    """Usa RPC para inserir mensagem atomicamente."""
     now = datetime.now()
     db  = get_client()
 
-    # Garante que a conversa existe
-    db.table("conversations").upsert(
-        {"id": conv_id, "username": username, "created_at": now.isoformat()},
-        on_conflict="id,username",
-        ignore_duplicates=True,
-    ).execute()
-
-    db.table("messages").insert({
-        "conv_id":   conv_id,
-        "username":  username,
-        "role":      role,
-        "content":   content,
-        "audio":     bool(audio),
-        "is_file":   bool(is_file),
-        "tts_b64":   tts_b64 or "",
-        "time":      now.strftime("%H:%M"),
-        "date":      now.strftime("%Y-%m-%d"),
-        "timestamp": now.isoformat(),
-    }).execute()
+    try:
+        db.rpc("append_message", {
+            "p_username":       username,
+            "p_conv_id":        conv_id,
+            "p_role":           role,
+            "p_content":        content,
+            "p_audio":          bool(audio),
+            "p_is_file":        bool(is_file),
+            "p_tts_b64":        tts_b64 or "",
+            "p_msg_time":       now.strftime("%H:%M"),
+            "p_msg_date":       now.strftime("%Y-%m-%d"),
+            "p_msg_timestamp":  now.isoformat(),
+        }).execute()
+    except Exception:
+        # Fallback
+        db.table("conversations").upsert(
+            {"id": conv_id, "username": username, "created_at": now.isoformat()},
+            on_conflict="id,username",
+            ignore_duplicates=True,
+        ).execute()
+        db.table("messages").insert({
+            "conv_id":   conv_id,
+            "username":  username,
+            "role":      role,
+            "content":   content,
+            "audio":     bool(audio),
+            "is_file":   bool(is_file),
+            "tts_b64":   tts_b64 or "",
+            "time":      now.strftime("%H:%M"),
+            "date":      now.strftime("%Y-%m-%d"),
+            "timestamp": now.isoformat(),
+        }).execute()
 
 
 # ── Stats do professor ────────────────────────────────────────────────────────
 
 def get_all_students_stats() -> list:
-    db       = get_client()
+    """Usa RPC — era loop Python com N queries, agora é 1 query."""
+    db = get_client()
+    try:
+        rows = db.rpc("get_students_stats").execute().data or []
+        return [
+            {
+                "username":    r["username"],
+                "name":        r["name"],
+                "level":       r["level"],
+                "focus":       r["focus"],
+                "messages":    r.get("total_msgs", 0),
+                "corrections": r.get("corrections", 0),
+                "last_active": r.get("last_active", "---"),
+                "created_at":  (r.get("created_at") or "")[:10],
+            }
+            for r in rows
+        ]
+    except Exception:
+        return _get_students_stats_fallback(db)
+
+
+def _get_students_stats_fallback(db: Client) -> list:
+    """Fallback para get_all_students_stats sem RPC."""
     students = load_students()
     result   = []
-
     for username, data in students.items():
-        if data["role"] not in ("student",):
+        if data["role"] != "student":
             continue
-
-        # Total de mensagens do aluno
         msgs = (
             db.table("messages")
             .select("id", count="exact")
@@ -364,8 +410,6 @@ def get_all_students_stats() -> list:
         )
         total = msgs.count or 0
 
-        # Correções (heurística — mensagens da IA com frases de correção)
-        # O Supabase não tem LIKE nativo no SDK sem RPC, então filtramos no Python
         ai_msgs = (
             db.table("messages")
             .select("content")
@@ -374,15 +418,9 @@ def get_all_students_stats() -> list:
             .execute()
             .data or []
         )
-        correction_keywords = [
-            "Quick check", "we say", "instead of", "should be", "Try saying"
-        ]
-        fixes = sum(
-            1 for m in ai_msgs
-            if any(kw in m["content"] for kw in correction_keywords)
-        )
+        correction_keywords = ["Quick check", "we say", "instead of", "should be", "Try saying"]
+        fixes = sum(1 for m in ai_msgs if any(kw in m["content"] for kw in correction_keywords))
 
-        # Último acesso
         last_row = (
             db.table("messages")
             .select("date")
@@ -404,5 +442,4 @@ def get_all_students_stats() -> list:
             "last_active": last,
             "created_at":  data["created_at"][:10],
         })
-
     return result

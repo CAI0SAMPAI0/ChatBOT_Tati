@@ -237,57 +237,80 @@ for k, v in _defaults.items():
 
 def js_save_session(token: str) -> None:
     """
-    Persiste o token de sessão no localStorage do browser.
-    Ao reabrir o app, o JS envia o token via query param para restaurar o login.
+    Persiste o token via cookie (funciona em iOS/Android) + localStorage fallback.
     """
     components.html(
-        f"<script>localStorage.setItem('pav_session', '{token}');</script>",
+        f"""<script>
+        (function() {{
+            var token = '{token}';
+            // Cookie — persiste entre sessões, funciona no iOS
+            var maxAge = 60 * 60 * 24 * 30;
+            document.cookie = 'pav_session=' + encodeURIComponent(token)
+                + ';max-age=' + maxAge + ';path=/;SameSite=Lax';
+            // localStorage como fallback
+            try {{ localStorage.setItem('pav_session', token); }} catch(e) {{}}
+        }})();
+        </script>""",
         height=0
     )
 
 def js_clear_session() -> None:
     """
-    Remove o token de sessão e qualquer dado legado do localStorage.
-    Chamada em todos os fluxos de logout.
+    Remove o token de sessão de cookie e localStorage.
     """
     components.html(
-        "<script>"
-        "localStorage.removeItem('pav_session');"
-        "localStorage.removeItem('pav_user');"   # compatibilidade com versão anterior
-        "</script>",
+        """<script>
+        (function() {
+            document.cookie = 'pav_session=;max-age=0;path=/;SameSite=Lax';
+            try { localStorage.removeItem('pav_session'); } catch(e) {}
+            try { localStorage.removeItem('pav_user'); } catch(e) {}
+        })();
+        </script>""",
         height=0
     )
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# AUTO-LOGIN — restaura sessão ao reabrir o app sem precisar logar novamente
-# ══════════════════════════════════════════════════════════════════════════════
+# ── PATCH 2: Auto-login (bloco completo — substitui o bloco "AUTO-LOGIN" atual)
+# Substitua o bloco que começa com "if not st.session_state.logged_in:"
+# e termina antes de "HELPERS DE CONVERSA" pelo código abaixo:
 
 if not st.session_state.logged_in:
 
-    # 1. O JS lê o token do localStorage e o injeta na URL como query param
+    # JS lê token do cookie primeiro, depois localStorage, e injeta na URL
     components.html("""<script>
-    const token = localStorage.getItem('pav_session');
-    const legacy = localStorage.getItem('pav_user');   // suporte ao formato antigo
-    const val = token || legacy || '';
-    if (val) {
-        const url = new URL(window.parent.location.href);
-        const key = token ? '_token' : '_u';
-        if (url.searchParams.get(key) !== val) {
-            url.searchParams.set(key, val);
+    (function() {
+        // Lê do cookie
+        function readCookie() {
+            var match = document.cookie.split(';')
+                .map(function(c) { return c.trim(); })
+                .find(function(c) { return c.startsWith('pav_session='); });
+            if (match) return decodeURIComponent(match.split('=')[1]);
+            return '';
+        }
+
+        var token  = readCookie();
+        var legacy = '';
+        try { legacy = localStorage.getItem('pav_session') || localStorage.getItem('pav_user') || ''; } catch(e) {}
+
+        var val = token || legacy;
+        if (!val) return;
+
+        var url      = new URL(window.parent.location.href);
+        var isToken  = val.length > 20;
+        var paramKey = isToken ? '_token' : '_u';
+
+        if (url.searchParams.get(paramKey) !== val) {
+            url.searchParams.set(paramKey, val);
             window.parent.location.replace(url.toString());
         }
-    }
+    })();
     </script>""", height=0)
 
     params = st.query_params
 
-    # 2a. Token de sessão moderno — valida no banco SQLite
     if "_token" in params:
         token = params["_token"]
         udata = validate_session(token)
         if udata:
-            # Localiza o username real pelo hash da senha armazenada
             uname = udata.get("_resolved_username") or next(
                 (k for k, v in load_students().items() if v["password"] == udata["password"]),
                 None
@@ -301,17 +324,14 @@ if not st.session_state.logged_in:
                 st.query_params.clear()
                 st.rerun()
         else:
-            # Token expirado ou inválido — limpa tudo e pede novo login
             js_clear_session()
             st.query_params.clear()
 
-    # 2b. Username legado (localStorage antigo sem token) — migra para sessão moderna
     elif "_u" in params:
         uname    = params["_u"]
         students = load_students()
         if uname in students:
             udata = students[uname]
-            # Cria token persistente e salva no banco
             token = create_session(uname)
             st.session_state.logged_in         = True
             st.session_state.user              = {"username": uname, **udata}
@@ -515,7 +535,6 @@ def _generate_docx(title: str, content: str, out_path: Path) -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def render_audio_player(tts_b64: str, msg_time: str, player_id: str) -> str:
-    """Retorna HTML completo do player de áudio com controles de velocidade e volume."""
     return f"""<!DOCTYPE html><html><head>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0;}}
@@ -553,27 +572,75 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
 </div>
 <script>
 (function(){{
-  const audio=new Audio('data:audio/mpeg;base64,{tts_b64}');
-  const b=document.getElementById('b'),pf=document.getElementById('pf'),
-        pw=document.getElementById('pw'),vs=document.getElementById('vs'),
-        vi=document.getElementById('vi'),sw=document.getElementById('sw');
-  b.onclick=()=>{{ if(!audio.paused){{audio.pause();b.textContent='▶ Ouvir';}}
-                   else{{audio.play();b.textContent='⏸ Pausar';}} }};
-  audio.onended=()=>{{b.textContent='▶ Ouvir';pf.style.width='0%';}};
-  audio.ontimeupdate=()=>{{ if(audio.duration) pf.style.width=(audio.currentTime/audio.duration*100)+'%'; }};
-  pw.onclick=e=>{{ const r=pw.getBoundingClientRect();
-                   audio.currentTime=((e.clientX-r.left)/r.width)*audio.duration; }};
-  sw.querySelectorAll('.sb').forEach(btn=>{{
-    btn.onclick=function(){{ sw.querySelectorAll('.sb').forEach(x=>x.classList.remove('on'));
-      this.classList.add('on'); audio.playbackRate=parseFloat(this.dataset.r); }};
+  var audio=new Audio('data:audio/mpeg;base64,{tts_b64}');
+  audio.preload='metadata';
+  var b=document.getElementById('b'),pf=document.getElementById('pf'),
+      pw=document.getElementById('pw'),vs=document.getElementById('vs'),
+      vi=document.getElementById('vi'),sw=document.getElementById('sw');
+
+  // Desbloqueia AudioContext no iOS/Android
+  function unlockAudio(){{
+    try{{
+      var AC=window.AudioContext||window.webkitAudioContext;
+      if(!AC)return;
+      var ctx=new AC();
+      var buf=ctx.createBuffer(1,1,22050);
+      var src=ctx.createBufferSource();
+      src.buffer=buf; src.connect(ctx.destination); src.start(0);
+      if(ctx.state==='suspended')ctx.resume();
+    }}catch(e){{}}
+    // Também notifica o parent
+    try{{
+      if(window.parent&&window.parent.pavUnlockAudio)window.parent.pavUnlockAudio();
+    }}catch(e){{}}
+  }}
+
+  b.onclick=function(){{
+    unlockAudio();
+    if(!audio.paused){{
+      audio.pause(); b.textContent='▶ Ouvir';
+    }}else{{
+      var p=audio.play();
+      if(p!==undefined){{
+        p.then(function(){{b.textContent='⏸ Pausar';}})
+         .catch(function(err){{
+           console.warn('play() bloqueado:', err);
+           b.textContent='▶ Ouvir';
+           setTimeout(function(){{
+             audio.play()
+               .then(function(){{b.textContent='⏸ Pausar';}})
+               .catch(function(){{}});
+           }},300);
+         }});
+      }}
+    }}
+  }};
+
+  audio.onended=function(){{b.textContent='▶ Ouvir';pf.style.width='0%';}};
+  audio.ontimeupdate=function(){{
+    if(audio.duration)pf.style.width=(audio.currentTime/audio.duration*100)+'%';
+  }};
+  pw.onclick=function(e){{
+    var r=pw.getBoundingClientRect();
+    if(audio.duration)audio.currentTime=((e.clientX-r.left)/r.width)*audio.duration;
+  }};
+  sw.querySelectorAll('.sb').forEach(function(btn){{
+    btn.onclick=function(){{
+      sw.querySelectorAll('.sb').forEach(function(x){{x.classList.remove('on');}});
+      this.classList.add('on');
+      audio.playbackRate=parseFloat(this.dataset.r);
+    }};
   }});
-  vs.oninput=()=>{{ audio.volume=parseFloat(vs.value);
-    vi.textContent=audio.volume===0?'🔇':audio.volume<0.5?'🔉':'🔊'; }};
-  vi.onclick=()=>{{ if(audio.volume>0){{audio._v=audio.volume;audio.volume=0;vs.value=0;vi.textContent='🔇';}}
-                    else{{audio.volume=audio._v||1;vs.value=audio.volume;vi.textContent='🔊';}} }};
+  vs.oninput=function(){{
+    audio.volume=parseFloat(vs.value);
+    vi.textContent=audio.volume===0?'🔇':audio.volume<0.5?'🔉':'🔊';
+  }};
+  vi.onclick=function(){{
+    if(audio.volume>0){{audio._v=audio.volume;audio.volume=0;vs.value=0;vi.textContent='🔇';}}
+    else{{audio.volume=audio._v||1;vs.value=audio.volume;vi.textContent='🔊';}}
+  }};
 }})();
 </script></body></html>"""
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TELA DE LOGIN / REGISTRO

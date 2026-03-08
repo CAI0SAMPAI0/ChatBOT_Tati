@@ -15,14 +15,14 @@ import os
 import re
 import requests
 
-ELEVEN_MODEL     = "eleven_turbo_v2_5"
-# Vozes gratuitas disponíveis em qualquer conta ElevenLabs:
-# Rachel : 21m00Tcm4TlvDq8ikWAM  (feminina, suave)
+ELEVEN_MODEL = "eleven_turbo_v2_5"
+
+# ── Vozes femininas gratuitas disponíveis em qualquer conta ElevenLabs ────────
+# Rachel : 21m00Tcm4TlvDq8ikWAM  (feminina, suave) ← padrão
 # Domi   : AZnzlk1XvdvUeBnXmlld  (feminina, confiante)
 # Bella  : EXAVITQu4vr4xnSDxMaL  (feminina, jovem)
-# Adam   : pNInz6obpgDQGcFmaJgB  (masculino, profundo)
-# Josh   : TxGEqnHWrfWFTfGW9XjX  (masculino, jovem)
-DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel
+# Elli   : MF3mGyEYCl7XYWbV9V6O  (feminina, emocional)
+DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel — feminina, suave
 USAGE_THRESHOLD  = 0.80
 
 
@@ -45,7 +45,11 @@ def _load_keys() -> list[str]:
 
 
 def _voice() -> str:
-    return os.getenv("ELEVENLABS_VOICE_ID", DEFAULT_VOICE_ID).strip()
+    """Retorna o voice ID — prioriza .env, fallback para Rachel (feminina)."""
+    v = os.getenv("ELEVENLABS_VOICE_ID", "").strip()
+    if v:
+        return v
+    return DEFAULT_VOICE_ID
 
 
 # ── Consulta de uso ───────────────────────────────────────────────────────────
@@ -122,25 +126,28 @@ def text_to_speech(text: str) -> bytes | None:
         print("🚨 TTS: nenhuma chave ElevenLabs encontrada no .env")
         return None
 
+    voice_id = _voice()
+    print(f"🎙️  TTS: usando voice_id={voice_id}")
+
     text = re.sub(r'\*+', '', text).strip()[:600]
     if not text:
         return None
 
     def _call(api_key: str) -> requests.Response:
         return requests.post(
-            f"https://api.elevenlabs.io/v1/text-to-speech/{_voice()}",
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
             headers={
-                "xi-api-key": api_key,
+                "xi-api-key":   api_key,
                 "Content-Type": "application/json",
-                "Accept": "audio/mpeg",
+                "Accept":       "audio/mpeg",
             },
             json={
-                "text": text,
+                "text":     text,
                 "model_id": ELEVEN_MODEL,
                 "voice_settings": {
-                    "stability": 0.5,
+                    "stability":        0.5,
                     "similarity_boost": 0.75,
-                    "style": 0.0,
+                    "style":            0.0,
                     "use_speaker_boost": True,
                 },
             },
@@ -151,7 +158,7 @@ def text_to_speech(text: str) -> bytes | None:
         resp = _call(key)
 
         if resp.status_code == 200:
-            print(f"✅ TTS: áudio gerado (chave ...{key[-6:]})")
+            print(f"✅ TTS: áudio gerado (chave ...{key[-6:]}, voz {voice_id})")
             return resp.content
 
         elif resp.status_code == 429:
