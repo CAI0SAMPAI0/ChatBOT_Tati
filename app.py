@@ -28,6 +28,15 @@ from transcriber import transcribe_bytes
 from tts import text_to_speech, tts_available
 from file_reader import extract_file
 
+# ── Wav2Lip (avatar realista — opcional, requer Colab rodando) ────────────────
+try:
+    from wav2lip_avatar import generate_talking_video, wav2lip_available
+    _WAV2LIP_LOADED = True
+except ImportError:
+    _WAV2LIP_LOADED = False
+    def wav2lip_available(): return False
+    def generate_talking_video(_): return None
+
 # ── Font Awesome (ícones de anexo, etc.) ─────────────────────────────────────
 st.markdown(
     '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">',
@@ -1083,13 +1092,22 @@ def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
 
     # Gera TTS para o modo voz
     tts_b64 = ""
+    tts_bytes = None
     if tts_available():
         ab = text_to_speech(reply)
         if ab:
+            tts_bytes = ab
             tts_b64 = base64.b64encode(ab).decode()
 
     st.session_state["_vm_reply"]   = reply
     st.session_state["_vm_tts_b64"] = tts_b64
+
+    # Gera vídeo Wav2Lip se disponível
+    st.session_state["_vm_video_b64"] = ""
+    if _WAV2LIP_LOADED and wav2lip_available() and tts_bytes:
+        video_b64 = generate_talking_video(tts_bytes)
+        if video_b64:
+            st.session_state["_vm_video_b64"] = video_b64
 
     # Persiste no histórico da conversa atual
     append_message(username, conv_id, "user",      txt,   audio=True)
@@ -1116,7 +1134,7 @@ def show_voice_mode() -> None:
     if st.button("✕ Fechar Modo Voz", key="close_voice_inner"):
         st.session_state.voice_mode = False
         for k in ["_vm_history", "_vm_reply", "_vm_tts_b64", "_vm_user_said",
-                  "_vm_error", "_vm_last_upload"]:
+                  "_vm_error", "_vm_last_upload", "_vm_video_b64"]:
             st.session_state.pop(k, None)
         st.rerun()
 
@@ -1136,6 +1154,7 @@ def show_voice_mode() -> None:
     user_said = st.session_state.get("_vm_user_said", "")
     reply     = st.session_state.get("_vm_reply",     "")
     tts_b64   = st.session_state.get("_vm_tts_b64",   "")
+    video_b64 = st.session_state.get("_vm_video_b64", "")
     vm_error  = st.session_state.get("_vm_error",     "")
 
     # ── Carrega as 3 imagens do avatar (closed / mid / open) ─────────────────
@@ -1156,6 +1175,7 @@ def show_voice_mode() -> None:
     us_js     = json.dumps(user_said)
     rep_js    = json.dumps(reply)
     tts_js    = json.dumps(tts_b64)
+    vid_js    = json.dumps(video_b64)
     err_js    = json.dumps(vm_error)
     pnm_js    = json.dumps(PROF_NAME)
     sl_js     = json.dumps(speech_lang_val)
@@ -1232,7 +1252,14 @@ html,body{{background:var(--bg);font-family:'Sora',sans-serif;color:var(--text);
 <div id="debug-panel"></div>
 
 <div class="vm" id="vm">
-  <div class="avatar-wrap" id="avatarWrap"></div>
+  <div class="avatar-wrap" id="avatarWrap">
+    <video id="wav2lipVideo"
+      style="display:none;position:absolute;inset:0;width:100%;height:100%;
+             object-fit:cover;border-radius:50%;z-index:10;"
+      playsinline autoplay
+      onended="onWav2LipEnded()">
+    </video>
+  </div>
   <div class="info">
     <div class="prof-name">{PROF_NAME}</div>
     <div class="status" id="status">Clique no microfone para falar</div>
@@ -1254,6 +1281,7 @@ html,body{{background:var(--bg);font-family:'Sora',sans-serif;color:var(--text);
 const PY_USER_SAID = {us_js};
 const PY_REPLY     = {rep_js};
 const PY_TTS_B64   = {tts_js};
+const PY_VIDEO_B64 = {vid_js};
 const PY_ERROR     = {err_js};
 const SPEECH_LANG  = {sl_js};
 const PROF_NAME    = {pnm_js};
@@ -1861,7 +1889,52 @@ function fallbackTTS(text){{
   }},100);
 }}
 
+// ── Wav2Lip video player ──────────────────────────────────────────────────────
+const wav2lipVideo = document.getElementById('wav2lipVideo');
+
+function playWav2Lip(videoB64, ttsB64, replyText) {{
+  if (!videoB64 || videoB64.length < 100) {{
+    // Sem vídeo → usa TTS normal
+    playTTS(ttsB64, replyText);
+    return;
+  }}
+  isSpeaking = true;
+  setStatus('Falando...', 's-speaking');
+  mouthTarget = 0.4;
+
+  // Mostra vídeo, esconde Three.js canvas
+  const canvas = document.getElementById('three-canvas');
+  if (canvas) canvas.style.display = 'none';
+  wav2lipVideo.style.display = 'block';
+  wav2lipVideo.src = 'data:video/mp4;base64,' + videoB64;
+  wav2lipVideo.play().catch(() => {{
+    // Fallback se autoplay bloqueado
+    onWav2LipEnded();
+    playTTS(ttsB64, replyText);
+  }});
+  // Anima boca enquanto o vídeo toca
+  function animMouth() {{
+    if (!isSpeaking) {{ mouthTarget = 0; return; }}
+    mouthTarget = 0.3 + 0.5 * Math.abs(Math.sin(Date.now() / 180));
+    requestAnimationFrame(animMouth);
+  }}
+  animMouth();
+}}
+
+function onWav2LipEnded() {{
+  isSpeaking = false;
+  mouthTarget = 0;
+  wav2lipVideo.style.display = 'none';
+  wav2lipVideo.src = '';
+  const canvas = document.getElementById('three-canvas');
+  if (canvas) canvas.style.display = 'block';
+  setStatus('Clique no microfone para continuar', '');
+  resetToIdle();
+  startRec();
+}}
+
 micBtn.onclick=()=>{{
+  if(wav2lipVideo && !wav2lipVideo.paused){{wav2lipVideo.pause();onWav2LipEnded();return;}}
   if(curAudio){{curAudio.pause();curAudio=null;}}
   try{{speechSynthesis.cancel();}}catch(e){{}}
   isSpeaking=false;mouthTarget=0;ttsAnalyser=null;
@@ -1871,7 +1944,13 @@ micBtn.onclick=()=>{{
 
 window.addEventListener('load',()=>{{
   if(PY_ERROR&&PY_ERROR.length>1){{showErr(PY_ERROR);setStatus('Erro','');return;}}
-  if(PY_REPLY&&PY_REPLY.length>1){{showTranscript(PY_USER_SAID,PY_REPLY);playTTS(PY_TTS_B64,PY_REPLY);return;}}
+  if(PY_REPLY&&PY_REPLY.length>1){{
+    showTranscript(PY_USER_SAID,PY_REPLY);
+    // Usa Wav2Lip se disponível, senão TTS normal
+    if(PY_VIDEO_B64&&PY_VIDEO_B64.length>100) playWav2Lip(PY_VIDEO_B64,PY_TTS_B64,PY_REPLY);
+    else playTTS(PY_TTS_B64,PY_REPLY);
+    return;
+  }}
   if(PY_USER_SAID&&PY_USER_SAID.length>1) showTranscript(PY_USER_SAID,'');
 }});
 
