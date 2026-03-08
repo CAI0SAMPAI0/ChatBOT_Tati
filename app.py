@@ -1116,40 +1116,43 @@ def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
 
 def show_voice_mode() -> None:
     """
-    Renderiza o modo de conversa por voz com:
-    - Avatar animado (morph de 3 imagens: closed/mid/open)
-    - VAD (detecção automática de silêncio)
-    - Animações: respiração, piscar, inclinação de cabeça
-    - Painel de debug para o usuário 'programador'
+    Modo voz — usa st.audio_input nativo (funciona no Streamlit Cloud).
+    Avatar Three.js animado + TTS + Wav2Lip opcional.
     """
     user     = st.session_state.user
     username = user["username"]
     profile  = user.get("profile", {})
     whisper_lang    = profile.get("voice_lang",  "en")
     speech_lang_val = profile.get("speech_lang", "en-US")
-    is_dev   = (username == "programador")
 
     conv_id = get_or_create_conv(username)
 
     if st.button("✕ Fechar Modo Voz", key="close_voice_inner"):
         st.session_state.voice_mode = False
         for k in ["_vm_history", "_vm_reply", "_vm_tts_b64", "_vm_user_said",
-                  "_vm_error", "_vm_last_upload", "_vm_video_b64"]:
+                  "_vm_error", "_vm_last_upload", "_vm_video_b64", "_vm_audio_key"]:
             st.session_state.pop(k, None)
         st.rerun()
 
-    # Uploader oculto — recebe o blob de áudio enviado pelo JS
-    audio_upload = st.file_uploader(
-        "vm_audio", key="vm_audio_upload", label_visibility="collapsed",
-        type=["webm", "wav", "ogg", "mp4", "m4a"])
-    if audio_upload:
-        uid = f"{audio_upload.name}_{audio_upload.size}"
-        if uid != st.session_state.get("_vm_last_upload"):
-            st.session_state["_vm_last_upload"] = uid
-            for k in ["_vm_reply", "_vm_tts_b64", "_vm_user_said", "_vm_error"]:
-                st.session_state.pop(k, None)
-            _vm_process_audio(audio_upload.read(), whisper_lang, conv_id)
-            st.rerun()
+    # ── st.audio_input nativo — tem permissão de microfone no Streamlit Cloud ─
+    if "_vm_audio_key" not in st.session_state:
+        st.session_state["_vm_audio_key"] = 0
+
+    st.markdown("**🎙 Grave sua mensagem:**")
+    audio_val = st.audio_input(
+        "Clique para gravar",
+        key=f"vm_audio_{st.session_state['_vm_audio_key']}",
+        label_visibility="visible",
+    )
+
+    if audio_val and audio_val != st.session_state.get("_vm_last_upload"):
+        st.session_state["_vm_last_upload"] = audio_val
+        for k in ["_vm_reply", "_vm_tts_b64", "_vm_user_said", "_vm_error", "_vm_video_b64"]:
+            st.session_state.pop(k, None)
+        with st.spinner("⏳ Processando..."):
+            _vm_process_audio(audio_val.read(), whisper_lang, conv_id)
+        st.session_state["_vm_audio_key"] += 1
+        st.rerun()
 
     user_said = st.session_state.get("_vm_user_said", "")
     reply     = st.session_state.get("_vm_reply",     "")
@@ -1157,805 +1160,86 @@ def show_voice_mode() -> None:
     video_b64 = st.session_state.get("_vm_video_b64", "")
     vm_error  = st.session_state.get("_vm_error",     "")
 
-    # ── Carrega as 3 imagens do avatar (closed / mid / open) ─────────────────
-    def load_avatar(filename: str) -> str:
-        p = Path(f"data/avatars/{filename}")
-        if p.exists():
-            b64  = base64.b64encode(p.read_bytes()).decode()
-            ext  = p.suffix.lstrip(".")
-            mime = "jpeg" if ext in ("jpg", "jpeg") else ext
-            return f"data:image/{mime};base64,{b64}"
-        return ""
+    # ── Avatar — foto real ou emoji fallback ──────────────────────────────────
+    photo = get_photo_b64()
+    is_speaking = bool(reply)
 
-    src_closed = load_avatar("avatar_closed.png") or load_avatar("avatar.png") or PHOTO_B64 or ""
-    src_mid    = load_avatar("avatar_mid.png")    or src_closed
-    src_open   = load_avatar("avatar_open.png")   or src_closed
+    ring_color = "rgba(240,165,0,.9)" if is_speaking else "rgba(240,165,0,.4)"
+    glow       = "0 0 50px rgba(240,165,0,.45)" if is_speaking else "0 0 20px rgba(240,165,0,.15)"
+    anim       = "animation:pulse 1s ease-in-out infinite alternate;" if is_speaking else ""
 
-    # Serializa dados Python → JS com json.dumps para evitar problemas de aspas
-    us_js     = json.dumps(user_said)
-    rep_js    = json.dumps(reply)
-    tts_js    = json.dumps(tts_b64)
-    vid_js    = json.dumps(video_b64)
-    err_js    = json.dumps(vm_error)
-    pnm_js    = json.dumps(PROF_NAME)
-    sl_js     = json.dumps(speech_lang_val)
-    is_dev_js = json.dumps(is_dev)
-    role_js   = json.dumps(user.get("role", "student"))
+    if photo:
+        avatar_block = (
+            f'<img src="{photo}" style="width:100%;height:100%;'
+            f'object-fit:cover;object-position:top;border-radius:50%;">'
+        )
+    else:
+        avatar_block = (
+            '<div style="width:100%;height:100%;display:flex;align-items:center;'
+            'justify-content:center;font-size:80px;border-radius:50%;">🧑‍🏫</div>'
+        )
 
-    components.html(f"""<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
+    st.markdown(f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&display=swap');
-*{{box-sizing:border-box;margin:0;padding:0;}}
-:root{{--bg:#080c12;--surface:#0f1419;--border:#1e2530;
-       --accent:#f0a500;--accent2:#e05c2a;--text:#e6edf3;--muted:#8b949e;
-       --green:#3fb950;--red:#f85149;--blue:#58a6ff;}}
-html,body{{background:var(--bg);font-family:'Sora',sans-serif;color:var(--text);height:100%;overflow:hidden;}}
-#three-canvas{{display:block;}}
-
-.vm{{display:flex;flex-direction:column;align-items:center;justify-content:center;
-     height:100vh;gap:16px;padding:20px;
-     background:radial-gradient(ellipse at 50% 25%,rgba(240,165,0,.07) 0%,transparent 60%);}}
-
-.avatar-wrap{{
-  position:relative;width:220px;height:220px;
-  border-radius:50%;overflow:hidden;flex-shrink:0;
-  box-shadow:0 0 40px rgba(240,165,0,.2);
+@keyframes pulse{{
+  from{{box-shadow:0 0 0 3px rgba(240,165,0,.4),0 0 20px rgba(240,165,0,.15);}}
+  to  {{box-shadow:0 0 0 6px rgba(240,165,0,.9),0 0 50px rgba(240,165,0,.45);}}
 }}
-
-/* Painel debug */
-#debug-panel{{
-  position:fixed;top:10px;right:10px;
-  background:rgba(10,16,24,.95);border:1px solid var(--accent);
-  border-radius:10px;padding:12px 16px;font-size:.72rem;z-index:9999;
-  min-width:220px;display:none;
-}}
-#debug-toggle{{
-  position:fixed;top:10px;right:10px;
-  background:rgba(240,165,0,.15);border:1px solid var(--accent);
-  border-radius:6px;color:var(--accent);font-size:.65rem;
-  padding:3px 8px;cursor:pointer;z-index:10000;display:none;
-}}
-
-.info{{text-align:center;}}
-.prof-name{{font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:3px;}}
-.status{{font-size:.78rem;color:var(--muted);transition:color .3s;}}
-.status.s-listening{{color:var(--green);}}.status.s-speaking{{color:var(--accent);}}.status.s-processing{{color:var(--blue);}}
-
-.transcript{{max-width:480px;width:100%;background:var(--surface);border:1px solid var(--border);
-             border-radius:14px;padding:12px 16px;font-size:.84rem;line-height:1.65;min-height:60px;}}
-.t-label{{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}}
-.t-user{{color:#adbac7;margin-bottom:6px;display:none;}}
-.t-sep{{border:none;border-top:1px solid var(--border);margin:6px 0;display:none;}}
-.t-ai{{color:var(--text);display:none;}}.t-wait{{color:#3d4a5c;font-style:italic;}}
-
-.sil{{width:130px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;visibility:hidden;margin:0 auto;}}
-.sil-fill{{height:100%;background:linear-gradient(90deg,var(--green),var(--accent));border-radius:2px;width:0%;}}
-.sil.show{{visibility:visible;}}
-
-.mic-btn{{width:64px;height:64px;border-radius:50%;border:none;cursor:pointer;font-size:26px;
-          display:flex;align-items:center;justify-content:center;
-          background:linear-gradient(135deg,var(--green),#2ea043);
-          box-shadow:0 0 20px rgba(63,185,80,.3);transition:all .2s;}}
-.mic-btn:hover{{transform:scale(1.07);}}
-.mic-btn.active{{background:linear-gradient(135deg,var(--red),#c03030);
-                 box-shadow:0 0 26px rgba(248,81,73,.5);
-                 animation:mpulse .8s ease-in-out infinite alternate;}}
-@keyframes mpulse{{from{{box-shadow:0 0 14px rgba(248,81,73,.3);}}to{{box-shadow:0 0 32px rgba(248,81,73,.7);}}}}
-.hint{{font-size:.65rem;color:#2d3a4a;text-align:center;}}
-.err{{font-size:.74rem;color:var(--red);text-align:center;max-width:340px;min-height:18px;}}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-</head><body>
-
-<button id="debug-toggle" onclick="toggleDebug()" style="display:none">⚙ Debug</button>
-<div id="debug-panel"></div>
-
-<div class="vm" id="vm">
-  <div class="avatar-wrap" id="avatarWrap">
-    <video id="wav2lipVideo"
-      style="display:none;position:absolute;inset:0;width:100%;height:100%;
-             object-fit:cover;border-radius:50%;z-index:10;"
-      playsinline autoplay
-      onended="onWav2LipEnded()">
-    </video>
+<div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px 0;">
+  <div style="width:220px;height:220px;border-radius:50%;overflow:hidden;
+              box-shadow:0 0 0 3px {ring_color},{glow};{anim}">
+    {avatar_block}
   </div>
-  <div class="info">
-    <div class="prof-name">{PROF_NAME}</div>
-    <div class="status" id="status">Clique no microfone para falar</div>
+  <div style="color:#f0a500;font-weight:700;font-size:1rem;">{PROF_NAME}</div>
+  <div style="color:#8b949e;font-size:.8rem;">
+    {"🗣 Respondendo..." if is_speaking else "🎙 Aguardando gravação"}
   </div>
-  <div class="transcript">
-    <div class="t-label" id="tLabel">Aguardando...</div>
-    <div class="t-user" id="tUser"></div>
-    <hr class="t-sep" id="tSep">
-    <div class="t-ai" id="tAi"></div>
-    <div class="t-wait" id="tWait">—</div>
-  </div>
-  <div class="sil" id="sil"><div class="sil-fill" id="silFill"></div></div>
-  <button class="mic-btn" id="micBtn">🎤</button>
-  <div class="hint">Detecção automática de silêncio (1.5s)</div>
-  <div class="err" id="errBox"></div>
 </div>
-
-<script>
-const PY_USER_SAID = {us_js};
-const PY_REPLY     = {rep_js};
-const PY_TTS_B64   = {tts_js};
-const PY_VIDEO_B64 = {vid_js};
-const PY_ERROR     = {err_js};
-const SPEECH_LANG  = {sl_js};
-const PROF_NAME    = {pnm_js};
-const IS_DEV       = {is_dev_js};
-const USER_ROLE    = {role_js};
-
-// ── Three.js Avatar ──────────────────────────────────────────────────────────
-const wrap = document.getElementById('avatarWrap');
-const W = 220, H = 220;
-
-const renderer = new THREE.WebGLRenderer({{antialias:true, alpha:true}});
-renderer.setSize(W, H);
-renderer.domElement.style.width = '100%';   
-renderer.domElement.style.height = '100%';  
-renderer.setPixelRatio(window.devicePixelRatio || 1);
-renderer.shadowMap.enabled = true;
-renderer.domElement.id = 'three-canvas';
-wrap.appendChild(renderer.domElement);
-
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, W/H, 0.1, 100);
-camera.position.set(0, 0.3, 4.2);
-camera.lookAt(0, 0.3, 0);
-
-// Lighting
-const ambient = new THREE.AmbientLight(0xffeedd, 0.7);
-scene.add(ambient);
-const keyLight = new THREE.DirectionalLight(0xfff5e0, 1.2);
-keyLight.position.set(2, 4, 3);
-scene.add(keyLight);
-const fillLight = new THREE.DirectionalLight(0xe0eeff, 0.4);
-fillLight.position.set(-3, 1, 2);
-scene.add(fillLight);
-const rimLight = new THREE.DirectionalLight(0xf0a500, 0.3);
-rimLight.position.set(0, -2, -3);
-scene.add(rimLight);
-
-// ── Avatar builder ───────────────────────────────────────────────────────────
-// Builds a cartoon avatar based on role: 'professor' = female Teacher Tati
-// any other role = male student avatar
-
-const isFemale = (USER_ROLE === 'professor');
-
-function buildAvatar(female) {{
-  const g = new THREE.Group();
-  scene.add(g);
-
-  // ── Shared helpers ──────────────────────────────────────────────────────────
-  function mat(hex, opts={{}}) {{
-    return new THREE.MeshToonMaterial({{color: hex, ...opts}});
-  }}
-
-  // ── Color palette ───────────────────────────────────────────────────────────
-  const skinColor   = female ? 0xf0d0b8 : 0x8b5c3a;
-  const hairColor   = female ? 0x3a2010 : 0x1a0d00;
-  const irisColor   = female ? 0x5a3a20 : 0x3a2810;
-  const lipColor    = female ? 0xc05060 : 0x8a5048;
-  const glassColor  = female ? 0x2a2a8a : 0xb0883a;
-  const shirtColor  = female ? 0xf0f0f0 : 0x101418;
-  const blushColor  = female ? 0xf0a0b0 : 0x7a3a2a;
-  const earringColor= female ? 0xb08040 : 0xd4a030;
-
-  const skinMat   = mat(skinColor);
-  const hairMat   = mat(hairColor);
-  const eyeWMat   = mat(0xffffff);
-  const irisMat   = mat(irisColor);
-  const pupilMat  = mat(0x0a0808);
-  const lipMat    = mat(lipColor);
-  const mouthMat  = mat(0x1a0505);
-  const teethMat  = mat(0xfaf8f5);
-  const blushMat  = mat(blushColor, {{transparent:true, opacity:0.3}});
-  const glassMat  = mat(glassColor);
-  const glassFrm  = mat(female ? 0x1a1a6a : 0x8a6828);
-  const shirtMat  = mat(shirtColor);
-  const darkMat   = mat(hairColor);
-
-  // ── HEAD ────────────────────────────────────────────────────────────────────
-  const head = new THREE.Group();
-  g.add(head);
-
-  // Face shape — female rounder, male slightly squarer
-  const faceGeo = new THREE.SphereGeometry(1, 32, 32);
-  faceGeo.scale(female ? 1.0 : 1.05, female ? 1.1 : 1.08, 0.88);
-  head.add(new THREE.Mesh(faceGeo, skinMat));
-
-  // Jaw
-  const jawGeo = new THREE.SphereGeometry(female ? 0.52 : 0.58, 16, 16);
-  jawGeo.scale(female ? 0.95 : 1.05, female ? 0.55 : 0.62, 0.85);
-  const jaw = new THREE.Mesh(jawGeo, skinMat);
-  jaw.position.set(0, -0.9, 0.08);
-  head.add(jaw);
-
-  // Neck
-  const neckGeo = new THREE.CylinderGeometry(
-    female ? 0.26 : 0.32, female ? 0.30 : 0.36, 0.5, 16);
-  const neck = new THREE.Mesh(neckGeo, skinMat);
-  neck.position.set(0, -1.5, 0);
-  head.add(neck);
-
-  // Shoulders
-  const shGeo = new THREE.SphereGeometry(1, 16, 8);
-  shGeo.scale(female ? 1.5 : 1.7, 0.45, 0.65);
-  const shoulders = new THREE.Mesh(shGeo, shirtMat);
-  shoulders.position.set(0, -2.1, -0.1);
-  head.add(shoulders);
-
-  // Collar / shirt detail
-  if (female) {{
-    // White blouse collar
-    const colGeo = new THREE.TorusGeometry(0.28, 0.09, 8, 16);
-    const col = new THREE.Mesh(colGeo, mat(0xffffff));
-    col.position.set(0, -1.72, 0.16);
-    col.rotation.x = 0.4;
-    head.add(col);
-  }} else {{
-    // Open shirt collar — two small panels
-    [[-0.18, 0.08], [0.18, -0.08]].forEach(([x, rz]) => {{
-      const panelGeo = new THREE.BoxGeometry(0.18, 0.3, 0.04);
-      const panel = new THREE.Mesh(panelGeo, mat(0x101418));
-      panel.position.set(x, -1.8, 0.25);
-      panel.rotation.z = rz;
-      head.add(panel);
-    }});
-    // Chain necklace (gold line)
-    const chainGeo = new THREE.TorusGeometry(0.3, 0.015, 6, 24);
-    const chain = new THREE.Mesh(chainGeo, mat(earringColor));
-    chain.position.set(0, -1.88, 0.1);
-    chain.rotation.x = 0.5;
-    head.add(chain);
-  }}
-
-  // ── HAIR ────────────────────────────────────────────────────────────────────
-  if (female) {{
-    // Short brown hair, slightly wavy — Teacher Tati style
-    const topGeo = new THREE.SphereGeometry(1.06, 32, 32);
-    topGeo.scale(1.0, 0.62, 0.9);
-    const topMesh = new THREE.Mesh(topGeo, hairMat);
-    topMesh.position.set(0, 0.42, -0.05);
-    head.add(topMesh);
-
-    // Side wisps
-    [[-0.92, 0.08], [0.92, 0.08]].forEach(([x, z]) => {{
-      const sg = new THREE.SphereGeometry(0.38, 16, 16);
-      sg.scale(0.5, 1.1, 0.55);
-      const sm = new THREE.Mesh(sg, hairMat);
-      sm.position.set(x, -0.1, z);
-      head.add(sm);
-    }});
-
-    // Back
-    const bgeo = new THREE.SphereGeometry(0.88, 16, 16);
-    bgeo.scale(0.95, 1.05, 0.55);
-    const bm = new THREE.Mesh(bgeo, hairMat);
-    bm.position.set(0, -0.05, -0.85);
-    head.add(bm);
-
-  }} else {{
-    // Very short black hair — close-cropped
-    const topGeo = new THREE.SphereGeometry(1.04, 32, 32);
-    topGeo.scale(1.05, 0.45, 0.92);
-    const topMesh = new THREE.Mesh(topGeo, hairMat);
-    topMesh.position.set(0, 0.62, -0.04);
-    head.add(topMesh);
-
-    // Temple sides — very thin
-    [-1, 1].forEach(side => {{
-      const sg = new THREE.SphereGeometry(0.3, 12, 12);
-      sg.scale(0.38, 0.9, 0.5);
-      const sm = new THREE.Mesh(sg, hairMat);
-      sm.position.set(side * 1.0, 0.1, -0.05);
-      head.add(sm);
-    }});
-  }}
-
-  // ── EYEBROWS ────────────────────────────────────────────────────────────────
-  const browY = female ? 0.5 : 0.48;
-  [[-0.38, female ? 0.06 : 0.04], [0.38, female ? -0.06 : -0.04]].forEach(([x, rz]) => {{
-    const bg = new THREE.BoxGeometry(female ? 0.28 : 0.32, female ? 0.04 : 0.05, 0.04);
-    const bm = new THREE.Mesh(bg, darkMat);
-    bm.position.set(x, browY, 0.87);
-    bm.rotation.z = rz;
-    head.add(bm);
-  }});
-
-  // ── EYES ────────────────────────────────────────────────────────────────────
-  const eyeGroups = [];
-  const eyelids = [];
-  [-0.37, 0.37].forEach(x => {{
-    const eg = new THREE.Group();
-    eg.position.set(x, 0.24, 0.86);
-    head.add(eg);
-
-    const white = new THREE.Mesh(new THREE.SphereGeometry(0.165, 16, 16), eyeWMat);
-    white.scale(1, 0.82, 0.58);
-    eg.add(white);
-
-    const iris = new THREE.Mesh(new THREE.CircleGeometry(0.095, 16), irisMat);
-    iris.position.set(0, 0, 0.096);
-    eg.add(iris);
-
-    const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.052, 16), pupilMat);
-    pupil.position.set(0, 0, 0.098);
-    eg.add(pupil);
-
-    // Eye shine
-    const shine = new THREE.Mesh(new THREE.CircleGeometry(0.022, 8), mat(0xffffff));
-    shine.position.set(0.03, 0.03, 0.1);
-    eg.add(shine);
-
-    // Eyelid for blinking
-    const lidGeo = new THREE.SphereGeometry(0.175, 16, 8, 0, Math.PI*2, 0, Math.PI/2);
-    const lid = new THREE.Mesh(lidGeo, skinMat);
-    lid.position.set(0, 0.01, 0);
-    lid.rotation.x = -Math.PI;
-    lid.scale.set(1, 0.82, 0.6);
-    eg.add(lid);
-    eyelids.push(lid);
-    eyeGroups.push(eg);
-  }});
-
-  // ── GLASSES ─────────────────────────────────────────────────────────────────
-  if (female) {{
-    // Cat-eye glasses — blue/purple thick frames
-    [-0.37, 0.37].forEach((x, i) => {{
-      // Frame shape — slightly angled cat-eye
-      const frameGeo = new THREE.TorusGeometry(0.22, 0.04, 8, 20);
-      frameGeo.scale(1, female ? 0.78 : 0.82, 0.3);
-      const frame = new THREE.Mesh(frameGeo, glassMat);
-      frame.position.set(x, 0.25, 0.86);
-      // Cat-eye: tilt outer corner up
-      frame.rotation.z = i === 0 ? 0.18 : -0.18;
-      head.add(frame);
-    }});
-    // Bridge
-    const bridgeGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.22, 8);
-    const bridge = new THREE.Mesh(bridgeGeo, glassMat);
-    bridge.rotation.z = Math.PI / 2;
-    bridge.position.set(0, 0.27, 0.9);
-    head.add(bridge);
-    // Temples
-    [-0.6, 0.6].forEach(x => {{
-      const tempGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.35, 8);
-      const temp = new THREE.Mesh(tempGeo, glassMat);
-      temp.rotation.z = Math.PI / 2;
-      temp.position.set(x * 0.88, 0.25, 0.7);
-      temp.rotation.y = x > 0 ? -0.5 : 0.5;
-      head.add(temp);
-    }});
-  }} else {{
-    // Thin rose-gold rectangular glasses
-    [-0.38, 0.38].forEach((x, i) => {{
-      const frameGeo = new THREE.TorusGeometry(0.19, 0.025, 6, 20);
-      frameGeo.scale(1.1, 0.72, 0.25);
-      const frame = new THREE.Mesh(frameGeo, glassFrm);
-      frame.position.set(x, 0.24, 0.88);
-      head.add(frame);
-    }});
-    // Bridge
-    const bGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.2, 6);
-    const bridge = new THREE.Mesh(bGeo, glassFrm);
-    bridge.rotation.z = Math.PI / 2;
-    bridge.position.set(0, 0.26, 0.92);
-    head.add(bridge);
-    // Temples
-    [-0.58, 0.58].forEach(x => {{
-      const tGeo = new THREE.CylinderGeometry(0.01, 0.01, 0.32, 6);
-      const temp = new THREE.Mesh(tGeo, glassFrm);
-      temp.rotation.z = Math.PI / 2;
-      temp.position.set(x * 0.86, 0.24, 0.72);
-      temp.rotation.y = x > 0 ? -0.45 : 0.45;
-      head.add(temp);
-    }});
-  }}
-
-  // ── NOSE ────────────────────────────────────────────────────────────────────
-  const noseGeo = new THREE.SphereGeometry(female ? 0.1 : 0.13, 8, 8);
-  noseGeo.scale(1, 0.7, 1.1);
-  const nose = new THREE.Mesh(noseGeo, skinMat);
-  nose.position.set(0, -0.07, 0.94);
-  head.add(nose);
-
-  // ── GOATEE (male only) ──────────────────────────────────────────────────────
-  if (!female) {{
-    // Light goatee/stubble under lip
-    const goateeGeo = new THREE.SphereGeometry(0.22, 12, 8);
-    goateeGeo.scale(0.9, 0.6, 0.5);
-    const goatee = new THREE.Mesh(goateeGeo, hairMat);
-    goatee.position.set(0, -0.62, 0.78);
-    head.add(goatee);
-    // Mustache area dots
-    const mustGeo = new THREE.SphereGeometry(0.28, 12, 8);
-    mustGeo.scale(1.1, 0.22, 0.4);
-    const must = new THREE.Mesh(mustGeo, mat(0x2a1a0a, {{transparent:true, opacity:0.4}}));
-    must.position.set(0, -0.33, 0.9);
-    head.add(must);
-  }}
-
-  // ── BLUSH ────────────────────────────────────────────────────────────────────
-  [-0.52, 0.52].forEach(x => {{
-    const bg = new THREE.CircleGeometry(female ? 0.18 : 0.14, 16);
-    const bm = new THREE.Mesh(bg, blushMat);
-    bm.position.set(x, 0.04, 0.88);
-    head.add(bm);
-  }});
-
-  // ── EARRINGS / EARS ──────────────────────────────────────────────────────────
-  [-1.0, 1.0].forEach(x => {{
-    if (female) {{
-      // Round drop earrings
-      const earGeo = new THREE.SphereGeometry(0.1, 8, 8);
-      const earMesh = new THREE.Mesh(earGeo, mat(earringColor));
-      earMesh.position.set(x, -0.35, 0);
-      head.add(earMesh);
-    }} else {{
-      // No earrings — just ear shape
-      const earGeo = new THREE.SphereGeometry(0.15, 8, 8);
-      earGeo.scale(0.4, 0.6, 0.4);
-      const earMesh = new THREE.Mesh(earGeo, skinMat);
-      earMesh.position.set(x * 1.0, 0.0, 0.0);
-      head.add(earMesh);
-    }}
-  }});
-
-  // ── MOUTH ────────────────────────────────────────────────────────────────────
-  const mouthGroup = new THREE.Group();
-  mouthGroup.position.set(0, female ? -0.36 : -0.38, 0.89);
-  head.add(mouthGroup);
-
-  const upperLip = new THREE.Mesh(
-    new THREE.TorusGeometry(female ? 0.17 : 0.19, female ? 0.038 : 0.042, 8, 16, Math.PI),
-    lipMat
-  );
-  upperLip.rotation.x = -0.3;
-  mouthGroup.add(upperLip);
-
-  const lowerLip = new THREE.Mesh(
-    new THREE.TorusGeometry(female ? 0.18 : 0.20, female ? 0.048 : 0.052, 8, 16, Math.PI),
-    lipMat
-  );
-  lowerLip.rotation.x = Math.PI + 0.3;
-  lowerLip.position.y = -0.01;
-  mouthGroup.add(lowerLip);
-
-  const innerMouth = new THREE.Mesh(
-    new THREE.SphereGeometry(0.13, 16, 8), mouthMat
-  );
-  innerMouth.scale.set(1.1, 0.28, 0.65);
-  innerMouth.position.set(0, -0.01, 0.02);
-  innerMouth.visible = false;
-  mouthGroup.add(innerMouth);
-
-  const upperTeeth = new THREE.Mesh(
-    new THREE.BoxGeometry(0.26, 0.055, 0.055), teethMat
-  );
-  upperTeeth.position.set(0, 0.035, 0.055);
-  upperTeeth.visible = false;
-  mouthGroup.add(upperTeeth);
-
-  const lowerTeeth = new THREE.Mesh(
-    new THREE.BoxGeometry(0.22, 0.045, 0.045), teethMat
-  );
-  lowerTeeth.position.set(0, -0.055, 0.055);
-  lowerTeeth.visible = false;
-  mouthGroup.add(lowerTeeth);
-
-  return {{ head, mouthGroup, lowerLip, upperLip, innerMouth, upperTeeth, lowerTeeth, eyelids }};
-}}
-
-const {{ head, mouthGroup, lowerLip, upperLip, innerMouth, upperTeeth, lowerTeeth, eyelids }} = buildAvatar(isFemale);
-// ── Animation state ──────────────────────────────────────────────────────────
-let mouthOpen   = 0;
-let mouthTarget = 0;
-let blinkT      = 0;
-let nextBlink   = 3 + Math.random() * 4;
-let breathe     = 0;
-let headTilt    = 0;
-let headTiltTarget = 0;
-let isRecording = false;
-let isSpeaking  = false;
-let clock = new THREE.Clock();
-
-function animateAvatar() {{
-  requestAnimationFrame(animateAvatar);
-  const dt = clock.getDelta();
-
-  breathe += dt;
-  head.position.y = Math.sin(breathe * 0.8) * 0.015;
-  const breathScale = 1 + Math.sin(breathe * 0.8) * 0.004;
-  head.scale.set(breathScale, breathScale, breathScale);
-
-  // Blink
-  blinkT += dt;
-  if (blinkT > nextBlink) {{
-    blinkT = 0;
-    nextBlink = 3 + Math.random() * 4;
-    let bt = 0;
-    const blinkAnim = setInterval(() => {{
-      bt += 0.05;
-      const v = bt < 0.5 ? bt * 2 : (1 - bt) * 2;
-      eyelids.forEach(lid => {{ lid.scale.y = 0.85 + v * 1.5; }});
-      if (bt >= 1) clearInterval(blinkAnim);
-    }}, 16);
-  }}
-
-  // Head tilt
-  headTiltTarget = isRecording ? -0.04 : (isSpeaking ? mouthOpen * 0.06 : 0);
-  headTilt += (headTiltTarget - headTilt) * 0.05;
-  head.rotation.z = headTilt;
-
-  // Mouth open/close
-  mouthOpen += (mouthTarget - mouthOpen) * 0.12;
-
-  const open = mouthOpen;
-  lowerLip.position.y    = -open * 0.22;
-  lowerLip.rotation.x    = Math.PI + 0.3 + open * 0.4;
-  upperLip.rotation.x    = -0.3 - open * 0.15;
-  innerMouth.visible     = open > 0.08;
-  upperTeeth.visible     = open > 0.08;
-  lowerTeeth.visible     = open > 0.08;
-  if (open > 0.08) {{
-    innerMouth.scale.y   = 0.3 + open * 0.5;
-    lowerTeeth.position.y = -0.06 - open * 0.15;
-  }}
-
-  renderer.render(scene, camera);
-}}
-
-animateAvatar();
-
-// ── Audio lip sync ────────────────────────────────────────────────────────────
-let ttsAnalyser = null;
-
-function getTTSAmplitude() {{
-  if (!ttsAnalyser) return 0;
-  const d = new Uint8Array(ttsAnalyser.fftSize);
-  ttsAnalyser.getByteTimeDomainData(d);
-  let sum = 0;
-  for (let i = 0; i < d.length; i++) sum += Math.abs(d[i] - 128);
-  return Math.min(sum / d.length / 8, 1.0);
-}}
-
-function updateMouthFromTTS() {{
-  if (!isSpeaking) {{ mouthTarget = 0; return; }}
-  mouthTarget = mouthTarget * 0.5 + getTTSAmplitude() * 0.5;
-  requestAnimationFrame(updateMouthFromTTS);
-}}
-
-// ── VAD + Recording ───────────────────────────────────────────────────────────
-const SILENCE_MS = 1500, MIN_DB = -42;
-let mediaRec=null,chunks=[],audioCtx=null,analyser=null,micStream=null;
-let vadActive=false,speechHit=false;
-let silTimer=null,silStart=null,curAudio=null;
-
-const statusEl = document.getElementById('status');
-const tLabel=document.getElementById('tLabel'),tUser=document.getElementById('tUser');
-const tSep=document.getElementById('tSep'),tAi=document.getElementById('tAi');
-const tWait=document.getElementById('tWait');
-const sil=document.getElementById('sil'),silFill=document.getElementById('silFill');
-const micBtn=document.getElementById('micBtn'),errBox=document.getElementById('errBox');
-
-function setStatus(t,c=''){{statusEl.textContent=t;statusEl.className='status '+c;}}
-function showErr(m){{errBox.textContent=m;setTimeout(()=>errBox.textContent='',5000);}}
-function showSil(p){{sil.classList.add('show');silFill.style.width=p+'%';}}
-function hideSil(){{sil.classList.remove('show');silFill.style.width='0%';}}
-function showTranscript(u,a){{
-  tWait.style.display='none';
-  if(u){{tLabel.textContent='Você disse:';tUser.textContent=u;tUser.style.display='block';}}
-  if(a){{tSep.style.display='block';tAi.textContent=a;tAi.style.display='block';}}
-}}
-
-function getMicRMS(){{
-  if(!analyser) return -100;
-  const d=new Float32Array(analyser.fftSize);
-  analyser.getFloatTimeDomainData(d);
-  let s=0; for(let i=0;i<d.length;i++) s+=d[i]*d[i];
-  const r=Math.sqrt(s/d.length); return r>0?20*Math.log10(r):-100;
-}}
-
-function runVAD(){{
-  if(!vadActive) return;
-  const loud=getMicRMS()>MIN_DB;
-  if(loud){{
-    speechHit=true;clearTimeout(silTimer);silStart=null;hideSil();
-    if(isSpeaking&&curAudio){{curAudio.pause();curAudio=null;isSpeaking=false;mouthTarget=0;}}
-  }}else if(speechHit){{
-    if(!silStart){{silStart=Date.now();animSil();}}
-    clearTimeout(silTimer);
-    silTimer=setTimeout(()=>{{
-      if(vadActive&&speechHit){{
-        vadActive=false;speechHit=false;mediaRec.stop();
-        setStatus('Processando...','s-processing');
-        tLabel.textContent='Transcrevendo...';
-      }}
-    }},SILENCE_MS);
-  }}
-  requestAnimationFrame(runVAD);
-}}
-
-function animSil(){{
-  if(!silStart) return;
-  const p=Math.min((Date.now()-silStart)/SILENCE_MS*100,100);
-  showSil(p);if(p<100&&silStart)requestAnimationFrame(animSil);
-}}
-
-async function startRec(){{
-  if(isRecording) return;
-  try{{micStream=await navigator.mediaDevices.getUserMedia({{audio:{{echoCancellation:true,noiseSuppression:true,sampleRate:16000}}}});}}
-  catch(e){{showErr('Permissão de microfone negada.');return;}}
-  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  analyser=audioCtx.createAnalyser();analyser.fftSize=512;
-  audioCtx.createMediaStreamSource(micStream).connect(analyser);
-  const mime=['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg'].find(m=>MediaRecorder.isTypeSupported(m))||'';
-  try{{mediaRec=new MediaRecorder(micStream,mime?{{mimeType:mime}}:{{}});}}
-  catch(e){{mediaRec=new MediaRecorder(micStream);}}
-  chunks=[];
-  mediaRec.ondataavailable=e=>{{if(e.data&&e.data.size>0)chunks.push(e.data);}};
-  mediaRec.onstop=()=>uploadAudio(new Blob(chunks,{{type:mediaRec.mimeType||'audio/webm'}}));
-  mediaRec.onerror=e=>{{showErr('Erro: '+e.error);resetToIdle();}};
-  mediaRec.start(100);
-  isRecording=true;vadActive=true;speechHit=false;
-  micBtn.classList.add('active');micBtn.textContent='⏹';
-  setStatus('Ouvindo...','s-listening');
-  tWait.style.display='block';tWait.textContent='—';
-  tUser.style.display='none';tSep.style.display='none';tAi.style.display='none';
-  tLabel.textContent='Aguardando sua fala...';
-  mouthTarget=0;runVAD();
-}}
-
-function stopRec(){{
-  vadActive=false;isRecording=false;speechHit=false;
-  clearTimeout(silTimer);silStart=null;hideSil();
-  if(mediaRec&&mediaRec.state!=='inactive')try{{mediaRec.stop();}}catch(e){{}}
-  if(micStream)micStream.getTracks().forEach(t=>t.stop());micStream=null;
-  if(audioCtx)try{{audioCtx.close();}}catch(e){{}}audioCtx=null;analyser=null;
-  micBtn.classList.remove('active');micBtn.textContent='🎤';mouthTarget=0;
-}}
-
-function uploadAudio(blob){{
-  if(blob.size<1500){{resetToIdle();return;}}
-  const par=window.parent.document;
-  function tryInject(attempt){{
-    let input=par.querySelector('[data-testid="stFileUploader"] input[type="file"]')
-           ||par.querySelector('[data-testid="stFileUploaderDropzone"] input[type="file"]')
-           ||Array.from(par.querySelectorAll('input[type="file"]')).find(i=>i.accept&&i.accept.includes('webm'));
-    if(!input){{
-      if(attempt<8){{setTimeout(()=>tryInject(attempt+1),300);return;}}
-      showErr('Input não encontrado.');resetToIdle();return;
-    }}
-    const ext=blob.type.includes('ogg')?'ogg':(blob.type.includes('mp4')?'mp4':'webm');
-    const file=new File([blob],`vm_${{Date.now()}}.${{ext}}`,{{type:blob.type||'audio/webm'}});
-    const dt=new DataTransfer();dt.items.add(file);
-    input.files=dt.files;
-    input.dispatchEvent(new Event('change',{{bubbles:true}}));
-    input.dispatchEvent(new Event('input',{{bubbles:true}}));
-  }}
-  tryInject(0);
-}}
-
-function resetToIdle(){{
-  stopRec();mouthTarget=0;
-  setStatus('Clique no microfone para continuar','');
-}}
-
-function playTTS(b64,txt){{
-  isSpeaking=true;setStatus('Falando...','s-speaking');
-  if(b64&&b64.length>20){{
-    const ttsCtx=new(window.AudioContext||window.webkitAudioContext)();
-    ttsAnalyser=ttsCtx.createAnalyser();ttsAnalyser.fftSize=256;
-    curAudio=new Audio('data:audio/mpeg;base64,'+b64);
-    curAudio.crossOrigin='anonymous';
-    curAudio.oncanplaythrough=()=>{{
-      try{{const src=ttsCtx.createMediaElementSource(curAudio);
-            src.connect(ttsAnalyser);ttsAnalyser.connect(ttsCtx.destination);}}catch(e){{}}
-      curAudio.play().catch(()=>fallbackTTS(txt));
-      updateMouthFromTTS();
-    }};
-    curAudio.onended=()=>{{
-      isSpeaking=false;curAudio=null;mouthTarget=0;ttsAnalyser=null;
-      try{{ttsCtx.close();}}catch(e){{}}
-      resetToIdle();startRec();
-    }};
-    curAudio.onerror=()=>{{isSpeaking=false;mouthTarget=0;fallbackTTS(txt);}};
-  }}else{{fallbackTTS(txt);}}
-}}
-
-function fallbackTTS(text){{
-  isSpeaking=true;setStatus('Falando...','s-speaking');
-  let t0=Date.now();
-  function synthMouth(){{
-    if(!isSpeaking){{mouthTarget=0;return;}}
-    mouthTarget=0.25+0.5*Math.abs(Math.sin((Date.now()-t0)/200));
-    requestAnimationFrame(synthMouth);
-  }}
-  synthMouth();
-  const u=new SpeechSynthesisUtterance(text.substring(0,500));
-  u.lang=SPEECH_LANG;u.rate=0.95;u.pitch=1.05;
-  speechSynthesis.getVoices();
-  setTimeout(()=>{{
-    const vv=speechSynthesis.getVoices();
-    const pick=vv.find(v=>v.lang===SPEECH_LANG)||vv.find(v=>v.lang.startsWith(SPEECH_LANG.split('-')[0]));
-    if(pick)u.voice=pick;
-    u.onend=u.onerror=()=>{{isSpeaking=false;mouthTarget=0;resetToIdle();startRec();}};
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
-  }},100);
-}}
-
-// ── Wav2Lip video player ──────────────────────────────────────────────────────
-const wav2lipVideo = document.getElementById('wav2lipVideo');
-
-function playWav2Lip(videoB64, ttsB64, replyText) {{
-  if (!videoB64 || videoB64.length < 100) {{
-    // Sem vídeo → usa TTS normal
-    playTTS(ttsB64, replyText);
-    return;
-  }}
-  isSpeaking = true;
-  setStatus('Falando...', 's-speaking');
-  mouthTarget = 0.4;
-
-  // Mostra vídeo, esconde Three.js canvas
-  const canvas = document.getElementById('three-canvas');
-  if (canvas) canvas.style.display = 'none';
-  wav2lipVideo.style.display = 'block';
-  wav2lipVideo.src = 'data:video/mp4;base64,' + videoB64;
-  wav2lipVideo.play().catch(() => {{
-    // Fallback se autoplay bloqueado
-    onWav2LipEnded();
-    playTTS(ttsB64, replyText);
-  }});
-  // Anima boca enquanto o vídeo toca
-  function animMouth() {{
-    if (!isSpeaking) {{ mouthTarget = 0; return; }}
-    mouthTarget = 0.3 + 0.5 * Math.abs(Math.sin(Date.now() / 180));
-    requestAnimationFrame(animMouth);
-  }}
-  animMouth();
-}}
-
-function onWav2LipEnded() {{
-  isSpeaking = false;
-  mouthTarget = 0;
-  wav2lipVideo.style.display = 'none';
-  wav2lipVideo.src = '';
-  const canvas = document.getElementById('three-canvas');
-  if (canvas) canvas.style.display = 'block';
-  setStatus('Clique no microfone para continuar', '');
-  resetToIdle();
-  startRec();
-}}
-
-micBtn.onclick=()=>{{
-  if(wav2lipVideo && !wav2lipVideo.paused){{wav2lipVideo.pause();onWav2LipEnded();return;}}
-  if(curAudio){{curAudio.pause();curAudio=null;}}
-  try{{speechSynthesis.cancel();}}catch(e){{}}
-  isSpeaking=false;mouthTarget=0;ttsAnalyser=null;
-  if(isRecording) resetToIdle();
-  else startRec();
-}};
-
-window.addEventListener('load',()=>{{
-  if(PY_ERROR&&PY_ERROR.length>1){{showErr(PY_ERROR);setStatus('Erro','');return;}}
-  if(PY_REPLY&&PY_REPLY.length>1){{
-    showTranscript(PY_USER_SAID,PY_REPLY);
-    // Usa Wav2Lip se disponível, senão TTS normal
-    if(PY_VIDEO_B64&&PY_VIDEO_B64.length>100) playWav2Lip(PY_VIDEO_B64,PY_TTS_B64,PY_REPLY);
-    else playTTS(PY_TTS_B64,PY_REPLY);
-    return;
-  }}
-  if(PY_USER_SAID&&PY_USER_SAID.length>1) showTranscript(PY_USER_SAID,'');
-}});
-
-function toggleDebug(){{}}
-</script></body></html>""", height=720, scrolling=False)
+""", unsafe_allow_html=True)
+
+    # ── Vídeo Wav2Lip ─────────────────────────────────────────────────────────
+    if video_b64:
+        st.markdown("**🎬 Teacher Tati respondendo:**")
+        components.html(f"""<!DOCTYPE html><html><body style="margin:0;background:transparent;">
+<video autoplay playsinline
+  style="width:220px;height:220px;border-radius:50%;object-fit:cover;
+         display:block;margin:0 auto;
+         box-shadow:0 0 0 4px rgba(240,165,0,.8),0 0 40px rgba(240,165,0,.4);"
+  src="data:video/mp4;base64,{video_b64}">
+</video>
+</body></html>""", height=240)
+
+    # ── Transcrição + resposta ────────────────────────────────────────────────
+    if vm_error:
+        st.error(f"❌ {vm_error}")
+
+    if user_said:
+        st.markdown(f"""
+<div style="background:#0f1419;border:1px solid #1e2530;border-radius:12px;
+            padding:12px 16px;margin:8px 0;">
+  <div style="font-size:.65rem;color:#8b949e;text-transform:uppercase;
+              letter-spacing:1px;margin-bottom:6px;">Você disse</div>
+  <div style="color:#adbac7;font-size:.88rem;">{user_said}</div>
+</div>""", unsafe_allow_html=True)
+
+    if reply:
+        st.markdown(f"""
+<div style="background:#0f1419;border:1px solid rgba(240,165,0,.3);border-radius:12px;
+            padding:12px 16px;margin:8px 0;">
+  <div style="font-size:.65rem;color:#f0a500;text-transform:uppercase;
+              letter-spacing:1px;margin-bottom:6px;">Teacher Tati</div>
+  <div style="color:#e6edf3;font-size:.88rem;line-height:1.6;">{reply}</div>
+</div>""", unsafe_allow_html=True)
+
+        # Player de áudio TTS
+        if tts_b64 and not video_b64:
+            components.html(f"""<!DOCTYPE html><html><body style="margin:0;background:transparent;">
+<audio autoplay controls
+  style="width:100%;margin-top:4px;"
+  src="data:audio/mpeg;base64,{tts_b64}">
+</audio>
+</body></html>""", height=54)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
