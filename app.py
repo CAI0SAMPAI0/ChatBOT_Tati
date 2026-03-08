@@ -295,8 +295,10 @@ def avatar_html(size: int = 52, speaking: bool = False) -> str:
 st.set_page_config(page_title=f"{PROF_NAME} · English", page_icon="🎓", layout="wide")
 
 def load_css(path: str) -> None:
-    css = Path(path).read_text(encoding="utf-8")
-    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+    p = Path(path)
+    if p.exists():
+        css = p.read_text(encoding="utf-8")
+        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 load_css("styles/style.css")
 
@@ -1027,6 +1029,7 @@ def show_profile() -> None:
     user     = st.session_state.user
     username = user["username"]
     profile  = user.get("profile", {})
+    ui_lang  = profile.get("language", "pt-BR")
 
     # Garante que o file uploader de foto seja visível nesta página
     st.markdown("""<style>
@@ -1273,6 +1276,7 @@ def show_voice_mode() -> None:
     user     = st.session_state.user
     username = user["username"]
     profile  = user.get("profile", {})
+    ui_lang         = profile.get("language",    "pt-BR")
     whisper_lang    = profile.get("voice_lang",  "en")
     speech_lang_val = profile.get("speech_lang", "en-US")
     accent_color    = profile.get("accent_color", "#f0a500")
