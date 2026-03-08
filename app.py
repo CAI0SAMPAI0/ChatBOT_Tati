@@ -1266,6 +1266,8 @@ const W = 220, H = 220;
 
 const renderer = new THREE.WebGLRenderer({{antialias:true, alpha:true}});
 renderer.setSize(W, H);
+renderer.domElement.style.width = '100%';   
+renderer.domElement.style.height = '100%';  
 renderer.setPixelRatio(window.devicePixelRatio || 1);
 renderer.shadowMap.enabled = true;
 renderer.domElement.id = 'three-canvas';
