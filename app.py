@@ -56,6 +56,157 @@ if "audio_key" not in st.session_state:
     st.session_state.audio_key = 0
 
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# INTERNACIONALIZAÇÃO (i18n)
+# ══════════════════════════════════════════════════════════════════════════════
+
+_STRINGS = {
+    "pt-BR": {
+        "type_message":       "Digite uma mensagem…",
+        "new_conv":           "➕  Nova conversa",
+        "voice_mode":         "🎙️  Modo Conversa",
+        "dashboard":          "📊 Painel",
+        "profile":            "⚙️ Perfil",
+        "logout":             "🚪 Sair",
+        "delete_conv":        "Excluir conversa",
+        "username":           "Usuário",
+        "password":           "Senha",
+        "full_name":          "Nome completo",
+        "email":              "E-mail",
+        "enter":              "🔑 Entrar",
+        "create_account":     "✨ Criar Conta",
+        "save_general":       "💾 Salvar Geral",
+        "save_custom":        "💾 Salvar Personalização",
+        "save_data":          "💾 Salvar Dados",
+        "change_password":    "🔒 Alterar Senha",
+        "remove_photo":       "🗑️ Remover foto",
+        "remove_attachment":  "✕ Remover anexo",
+        "close_voice":        "✕ Fechar Modo Voz",
+        "close":              "✕ Fechar",
+        "back":               "← Voltar ao Chat",
+        "use_as_student":     "💬 Usar como Aluno",
+        "enter_chat":         "💬 Entrar no Chat",
+        "my_profile":         "⚙️ Meu Perfil",
+        "interface_lang":     "Idioma da interface",
+        "theme":              "Tema",
+        "transcription_lang": "Idioma da transcrição (Whisper)",
+        "tts_accent":         "Sotaque (TTS fallback)",
+        "nickname":           "Apelido",
+        "occupation":         "Ocupação",
+        "english_level":      "Nível de inglês",
+        "focus":              "Foco",
+        "conv_tone":          "Tom das conversas",
+        "ai_role":            "Papel da IA",
+        "new_password":       "Nova senha",
+        "confirm_password":   "Confirmar senha",
+        "speaking":           "🗣 Falando...",
+        "listening":          "🎙 Ouvindo...",
+        "processing":         "⏳ Processando...",
+        "tap_to_speak":       "Toque no microfone para falar",
+        "tap_to_record":      "Toque para gravar",
+        "tap_to_stop":        "Toque para parar",
+        "wait":               "Aguarde...",
+    },
+    "en-US": {
+        "type_message":       "Type a message…",
+        "new_conv":           "➕  New conversation",
+        "voice_mode":         "🎙️  Voice Mode",
+        "dashboard":          "📊 Dashboard",
+        "profile":            "⚙️ Profile",
+        "logout":             "🚪 Logout",
+        "delete_conv":        "Delete conversation",
+        "username":           "Username",
+        "password":           "Password",
+        "full_name":          "Full name",
+        "email":              "E-mail",
+        "enter":              "🔑 Sign In",
+        "create_account":     "✨ Create Account",
+        "save_general":       "💾 Save General",
+        "save_custom":        "💾 Save Customization",
+        "save_data":          "💾 Save Data",
+        "change_password":    "🔒 Change Password",
+        "remove_photo":       "🗑️ Remove photo",
+        "remove_attachment":  "✕ Remove attachment",
+        "close_voice":        "✕ Close Voice Mode",
+        "close":              "✕ Close",
+        "back":               "← Back to Chat",
+        "use_as_student":     "💬 Use as Student",
+        "enter_chat":         "💬 Enter Chat",
+        "my_profile":         "⚙️ My Profile",
+        "interface_lang":     "Interface language",
+        "theme":              "Theme",
+        "transcription_lang": "Transcription language (Whisper)",
+        "tts_accent":         "Accent (TTS fallback)",
+        "nickname":           "Nickname",
+        "occupation":         "Occupation",
+        "english_level":      "English level",
+        "focus":              "Focus",
+        "conv_tone":          "Conversation tone",
+        "ai_role":            "AI role",
+        "new_password":       "New password",
+        "confirm_password":   "Confirm password",
+        "speaking":           "🗣 Speaking...",
+        "listening":          "🎙 Listening...",
+        "processing":         "⏳ Processing...",
+        "tap_to_speak":       "Tap the mic to speak",
+        "tap_to_record":      "Tap to record",
+        "tap_to_stop":        "Tap to stop",
+        "wait":               "Please wait...",
+    },
+    "en-UK": {
+        "type_message":       "Type a message…",
+        "new_conv":           "➕  New conversation",
+        "voice_mode":         "🎙️  Voice Mode",
+        "dashboard":          "📊 Dashboard",
+        "profile":            "⚙️ Profile",
+        "logout":             "🚪 Log out",
+        "delete_conv":        "Delete conversation",
+        "username":           "Username",
+        "password":           "Password",
+        "full_name":          "Full name",
+        "email":              "E-mail",
+        "enter":              "🔑 Sign In",
+        "create_account":     "✨ Create Account",
+        "save_general":       "💾 Save General",
+        "save_custom":        "💾 Save Customisation",
+        "save_data":          "💾 Save Data",
+        "change_password":    "🔒 Change Password",
+        "remove_photo":       "🗑️ Remove photo",
+        "remove_attachment":  "✕ Remove attachment",
+        "close_voice":        "✕ Close Voice Mode",
+        "close":              "✕ Close",
+        "back":               "← Back to Chat",
+        "use_as_student":     "💬 Use as Student",
+        "enter_chat":         "💬 Enter Chat",
+        "my_profile":         "⚙️ My Profile",
+        "interface_lang":     "Interface language",
+        "theme":              "Theme",
+        "transcription_lang": "Transcription language (Whisper)",
+        "tts_accent":         "Accent (TTS fallback)",
+        "nickname":           "Nickname",
+        "occupation":         "Occupation",
+        "english_level":      "English level",
+        "focus":              "Focus",
+        "conv_tone":          "Conversation tone",
+        "ai_role":            "AI role",
+        "new_password":       "New password",
+        "confirm_password":   "Confirm password",
+        "speaking":           "🗣 Speaking...",
+        "listening":          "🎙 Listening...",
+        "processing":         "⏳ Processing...",
+        "tap_to_speak":       "Tap the mic to speak",
+        "tap_to_record":      "Tap to record",
+        "tap_to_stop":        "Tap to stop",
+        "wait":               "Please wait...",
+    },
+}
+
+def t(key: str, lang: str = "pt-BR") -> str:
+    """Retorna string traduzida. Fallback: pt-BR."""
+    return _STRINGS.get(lang, _STRINGS["pt-BR"]).get(key, _STRINGS["pt-BR"].get(key, key))
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # HELPERS DE IMAGEM / AVATAR
 # ══════════════════════════════════════════════════════════════════════════════
@@ -783,11 +934,11 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
     with col:
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("🔑 Entrar", use_container_width=True, key="tab_btn_login",
+            if st.button(t("enter"), use_container_width=True, key="tab_btn_login",
                          type="primary" if st.session_state["_login_tab"] == "login" else "secondary"):
                 st.session_state["_login_tab"] = "login"; st.rerun()
         with c2:
-            if st.button("✨ Criar Conta", use_container_width=True, key="tab_btn_reg",
+            if st.button(t("create_account"), use_container_width=True, key="tab_btn_reg",
                          type="primary" if st.session_state["_login_tab"] == "reg" else "secondary"):
                 st.session_state["_login_tab"] = "reg"; st.rerun()
 
@@ -805,8 +956,8 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
         # ── Aba LOGIN ─────────────────────────────────────────────────────────
         if st.session_state["_login_tab"] == "login":
             with st.form("form_login", clear_on_submit=False):
-                u = st.text_input("Username", placeholder="seu.usuario", key="li_u")
-                p = st.text_input("Senha", type="password", placeholder="••••••••", key="li_p")
+                u = st.text_input(t("username"), placeholder="seu.usuario", key="li_u")
+                p = st.text_input(t("password"), type="password", placeholder="••••••••", key="li_p")
                 submitted = st.form_submit_button("Entrar →", use_container_width=True)
                 if submitted:
                     if not u or not p:
@@ -837,9 +988,9 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
         # ── Aba REGISTRO ──────────────────────────────────────────────────────
         else:
             with st.form("form_reg", clear_on_submit=False):
-                rn = st.text_input("Nome completo", placeholder="João Silva",     key="r_n")
-                re = st.text_input("E-mail",        placeholder="joao@email.com", key="r_e")
-                ru = st.text_input("Username",       placeholder="joao.silva",    key="r_u")
+                rn = st.text_input(t("full_name"), placeholder="João Silva",     key="r_n")
+                re = st.text_input(t("email"),        placeholder="joao@email.com", key="r_e")
+                ru = st.text_input(t("username"),       placeholder="joao.silva",    key="r_u")
                 rp = st.text_input("Senha", type="password",
                                    placeholder="mínimo 6 caracteres",             key="r_p")
                 submitted = st.form_submit_button("Criar Conta →", use_container_width=True)
@@ -906,9 +1057,9 @@ def show_profile() -> None:
         st.markdown("### Aparência")
         col1, col2 = st.columns(2)
         with col1:
-            theme = st.selectbox("Tema", ["dark", "light", "system"],
+            theme = st.selectbox(t("theme", ui_lang), ["dark", "light", "system"],
                 index=safe_index(["dark", "light", "system"], profile.get("theme", "dark")), key="pf_theme")
-            lang  = st.selectbox("Idioma da interface", ["pt-BR", "en-US", "en-UK"],
+            lang  = st.selectbox(t("interface_lang", ui_lang), ["pt-BR", "en-US", "en-UK"],
                 index=safe_index(["pt-BR", "en-US", "en-UK"], profile.get("language", "pt-BR")), key="pf_lang")
         with col2:
             accent = st.color_picker("Cor de destaque",
@@ -917,13 +1068,13 @@ def show_profile() -> None:
         st.markdown("### Voz")
         col3, col4 = st.columns(2)
         with col3:
-            voice_lang = st.selectbox("Idioma da transcrição (Whisper)", ["en", "pt", "es", "fr", "de"],
+            voice_lang = st.selectbox(t("transcription_lang", ui_lang), ["en", "pt", "es", "fr", "de"],
                 index=safe_index(["en", "pt", "es", "fr", "de"], profile.get("voice_lang", "en")), key="pf_vlang")
         with col4:
-            speech_lang = st.selectbox("Sotaque (TTS fallback)", ["en-US", "en-UK", "pt-BR"],
+            speech_lang = st.selectbox(t("tts_accent", ui_lang), ["en-US", "en-UK", "pt-BR"],
                 index=safe_index(["en-US", "en-UK", "pt-BR"], profile.get("speech_lang", "en-US")), key="pf_slang")
 
-        if st.button("💾 Salvar Geral", key="save_geral"):
+        if st.button(t("save_general", ui_lang), key="save_geral"):
             update_profile(username, {"theme": theme, "language": lang,
                 "accent_color": accent, "voice_lang": voice_lang, "speech_lang": speech_lang})
             u = load_students().get(username, {})
@@ -935,13 +1086,13 @@ def show_profile() -> None:
         st.markdown("### Sobre Você")
         col1, col2 = st.columns(2)
         with col1:
-            nickname   = st.text_input("Apelido", value=profile.get("nickname", ""), key="pf_nick")
-            occupation = st.text_input("Ocupação", value=profile.get("occupation", ""),
+            nickname   = st.text_input(t("nickname", ui_lang), value=profile.get("nickname", ""), key="pf_nick")
+            occupation = st.text_input(t("occupation", ui_lang), value=profile.get("occupation", ""),
                 placeholder="ex: Professora, Desenvolvedor", key="pf_occ")
         with col2:
-            level = st.selectbox("Nível de inglês", level_opts,
+            level = st.selectbox(t("english_level", ui_lang), level_opts,
                 index=safe_index(level_opts, user.get("level", "False Beginner")), key="pf_level")
-            focus = st.selectbox("Foco", focus_opts,
+            focus = st.selectbox(t("focus", ui_lang), focus_opts,
                 index=safe_index(focus_opts, user.get("focus", "General Conversation")), key="pf_focus")
 
         if not is_prof:
@@ -950,10 +1101,10 @@ def show_profile() -> None:
             ai_style_opts = ["Warm & Encouraging", "Formal & Professional", "Fun & Casual", "Strict & Direct"]
             ai_tone_opts  = ["Teacher", "Conversation Partner", "Tutor", "Business Coach"]
             with col3:
-                ai_style = st.selectbox("Tom das conversas", ai_style_opts,
+                ai_style = st.selectbox(t("conv_tone", ui_lang), ai_style_opts,
                     index=safe_index(ai_style_opts, profile.get("ai_style", "Warm & Encouraging")), key="pf_aistyle")
             with col4:
-                ai_tone = st.selectbox("Papel da IA", ai_tone_opts,
+                ai_tone = st.selectbox(t("ai_role", ui_lang), ai_tone_opts,
                     index=safe_index(ai_tone_opts, profile.get("ai_tone", "Teacher")), key="pf_aitone")
             custom = st.text_area("Instruções personalizadas para a IA",
                 value=profile.get("custom_instructions", ""),
@@ -964,7 +1115,7 @@ def show_profile() -> None:
             ai_tone  = profile.get("ai_tone",  "Teacher")
             custom   = profile.get("custom_instructions", "")
 
-        if st.button("💾 Salvar Personalização", key="save_pers"):
+        if st.button(t("save_custom", ui_lang), key="save_pers"):
             update_profile(username, {"nickname": nickname, "occupation": occupation,
                 "ai_style": ai_style, "ai_tone": ai_tone, "custom_instructions": custom,
                 "level": level, "focus": focus})
@@ -1010,7 +1161,7 @@ def show_profile() -> None:
                         st.session_state["_last_photo_saved"] = file_id
                         st.success("✅ Foto salva! Ela aparecerá no chat.")
             if cur_avatar:
-                if st.button("🗑️ Remover foto", key="pf_remove_photo"):
+                if st.button(t("remove_photo", ui_lang), key="pf_remove_photo"):
                     remove_user_avatar(username)
                     st.session_state.pop("_last_photo_saved", None)
                     st.success("Foto removida."); st.rerun()
@@ -1019,14 +1170,14 @@ def show_profile() -> None:
         st.markdown("### Informações da Conta")
         col1, col2 = st.columns(2)
         with col1:
-            full_name = st.text_input("Nome completo", value=user.get("name", ""), key="pf_fname")
+            full_name = st.text_input(t("full_name", ui_lang), value=user.get("name", ""), key="pf_fname")
         with col2:
-            email = st.text_input("E-mail", value=user.get("email", ""), key="pf_email")
+            email = st.text_input(t("email", ui_lang), value=user.get("email", ""), key="pf_email")
 
         st.markdown(f"**Username:** `{username}`")
         st.markdown(f"**Conta criada em:** {user.get('created_at', '')[:10]}")
 
-        if st.button("💾 Salvar Dados", key="save_conta"):
+        if st.button(t("save_data", ui_lang), key="save_conta"):
             update_profile(username, {"name": full_name, "email": email})
             u = load_students().get(username, {})
             st.session_state.user = {"username": username, **u}
@@ -1036,11 +1187,11 @@ def show_profile() -> None:
         st.markdown("### Alterar Senha")
         col3, col4 = st.columns(2)
         with col3:
-            new_pw  = st.text_input("Nova senha", type="password", key="pf_newpw")
+            new_pw  = st.text_input(t("new_password", ui_lang), type="password", key="pf_newpw")
         with col4:
-            conf_pw = st.text_input("Confirmar senha", type="password", key="pf_confpw")
+            conf_pw = st.text_input(t("confirm_password", ui_lang), type="password", key="pf_confpw")
 
-        if st.button("🔒 Alterar Senha", key="save_pw"):
+        if st.button(t("change_password", ui_lang), key="save_pw"):
             if len(new_pw) < 6:
                 st.error("Senha muito curta.")
             elif new_pw != conf_pw:
@@ -1129,7 +1280,7 @@ def show_voice_mode() -> None:
     conv_id = get_or_create_conv(username)
 
     # Botão fechar — invisível no Streamlit, acionado pelo JS do iframe
-    if st.button("✕ Fechar Modo Voz", key="close_voice_inner"):
+    if st.button(t("close_voice", ui_lang), key="close_voice_inner"):
         st.session_state.voice_mode = False
         for k in ["_vm_history", "_vm_reply", "_vm_tts_b64", "_vm_user_said",
                   "_vm_error", "_vm_last_upload", "_vm_video_b64", "_vm_audio_key"]:
@@ -1225,6 +1376,15 @@ section[data-testid="stMain"]>div{padding:0!important;}
     av_mid_js    = json.dumps(av_mid)
     av_open_js   = json.dumps(av_open)
     accent_js    = json.dumps(accent_color)
+    # UI strings para o modo voz (JS)
+    js_speaking   = json.dumps(t("speaking",     ui_lang))
+    js_listening  = json.dumps(t("listening",    ui_lang))
+    js_processing = json.dumps(t("processing",   ui_lang))
+    js_tap_speak  = json.dumps(t("tap_to_speak", ui_lang))
+    js_tap_record = json.dumps(t("tap_to_record",ui_lang))
+    js_tap_stop   = json.dumps(t("tap_to_stop",  ui_lang))
+    js_wait       = json.dumps(t("wait",         ui_lang))
+    js_close      = json.dumps(t("close",        ui_lang))
 
     # Monta bolhas do histórico (pares user/assistant)
     bubbles_html = ""
@@ -1449,6 +1609,14 @@ const AV_CLOSED  = {av_closed_js};
 const AV_MID     = {av_mid_js};
 const AV_OPEN    = {av_open_js};
 const ACCENT     = {accent_js};
+const STR_SPEAKING  = {js_speaking};
+const STR_LISTENING = {js_listening};
+const STR_PROCESSING= {js_processing};
+const STR_TAP_SPEAK = {js_tap_speak};
+const STR_TAP_RECORD= {js_tap_record};
+const STR_TAP_STOP  = {js_tap_stop};
+const STR_WAIT      = {js_wait};
+const STR_CLOSE     = {js_close};
 
 // Injeta CSS vars dinamicas baseadas na cor do perfil
 (function applyAccent(){{
@@ -1471,6 +1639,9 @@ const ACCENT     = {accent_js};
   r.style.setProperty('--bubble-text',   '#e6edf3');
 }})();
 
+// Traduz botão fechar
+document.querySelector('.close-btn').innerHTML = '<i class="fa-solid fa-xmark"></i> ' + STR_CLOSE;
+
 // ── Scroll mensagens para baixo ───────────────────────────────────────────────
 const msgEl = document.getElementById('messages');
 function scrollBottom(){{ msgEl.scrollTop = msgEl.scrollHeight; }}
@@ -1488,24 +1659,24 @@ function setAvatarState(state){{
   micBtn.classList.remove('recording','processing');
   if(state==='speaking'){{
     avOuter.classList.add('speaking');
-    avStatus.textContent='🗣 Falando...';
+    avStatus.textContent=STR_SPEAKING;
     micBtn.classList.add('processing');
     micIcon.className='fa-solid fa-volume-high';
-    hintText.textContent='Aguarde...';
+    hintText.textContent=STR_WAIT;
   }} else if(state==='recording'){{
-    avStatus.textContent='🎙 Ouvindo...';
+    avStatus.textContent=STR_LISTENING;
     micBtn.classList.add('recording');
     micIcon.className='fa-solid fa-stop';
-    hintText.textContent='Toque para parar';
+    hintText.textContent=STR_TAP_STOP;
   }} else if(state==='processing'){{
-    avStatus.textContent='⏳ Processando...';
+    avStatus.textContent=STR_PROCESSING;
     micBtn.classList.add('processing');
     micIcon.className='fa-solid fa-spinner fa-spin';
-    hintText.textContent='Aguarde...';
+    hintText.textContent=STR_WAIT;
   }} else {{
-    avStatus.textContent='Toque no microfone para falar';
+    avStatus.textContent=STR_TAP_SPEAK;
     micIcon.className='fa-solid fa-microphone';
-    hintText.textContent='Toque para gravar';
+    hintText.textContent=STR_TAP_RECORD;
   }}
 }}
 
@@ -1611,7 +1782,7 @@ function toggleMic(){{
     isRecording = false;
     setAvatarState('processing');
     triggerAudioInput(); // segundo clique para = e envia
-    hintText.textContent='Processando...';
+    hintText.textContent=STR_PROCESSING;
   }}
 }}
 
@@ -1724,6 +1895,8 @@ def show_chat() -> None:
     """Tela principal do chat — sidebar com histórico + área de mensagens."""
     user     = st.session_state.user
     username = user["username"]
+    profile  = user.get("profile", {})
+    ui_lang  = profile.get("language", "pt-BR")
     conv_id  = get_or_create_conv(username)
     messages = load_conversation(username, conv_id)
     speaking = st.session_state.speaking
@@ -1783,9 +1956,9 @@ def show_chat() -> None:
                 <div style="font-size:.68rem;color:#8b949e;"><span class="status-dot"></span>Online</div>
                 </div></div></div>""", unsafe_allow_html=True)
 
-        if st.button("➕  Nova conversa", use_container_width=True, key="btn_new"):
+        if st.button(t("new_conv", ui_lang), use_container_width=True, key="btn_new"):
             st.session_state.conv_id = new_conversation(username); st.rerun()
-        if st.button("🎙️  Modo Conversa", use_container_width=True, key="btn_voice"):
+        if st.button(t("voice_mode", ui_lang), use_container_width=True, key="btn_voice"):
             st.session_state.voice_mode = True; st.rerun()
 
         st.markdown('<div style="font-size:.68rem;color:#8b949e;text-transform:uppercase;'
@@ -1805,7 +1978,7 @@ def show_chat() -> None:
                              help=f"📅 {c['date']} · 💬 {c['count']} msgs"):
                     st.session_state.conv_id = c["id"]; st.rerun()
             with col_del:
-                if st.button("🗑", key=f"del_{c['id']}", help="Excluir conversa"):
+                if st.button("🗑", key=f"del_{c['id']}", help=t("delete_conv", ui_lang)):
                     delete_conversation(username, c["id"])
                     if st.session_state.conv_id == c["id"]:
                         st.session_state.conv_id = None
@@ -1829,22 +2002,22 @@ def show_chat() -> None:
         if user["role"] == "professor":
             col_a, col_b = st.columns(2)
             with col_a:
-                if st.button("📊 Painel", use_container_width=True, key="btn_dash"):
+                if st.button(t("dashboard", ui_lang), use_container_width=True, key="btn_dash"):
                     st.session_state.page = "dashboard"; st.rerun()
             with col_b:
-                if st.button("⚙️ Perfil", use_container_width=True, key="btn_profile"):
+                if st.button(t("profile", ui_lang), use_container_width=True, key="btn_profile"):
                     st.session_state.page = "profile"; st.rerun()
             # Logout da professora: apaga sessão persistente
-            if st.button("🚪 Sair", use_container_width=True, key="btn_sair"):
+            if st.button(t("logout", ui_lang), use_container_width=True, key="btn_sair"):
                 _logout(); st.rerun()
         else:
             col_a, col_b = st.columns(2)
             with col_a:
-                if st.button("⚙️ Perfil", use_container_width=True, key="btn_profile"):
+                if st.button(t("profile", ui_lang), use_container_width=True, key="btn_profile"):
                     st.session_state.page = "profile"; st.rerun()
             with col_b:
                 # Logout do aluno: apaga sessão persistente
-                if st.button("🚪 Sair", use_container_width=True, key="btn_sair"):
+                if st.button(t("logout", ui_lang), use_container_width=True, key="btn_sair"):
                     _logout(); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -2017,7 +2190,7 @@ html,body{{background:transparent;overflow:hidden;}}
   <span style="font-size:.7rem;color:#f0a500;">↩ Digite uma mensagem ou envie</span>
 </div>
 """, unsafe_allow_html=True)
-        if st.button("✕ Remover anexo", key="remove_staged"):
+        if st.button(t("remove_attachment", ui_lang), key="remove_staged"):
             st.session_state.staged_file      = None
             st.session_state.staged_file_name = None
             st.rerun()
@@ -2040,7 +2213,7 @@ html,body{{background:transparent;overflow:hidden;}}
 </div>""", unsafe_allow_html=True)
 
     # ── Chat input (texto) ────────────────────────────────────────────────────
-    prompt = st.chat_input("Type a message…")
+    prompt = st.chat_input(t("type_message", ui_lang))
     if prompt:
         if not API_KEY:
             st.error("Configure ANTHROPIC_API_KEY no .env"); st.stop()
@@ -2190,9 +2363,9 @@ def show_dashboard() -> None:
             </div></div>
             <hr style="border-color:#30363d;margin:6px 0 12px">""", unsafe_allow_html=True)
         if st.button("📊 Dashboard",      use_container_width=True, type="primary"): pass
-        if st.button("💬 Usar como Aluno", use_container_width=True, key="dash_chat"):
+        if st.button(t("use_as_student", ui_lang), use_container_width=True, key="dash_chat"):
             st.session_state.page = "chat"; st.rerun()
-        if st.button("⚙️ Meu Perfil",     use_container_width=True, key="dash_profile"):
+        if st.button(t("my_profile", ui_lang),     use_container_width=True, key="dash_profile"):
             st.session_state.page = "profile"; st.rerun()
         # Logout da professora via dashboard — apaga sessão persistente
         if st.button("🚪 Sair",           use_container_width=True):
@@ -2202,7 +2375,7 @@ def show_dashboard() -> None:
     st.markdown("---")
     col_h1, col_h2 = st.columns([4, 1])
     with col_h2:
-        if st.button("💬 Entrar no Chat", use_container_width=True):
+        if st.button(t("enter_chat", ui_lang), use_container_width=True):
             st.session_state.page = "chat"; st.rerun()
     st.markdown("---")
 
