@@ -1,22 +1,38 @@
+# ── Segredos ──────────────────────────────────────────────────────────
 .env
-data/conversations/caio_based/
-data/history/caio_based/
-__pycache__/
-appteste.py
+.streamlit/secrets.toml
+ngrok_recovery_codes.txt
+
+# ── Dados locais (não sobem pro servidor) ─────────────────────────────
 data/app.db
-data/avatars/
 data/conversations/
 data/history/
 data/generated/
-~/.cache/huggingface/
-faster_whisper_models/
+data/students.json
+
+# ── Avatars de usuários (gerados dinamicamente) ───────────────────────
+data/avatars/
+
+# ── Cache e compilados Python ─────────────────────────────────────────
+__pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+
+# ── Ambientes virtuais ────────────────────────────────────────────────
 .venv/
 venv/
-*.egg-info/
-.streamlit/secrets.toml
-streamlit.txt
+
+# ── Arquivos temporários / testes ─────────────────────────────────────
 teste_jessica.mp3
-ngrok_recovery_codes.txt
+streamlit.txt
+
+# ── Modelos de ML locais ──────────────────────────────────────────────
+faster_whisper_models/
+~/.cache/huggingface/
+
+# ── SadTalker (substituído pelo avatar CSS) ───────────────────────────
+SadTalker_TeacherTati.ipynb
+sadtalker_colab.py
+sadtalker_avatar.py
 wav2lip_colab.ipynb

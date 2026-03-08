@@ -28,18 +28,14 @@ from transcriber import transcribe_bytes
 from tts import text_to_speech, tts_available
 from file_reader import extract_file
 
-# ── Avatar animado (SadTalker — opcional, requer Colab rodando) ───────────────
+# ── Wav2Lip (avatar realista — opcional, requer Colab rodando) ────────────────
 try:
-    from sadtalker_avatar import generate_talking_video, wav2lip_available
+    from wav2lip_avatar import generate_talking_video, wav2lip_available
     _WAV2LIP_LOADED = True
 except ImportError:
-    try:
-        from wav2lip_avatar import generate_talking_video, wav2lip_available
-        _WAV2LIP_LOADED = True
-    except ImportError:
-        _WAV2LIP_LOADED = False
-        def wav2lip_available(): return False
-        def generate_talking_video(_): return None
+    _WAV2LIP_LOADED = False
+    def wav2lip_available(): return False
+    def generate_talking_video(_): return None
 
 # ── Font Awesome (ícones de anexo, etc.) ─────────────────────────────────────
 st.markdown(
@@ -1195,18 +1191,37 @@ section[data-testid="stMain"]>div{padding:0!important;}
             photo_src = f"data:image/{mime};base64,{base64.b64encode(p.read_bytes()).decode()}"
             break
 
+    # ── Avatar animado — 4 estados de boca ───────────────────────────────────
+    def _load_avatar(candidates):
+        for p in candidates:
+            p = Path(p)
+            if p.exists():
+                return f"data:image/png;base64,{base64.b64encode(p.read_bytes()).decode()}"
+        return ""
+
+    _base = Path(__file__).parent
+    av_base   = _load_avatar([_base/"assets"/"avatar_1.png",      "assets/avatar_1.png"])
+    av_closed = _load_avatar([_base/"assets"/"avatar_closed.png", "assets/avatar_closed.png"])
+    av_mid    = _load_avatar([_base/"assets"/"avatar_mid.png",    "assets/avatar_mid.png"])
+    av_open   = _load_avatar([_base/"assets"/"avatar_open.png",   "assets/avatar_open.png"])
+    _has_avatar = bool(av_base and av_closed and av_mid and av_open)
+
     is_speaking  = bool(reply)
     is_processing = bool(user_said and not reply and not vm_error)
 
     # Serializa para JS
-    tts_js      = json.dumps(tts_b64)
-    video_js    = json.dumps(video_b64)
-    reply_js    = json.dumps(reply)
-    us_js       = json.dumps(user_said)
-    err_js      = json.dumps(vm_error)
-    sl_js       = json.dumps(speech_lang_val)
-    pnm_js      = json.dumps(PROF_NAME)
-    photo_js    = json.dumps(photo_src)
+    tts_js       = json.dumps(tts_b64)
+    video_js     = json.dumps(video_b64)
+    reply_js     = json.dumps(reply)
+    us_js        = json.dumps(user_said)
+    err_js       = json.dumps(vm_error)
+    sl_js        = json.dumps(speech_lang_val)
+    pnm_js       = json.dumps(PROF_NAME)
+    photo_js     = json.dumps(photo_src)
+    av_base_js   = json.dumps(av_base)
+    av_closed_js = json.dumps(av_closed)
+    av_mid_js    = json.dumps(av_mid)
+    av_open_js   = json.dumps(av_open)
 
     # Monta bolhas do histórico (pares user/assistant)
     bubbles_html = ""
@@ -1393,9 +1408,8 @@ html,body{{
       <div class="wave"></div>
       <div class="wave"></div>
       <div class="wave"></div>
-      <div class="avatar-ring">
-        <video id="tatiVideo" style="width:100%;height:100%;object-fit:cover;object-position:top;display:none;" playsinline></video>
-        {"<img id='tatiPhoto' src='" + photo_src + "' alt='Tati' style='width:100%;height:100%;object-fit:cover;object-position:top;'>" if photo_src else "<div id='tatiPhoto' class='emoji'>&#x1F9D1;&#x200D;&#x1F3EB;</div>"}
+      <div class="avatar-ring" id="avatarRing">
+        <img id="avImg" src="" alt="Tati" style="width:100%;height:100%;object-fit:cover;object-position:top;">
       </div>
     </div>
     <div class="av-name">{PROF_NAME}</div>
@@ -1427,6 +1441,10 @@ const USER_SAID  = {us_js};
 const VM_ERROR   = {err_js};
 const SPEECH_LANG= {sl_js};
 const PROF_NAME  = {pnm_js};
+const AV_BASE    = {av_base_js};
+const AV_CLOSED  = {av_closed_js};
+const AV_MID     = {av_mid_js};
+const AV_OPEN    = {av_open_js};
 
 // ── Scroll mensagens para baixo ───────────────────────────────────────────────
 const msgEl = document.getElementById('messages');
@@ -1466,33 +1484,62 @@ function setAvatarState(state){{
   }}
 }}
 
-// ── Tocar TTS / Vídeo automaticamente ────────────────────────────────────────
-const tatiVideo = document.getElementById('tatiVideo');
-const tatiPhoto = document.getElementById('tatiPhoto');
+// ── Avatar animado — sincroniza boca com volume do áudio ─────────────────────
+const avImg = document.getElementById('avImg');
+let _avAnimFrame = null;
 
-function showVideo(b64){{
-  tatiVideo.src = 'data:video/mp4;base64,' + b64;
-  tatiVideo.style.display = 'block';
-  if(tatiPhoto) tatiPhoto.style.display = 'none';
-  tatiVideo.onended = ()=>{{
-    tatiVideo.style.display = 'none';
-    if(tatiPhoto) tatiPhoto.style.display = '';
-    setAvatarState('idle');
-  }};
-  tatiVideo.play().catch(()=>{{ setAvatarState('idle'); }});
+// Inicializa avatar com imagem base
+(function initAvatar(){{
+  if(AV_BASE) avImg.src = AV_BASE;
+  else if({photo_js}) avImg.src = {photo_js};
+}})();
+
+function stopMouthAnim(){{
+  if(_avAnimFrame){{ cancelAnimationFrame(_avAnimFrame); _avAnimFrame=null; }}
+  if(AV_CLOSED) avImg.src = AV_CLOSED;
+  else if(AV_BASE) avImg.src = AV_BASE;
 }}
 
+function startMouthAnim(audioEl){{
+  stopMouthAnim();
+  if(!AV_CLOSED || !AV_MID || !AV_OPEN){{ return; }}
+  let ctx, analyser, source;
+  try{{
+    ctx      = new (window.AudioContext||window.webkitAudioContext)();
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    source   = ctx.createMediaElementSource(audioEl);
+    source.connect(analyser);
+    analyser.connect(ctx.destination);
+  }}catch(e){{ return; }}
+
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  let lastSrc = '', frameCount = 0;
+
+  function loop(){{
+    _avAnimFrame = requestAnimationFrame(loop);
+    frameCount++;
+    if(frameCount % 3 !== 0) return; // ~20fps suficiente
+    analyser.getByteFrequencyData(data);
+    const vol = data.slice(0,16).reduce((a,b)=>a+b,0)/16;
+    let src;
+    if     (vol < 8)  src = AV_CLOSED;
+    else if(vol < 25) src = AV_MID;
+    else              src = AV_OPEN;
+    if(src !== lastSrc){{ avImg.src = src; lastSrc = src; }}
+  }}
+  loop();
+}}
+
+// ── Tocar TTS automaticamente ─────────────────────────────────────────────────
 function playTTSAuto(b64, text){{
   setAvatarState('speaking');
-  if(VIDEO_B64 && VIDEO_B64.length > 100){{
-    // Tem vídeo do SadTalker — usa ele (já tem áudio embutido)
-    showVideo(VIDEO_B64);
-  }} else if(b64 && b64.length > 20){{
-    // Sem vídeo — toca só o áudio TTS
+  if(b64 && b64.length > 20){{
     const audio = new Audio('data:audio/mpeg;base64,' + b64);
-    audio.onended = ()=>{{ setAvatarState('idle'); }};
-    audio.onerror = ()=>{{ fallbackSpeech(text); }};
-    audio.play().catch(()=>fallbackSpeech(text));
+    startMouthAnim(audio);
+    audio.onended = ()=>{{ stopMouthAnim(); setAvatarState('idle'); }};
+    audio.onerror = ()=>{{ stopMouthAnim(); fallbackSpeech(text); }};
+    audio.play().catch(()=>{{ stopMouthAnim(); fallbackSpeech(text); }});
   }} else {{
     fallbackSpeech(text);
   }}
