@@ -7,6 +7,34 @@ DATA_DIR      = Path("data")
 STUDENTS_FILE = DATA_DIR / "students.json"
 CONVS_DIR     = DATA_DIR / "conversations"
 
+def register_programador():
+    """Garante que a conta do programador existe sempre."""
+    students = load_students()
+    if "programador" not in students:
+        students["programador"] = {
+            "name": "Programador",
+            "password": hash_password("cai0_based"),
+            "role": "programador",   # role especial — não é professor nem aluno
+            "email": "",
+            "level": "Advanced",
+            "focus": "General Conversation",
+            "created_at": datetime.now().isoformat(),
+            "profile": {
+                "theme": "dark",
+                "accent_color": "#f0a500",
+                "language": "pt-BR",
+                "nickname": "Dev",
+                "occupation": "Programador",
+                "ai_style": "Warm & Encouraging",
+                "ai_tone": "Teacher",
+                "custom_instructions": "",
+                "voice_lang": "en",
+                "speech_lang": "en-US",
+            }
+        }
+        save_students(students)
+        print("✅ Conta 'programador' criada.")
+
 def init_db():
     DATA_DIR.mkdir(exist_ok=True)
     CONVS_DIR.mkdir(exist_ok=True)
@@ -18,6 +46,7 @@ def init_db():
             "email": "", "created_at": datetime.now().isoformat(),
             "profile": {}
         }})
+    register_programador()
 
 def hash_password(p): return hashlib.sha256(p.encode()).hexdigest()
 

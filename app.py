@@ -860,8 +860,8 @@ def show_voice_mode():
     profile  = user.get("profile", {})
     whisper_lang    = profile.get("voice_lang",  "en")
     speech_lang_val = profile.get("speech_lang", "en-US")
+    is_dev   = (username == "programador")
 
-    # Garante que há uma conversa ativa para salvar o histórico de voz
     conv_id = get_or_create_conv(username)
 
     if st.button("✕ Fechar Modo Voz", key="close_voice_inner"):
@@ -871,8 +871,6 @@ def show_voice_mode():
             st.session_state.pop(k, None)
         st.rerun()
 
-    # CSS: esconde APENAS o uploader oculto do voice mode usando nth-of-type via wrapper
-    # O wrapper .vm-audio-hidden é injetado via JS após o render para não afetar outros uploaders
     audio_upload = st.file_uploader(
         "vm_audio", key="vm_audio_upload", label_visibility="collapsed",
         type=["webm","wav","ogg","mp4","m4a"])
@@ -890,15 +888,27 @@ def show_voice_mode():
     tts_b64   = st.session_state.get("_vm_tts_b64",   "")
     vm_error  = st.session_state.get("_vm_error",     "")
 
-    photo_tag = (f'<img src="{PHOTO_B64}" class="vm-avatar-img" />'
-                 if PHOTO_B64 else '<div class="vm-avatar-emoji">🧑‍🏫</div>')
+    # ── Carrega avatares (closed / mid / open) ────────────────────────────────
+    def load_avatar(filename):
+        p = Path(f"data/avatars/{filename}")
+        if p.exists():
+            b64 = base64.b64encode(p.read_bytes()).decode()
+            ext = p.suffix.lstrip(".")
+            mime = "jpeg" if ext in ("jpg","jpeg") else ext
+            return f"data:image/{mime};base64,{b64}"
+        return ""
 
-    us_js  = json.dumps(user_said)
-    rep_js = json.dumps(reply)
-    tts_js = json.dumps(tts_b64)
-    err_js = json.dumps(vm_error)
-    pnm_js = json.dumps(PROF_NAME)
-    sl_js  = json.dumps(speech_lang_val)
+    src_closed = load_avatar("avatar_closed.png") or load_avatar("avatar.png") or PHOTO_B64 or ""
+    src_mid    = load_avatar("avatar_mid.png")    or src_closed
+    src_open   = load_avatar("avatar_open.png")   or src_closed
+
+    us_js     = json.dumps(user_said)
+    rep_js    = json.dumps(reply)
+    tts_js    = json.dumps(tts_b64)
+    err_js    = json.dumps(vm_error)
+    pnm_js    = json.dumps(PROF_NAME)
+    sl_js     = json.dumps(speech_lang_val)
+    is_dev_js = json.dumps(is_dev)
 
     components.html(f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
@@ -909,64 +919,124 @@ def show_voice_mode():
        --accent:#f0a500;--accent2:#e05c2a;--text:#e6edf3;--muted:#8b949e;
        --green:#3fb950;--red:#f85149;--blue:#58a6ff;}}
 html,body{{background:var(--bg);font-family:'Sora',sans-serif;color:var(--text);height:100%;overflow:hidden;}}
+
 .vm{{display:flex;flex-direction:column;align-items:center;justify-content:center;
-     height:100vh;gap:20px;padding:20px;
-     background:radial-gradient(ellipse at 50% 25%,rgba(240,165,0,.08) 0%,transparent 60%);}}
-.ring-wrap{{position:relative;width:140px;height:140px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}}
-.vm-avatar-img{{width:124px;height:124px;border-radius:50%;object-fit:cover;object-position:top;border:2px solid var(--accent);position:relative;z-index:2;}}
-.vm-avatar-emoji{{width:124px;height:124px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:58px;position:relative;z-index:2;}}
-.ring{{position:absolute;inset:-8px;border-radius:50%;border:2.5px solid transparent;
-       background:conic-gradient(from 0deg,var(--accent),var(--accent2),var(--accent)) border-box;
-       -webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);
-       -webkit-mask-composite:destination-out;mask-composite:exclude;
-       animation:spin 5s linear infinite;opacity:.35;transition:opacity .4s;}}
-.ring.listening{{opacity:1;animation-duration:1.2s;background:conic-gradient(from 0deg,var(--green),#58a6ff,var(--green)) border-box;}}
-.ring.speaking {{opacity:1;animation-duration:.7s;}}
-.ring.processing{{opacity:.9;animation-duration:2s;background:conic-gradient(from 0deg,var(--blue),#a371f7,var(--blue)) border-box;}}
-@keyframes spin{{to{{transform:rotate(360deg);}}}}
-.pulse{{position:absolute;inset:-18px;border-radius:50%;border:1px solid rgba(63,185,80,.25);animation:pulse-out 1.6s ease-out infinite;display:none;pointer-events:none;}}
-.pulse:nth-child(2){{animation-delay:.53s;}}.pulse:nth-child(3){{animation-delay:1.06s;}}
-.listening .pulse{{display:block;}}
-@keyframes pulse-out{{0%{{transform:scale(1);opacity:.5;}}100%{{transform:scale(1.6);opacity:0;}}}}
-.bars{{display:none;align-items:flex-end;gap:4px;height:32px;}}
-.speaking .bars{{display:flex;}}
-.bar{{width:4px;border-radius:3px;background:linear-gradient(180deg,var(--accent2),var(--accent));animation:bdance .55s ease-in-out infinite alternate;}}
-.bar:nth-child(1){{height:8px;animation-delay:0s;}}.bar:nth-child(2){{height:22px;animation-delay:.1s;}}.bar:nth-child(3){{height:14px;animation-delay:.2s;}}.bar:nth-child(4){{height:28px;animation-delay:.07s;}}.bar:nth-child(5){{height:10px;animation-delay:.17s;}}.bar:nth-child(6){{height:24px;animation-delay:.27s;}}.bar:nth-child(7){{height:6px;animation-delay:.12s;}}
-@keyframes bdance{{from{{transform:scaleY(.25);}}to{{transform:scaleY(1);}}}}
-.info{{text-align:center;min-height:44px;}}
+     height:100vh;gap:16px;padding:20px;
+     background:radial-gradient(ellipse at 50% 25%,rgba(240,165,0,.07) 0%,transparent 60%);}}
+
+.avatar-wrap{{
+  position:relative;width:200px;height:200px;
+  border-radius:50%;overflow:hidden;flex-shrink:0;
+  box-shadow:0 0 40px rgba(240,165,0,.15);
+}}
+
+/* As 3 imagens empilhadas — morph via opacity */
+.avatar-wrap canvas{{
+  position:absolute;top:0;left:0;
+  width:100%;height:100%;
+  border-radius:50%;
+}}
+
+/* Painel debug — só para programador */
+#debug-panel{{
+  position:fixed;top:10px;right:10px;
+  background:rgba(10,16,24,.95);
+  border:1px solid var(--accent);
+  border-radius:10px;padding:12px 16px;
+  font-size:.72rem;z-index:9999;
+  min-width:220px;display:none;
+}}
+#debug-panel label{{color:var(--muted);display:block;margin-top:8px;}}
+#debug-panel input[type=range]{{width:100%;accent-color:var(--accent);margin-top:2px;}}
+#debug-panel .val{{color:var(--accent);font-family:monospace;}}
+#debug-toggle{{
+  position:fixed;top:10px;right:10px;
+  background:rgba(240,165,0,.15);border:1px solid var(--accent);
+  border-radius:6px;color:var(--accent);font-size:.65rem;
+  padding:3px 8px;cursor:pointer;z-index:10000;display:none;
+}}
+
+.info{{text-align:center;}}
 .prof-name{{font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:3px;}}
 .status{{font-size:.78rem;color:var(--muted);transition:color .3s;}}
 .status.s-listening{{color:var(--green);}}.status.s-speaking{{color:var(--accent);}}.status.s-processing{{color:var(--blue);}}
-.transcript{{max-width:480px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 16px;font-size:.84rem;line-height:1.65;min-height:60px;}}
+
+.transcript{{max-width:480px;width:100%;background:var(--surface);border:1px solid var(--border);
+             border-radius:14px;padding:12px 16px;font-size:.84rem;line-height:1.65;min-height:60px;}}
 .t-label{{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}}
 .t-user{{color:#adbac7;margin-bottom:6px;display:none;}}
 .t-sep{{border:none;border-top:1px solid var(--border);margin:6px 0;display:none;}}
 .t-ai{{color:var(--text);display:none;}}.t-wait{{color:#3d4a5c;font-style:italic;}}
+
 .sil{{width:130px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;visibility:hidden;margin:0 auto;}}
 .sil-fill{{height:100%;background:linear-gradient(90deg,var(--green),var(--accent));border-radius:2px;width:0%;}}
 .sil.show{{visibility:visible;}}
-.mic-btn{{width:64px;height:64px;border-radius:50%;border:none;cursor:pointer;font-size:26px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--green),#2ea043);box-shadow:0 0 20px rgba(63,185,80,.3);transition:all .2s;}}
+
+.mic-btn{{width:64px;height:64px;border-radius:50%;border:none;cursor:pointer;font-size:26px;
+          display:flex;align-items:center;justify-content:center;
+          background:linear-gradient(135deg,var(--green),#2ea043);
+          box-shadow:0 0 20px rgba(63,185,80,.3);transition:all .2s;}}
 .mic-btn:hover{{transform:scale(1.07);}}
-.mic-btn.active{{background:linear-gradient(135deg,var(--red),#c03030);box-shadow:0 0 26px rgba(248,81,73,.5);animation:mpulse .8s ease-in-out infinite alternate;}}
+.mic-btn.active{{background:linear-gradient(135deg,var(--red),#c03030);
+                 box-shadow:0 0 26px rgba(248,81,73,.5);
+                 animation:mpulse .8s ease-in-out infinite alternate;}}
 @keyframes mpulse{{from{{box-shadow:0 0 14px rgba(248,81,73,.3);}}to{{box-shadow:0 0 32px rgba(248,81,73,.7);}}}}
 .hint{{font-size:.65rem;color:#2d3a4a;text-align:center;}}
 .err{{font-size:.74rem;color:var(--red);text-align:center;max-width:340px;min-height:18px;}}
 </style></head><body>
-<div class="vm" id="vm">
-  <div class="ring-wrap" id="ringWrap">
-    {photo_tag}
-    <div class="ring" id="ring"></div>
-    <div class="pulse"></div><div class="pulse"></div><div class="pulse"></div>
+
+<!-- Botão debug (só para programador) -->
+<button id="debug-toggle" onclick="toggleDebug()">⚙ Ajustar boca</button>
+
+<!-- Painel de ajuste em tempo real -->
+<div id="debug-panel">
+  <div style="color:var(--accent);font-weight:700;margin-bottom:4px;">⚙ Posição da Boca</div>
+
+  <label>← → Horizontal (X): <span class="val" id="vx">0.50</span></label>
+  <input type="range" id="rx" min="0" max="1" step="0.01" value="0.50" oninput="updateParam('x',this.value)">
+
+  <label>↑ ↓ Vertical (Y): <span class="val" id="vy">0.54</span></label>
+  <input type="range" id="ry" min="0" max="1" step="0.01" value="0.54" oninput="updateParam('y',this.value)">
+
+  <label>↔ Largura (W): <span class="val" id="vw">0.08</span></label>
+  <input type="range" id="rw" min="0.02" max="0.4" step="0.01" value="0.08" oninput="updateParam('w',this.value)">
+
+  <label>↕ Altura max (H): <span class="val" id="vh">0.05</span></label>
+  <input type="range" id="rh" min="0.01" max="0.15" step="0.005" value="0.05" oninput="updateParam('h',this.value)">
+
+  <div style="margin-top:10px;padding:7px;background:rgba(240,165,0,.08);border-radius:6px;
+              font-family:monospace;font-size:.65rem;color:#aaa;line-height:1.6;">
+    Copie para o código:<br>
+    <span id="copy-vals" style="color:var(--accent);"></span>
   </div>
-  <div class="info" id="infoWrap">
+
+  <div style="margin-top:8px;display:flex;gap:6px;">
+    <button onclick="testMouth()" style="flex:1;padding:5px;background:rgba(240,165,0,.15);
+      border:1px solid var(--accent);border-radius:6px;color:var(--accent);cursor:pointer;font-size:.72rem;">
+      ▶ Testar
+    </button>
+    <button onclick="toggleMorphMode()" id="morphBtn" style="flex:1;padding:5px;background:rgba(88,166,255,.1);
+      border:1px solid var(--blue);border-radius:6px;color:var(--blue);cursor:pointer;font-size:.72rem;">
+      🖼 Modo: overlay
+    </button>
+  </div>
+
+  <div style="margin-top:8px;font-size:.62rem;color:#3a4a5c;border-top:1px solid var(--border);padding-top:6px;">
+    💡 Coloque avatar_closed.png, avatar_mid.png e avatar_open.png<br>
+    em data/avatars/ para ativar o morph entre imagens.
+  </div>
+</div>
+
+<div class="vm" id="vm">
+  <div class="avatar-wrap" id="avatarWrap">
+    <canvas id="avatarCanvas" width="400" height="400"></canvas>
+  </div>
+
+  <div class="info">
     <div class="prof-name">{PROF_NAME}</div>
     <div class="status" id="status">Clique no microfone para falar</div>
-    <div class="bars">
-      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-      <div class="bar"></div>
-    </div>
   </div>
+
   <div class="transcript">
     <div class="t-label" id="tLabel">Aguardando...</div>
     <div class="t-user" id="tUser"></div>
@@ -974,40 +1044,274 @@ html,body{{background:var(--bg);font-family:'Sora',sans-serif;color:var(--text);
     <div class="t-ai" id="tAi"></div>
     <div class="t-wait" id="tWait">—</div>
   </div>
+
   <div class="sil" id="sil"><div class="sil-fill" id="silFill"></div></div>
   <button class="mic-btn" id="micBtn">🎤</button>
   <div class="hint">Detecção automática de silêncio (1.5s)</div>
   <div class="err" id="errBox"></div>
 </div>
+
 <script>
-const PY_USER_SAID={us_js}, PY_REPLY={rep_js}, PY_TTS_B64={tts_js};
-const PY_ERROR={err_js}, SPEECH_LANG={sl_js}, PROF_NAME={pnm_js};
-const SILENCE_MS=1500, MIN_DB=-42;
+const PY_USER_SAID = {us_js};
+const PY_REPLY     = {rep_js};
+const PY_TTS_B64   = {tts_js};
+const PY_ERROR     = {err_js};
+const SPEECH_LANG  = {sl_js};
+const PROF_NAME    = {pnm_js};
+const IS_DEV       = {is_dev_js};
 
-let mediaRec=null,chunks=[],audioCtx=null,analyser=null,micStream=null;
-let isRec=false,isSpeaking=false,vadActive=false,speechHit=false;
-let silTimer=null,silStart=null,curAudio=null;
+// ── Imagens do avatar ────────────────────────────────────────────────────────
+const SRC_CLOSED = `{src_closed}`;
+const SRC_MID    = `{src_mid}`;
+const SRC_OPEN   = `{src_open}`;
+const HAS_MORPH  = (SRC_CLOSED !== SRC_MID); // true se tiver 3 imagens distintas
 
-const vm=document.getElementById('vm'), ring=document.getElementById('ring'),
-      ringW=document.getElementById('ringWrap'), status=document.getElementById('status'),
-      tLabel=document.getElementById('tLabel'), tUser=document.getElementById('tUser'),
-      tSep=document.getElementById('tSep'), tAi=document.getElementById('tAi'),
-      tWait=document.getElementById('tWait'), sil=document.getElementById('sil'),
-      silFill=document.getElementById('silFill'), micBtn=document.getElementById('micBtn'),
-      errBox=document.getElementById('errBox');
+function loadImg(src) {{
+  const img = new Image();
+  img.src = src;
+  return img;
+}}
+const imgClosed = loadImg(SRC_CLOSED);
+const imgMid    = loadImg(SRC_MID);
+const imgOpen   = loadImg(SRC_OPEN);
 
-function setRing(s){{ ring.className='ring '+s; ringW.className='ring-wrap '+s; vm.className='vm '+s; }}
-function setStatus(t,c=''){{ status.textContent=t; status.className='status '+c; }}
-function showErr(m){{ errBox.textContent=m; setTimeout(()=>errBox.textContent='',5000); }}
-function showSil(p){{ sil.classList.add('show'); silFill.style.width=p+'%'; }}
-function hideSil(){{ sil.classList.remove('show'); silFill.style.width='0%'; }}
-function showTranscript(u,a){{
-  tWait.style.display='none';
-  if(u){{ tLabel.textContent='Você disse:'; tUser.textContent=u; tUser.style.display='block'; }}
-  if(a){{ tSep.style.display='block'; tAi.textContent=a; tAi.style.display='block'; }}
+// ── Parâmetros da boca (modo overlay) ───────────────────────────────────────
+let MOUTH = {{ x:0.50, y:0.54, w:0.08, h:0.05 }};
+let useMorphMode = HAS_MORPH; // usa morph se tiver 3 imagens, senão overlay
+
+// ── Canvas ───────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('avatarCanvas');
+const ctx    = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+let mouthOpen   = 0;
+let mouthTarget = 0;
+
+// ── Estado das animações extras ──────────────────────────────────────────────
+let breathe    = 0;       // fase da respiração (0→2π em loop)
+let blinkAlpha = 0;       // opacidade do escurecimento do piscar (0=aberto)
+let blinkTimer = null;    // timer do próximo piscar
+let headTilt   = 0;       // rotação atual da cabeça (graus)
+let headTiltT  = 0;       // target da rotação
+
+// Região dos olhos (fração da imagem) — para piscar
+const EX1=0.25, EY1=0.28, EX2=0.75, EY2=0.48;
+
+function scheduleBlink() {{
+  const delay = 3000 + Math.random() * 4000; // 3-7s
+  blinkTimer = setTimeout(() => {{
+    // Fecha (escurece)
+    const closeDur = 80;
+    const openDur  = 120;
+    let t0 = Date.now();
+    function closeAnim() {{
+      const p = Math.min((Date.now()-t0)/closeDur, 1);
+      blinkAlpha = p * 0.92;
+      if (p < 1) requestAnimationFrame(closeAnim);
+      else {{
+        let t1 = Date.now();
+        function openAnim() {{
+          const p2 = Math.min((Date.now()-t1)/openDur, 1);
+          blinkAlpha = (1-p2) * 0.92;
+          if (p2 < 1) requestAnimationFrame(openAnim);
+          else {{ blinkAlpha = 0; scheduleBlink(); }}
+        }}
+        requestAnimationFrame(openAnim);
+      }}
+    }}
+    requestAnimationFrame(closeAnim);
+  }}, delay);
+}}
+scheduleBlink();
+
+function drawFrame() {{
+  ctx.clearRect(0, 0, W, H);
+
+  // ── Atualiza animações de estado ─────────────────────────────────────────
+  breathe += 0.018; // velocidade da respiração
+  const breatheScale = 1 + 0.008 * Math.sin(breathe);
+
+  // Head tilt: -3° ao ouvir, ±2° ao falar baseado na boca
+  if (isRec) {{
+    headTiltT = -3;
+  }} else if (isSpeaking) {{
+    headTiltT = (mouthOpen - 0.3) * 6; // -1.8°..+4.2° proporcional à abertura
+  }} else {{
+    headTiltT = 0;
+  }}
+  headTilt += (headTiltT - headTilt) * 0.06; // suaviza
+
+  // ── Aplica transformações ao canvas ──────────────────────────────────────
+  ctx.save();
+  ctx.translate(W/2, H/2);
+  ctx.rotate(headTilt * Math.PI / 180);
+  ctx.scale(breatheScale, breatheScale);
+  ctx.translate(-W/2, -H/2);
+
+  // Clip circular (dentro do transform)
+  ctx.beginPath();
+  ctx.arc(W/2, H/2, W/2, 0, Math.PI*2);
+  ctx.clip();
+
+  // Região da boca detectada por diff automático (fração da imagem)
+  const MX1=0.328, MY1=0.468, MX2=0.873, MY2=1.000;
+
+  if (useMorphMode && HAS_MORPH) {{
+    // ── Modo morph cirúrgico: base=closed, só região da boca interpola ─────
+    const t = mouthOpen;
+
+    // Coordenadas do recorte no canvas (400x400)
+    const rx = MX1*W, ry = MY1*H;
+    const rw = (MX2-MX1)*W, rh = (MY2-MY1)*H;
+
+    // 1. Fundo sempre closed completo
+    ctx.globalAlpha = 1;
+    ctx.drawImage(imgClosed, 0, 0, W, H);
+
+    // 2. Interpola só a região da boca
+    if (t < 0.5) {{
+      // closed → mid
+      const a = t * 2;
+      ctx.globalAlpha = a;
+      ctx.drawImage(imgMid,
+        MX1*imgMid.naturalWidth,  MY1*imgMid.naturalHeight,
+        (MX2-MX1)*imgMid.naturalWidth, (MY2-MY1)*imgMid.naturalHeight,
+        rx, ry, rw, rh);
+    }} else {{
+      // mid → open: primeiro pinta mid, depois open por cima
+      const a = (t - 0.5) * 2;
+      ctx.globalAlpha = 1;
+      ctx.drawImage(imgMid,
+        MX1*imgMid.naturalWidth,  MY1*imgMid.naturalHeight,
+        (MX2-MX1)*imgMid.naturalWidth, (MY2-MY1)*imgMid.naturalHeight,
+        rx, ry, rw, rh);
+      ctx.globalAlpha = a;
+      ctx.drawImage(imgOpen,
+        MX1*imgOpen.naturalWidth,  MY1*imgOpen.naturalHeight,
+        (MX2-MX1)*imgOpen.naturalWidth, (MY2-MY1)*imgOpen.naturalHeight,
+        rx, ry, rw, rh);
+    }}
+    ctx.globalAlpha = 1;
+  }} else {{
+    // ── Modo overlay: desenha boca em canvas ──────────────────────────────
+    ctx.drawImage(imgClosed, 0, 0, W, H);
+    ctx.restore();
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(W/2, H/2, W/2, 0, Math.PI*2);
+    ctx.clip();
+
+    if (mouthOpen > 0.015) {{
+      const mx = W * MOUTH.x;
+      const my = H * MOUTH.y;
+      const mw = W * MOUTH.w;
+      const mh = H * MOUTH.h * mouthOpen;
+
+      // Interior escuro
+      ctx.beginPath();
+      ctx.ellipse(mx, my, mw*0.82, Math.max(mh*0.85,1), 0, 0, Math.PI*2);
+      ctx.fillStyle = '#110505'; ctx.fill();
+
+      // Lábio superior
+      ctx.beginPath();
+      ctx.moveTo(mx-mw, my);
+      ctx.bezierCurveTo(mx-mw*.5, my-mh*1.5, mx+mw*.5, my-mh*1.5, mx+mw, my);
+      ctx.bezierCurveTo(mx+mw*.5, my-mh*.25, mx-mw*.5, my-mh*.25, mx-mw, my);
+      ctx.fillStyle='#a05555'; ctx.fill();
+
+      // Lábio inferior
+      ctx.beginPath();
+      ctx.moveTo(mx-mw, my);
+      ctx.bezierCurveTo(mx-mw*.5, my+mh*1.7, mx+mw*.5, my+mh*1.7, mx+mw, my);
+      ctx.bezierCurveTo(mx+mw*.5, my+mh*.35, mx-mw*.5, my+mh*.35, mx-mw, my);
+      ctx.fillStyle='#b56565'; ctx.fill();
+
+      // Linha central
+      ctx.beginPath();
+      ctx.moveTo(mx-mw, my);
+      ctx.bezierCurveTo(mx-mw*.3, my+mh*.3, mx+mw*.3, my+mh*.3, mx+mw, my);
+      ctx.strokeStyle='#7a3333'; ctx.lineWidth=Math.max(mh*.15,.5); ctx.stroke();
+    }}
+  }}
+
+  ctx.restore();
+
+  // Interpola suavemente
+  // 0.06-0.12: menor = mais lento e suave
+  mouthOpen += (mouthTarget - mouthOpen) * 0.08;
+  requestAnimationFrame(drawFrame);
 }}
 
-function getRMS(){{
+// Inicia quando a primeira imagem carregar
+imgClosed.onload = () => drawFrame();
+imgClosed.onerror = () => drawFrame();
+
+// ── Painel debug (só programador) ────────────────────────────────────────────
+if (IS_DEV) {{
+  document.getElementById('debug-toggle').style.display = 'block';
+}}
+
+function toggleDebug() {{
+  const p = document.getElementById('debug-panel');
+  p.style.display = p.style.display === 'block' ? 'none' : 'block';
+  updateCopyVals();
+  document.getElementById('morphBtn').textContent =
+    '🖼 Modo: ' + (useMorphMode ? 'morph' : 'overlay');
+}}
+
+function updateParam(prop, val) {{
+  MOUTH[prop] = parseFloat(val);
+  document.getElementById('v'+prop).textContent = parseFloat(val).toFixed(2);
+  updateCopyVals();
+  mouthTarget = 0.7;
+  setTimeout(()=>{{ mouthTarget=0; }}, 700);
+}}
+
+function updateCopyVals() {{
+  document.getElementById('copy-vals').textContent =
+    `x:${{MOUTH.x.toFixed(2)}} y:${{MOUTH.y.toFixed(2)}} w:${{MOUTH.w.toFixed(2)}} h:${{MOUTH.h.toFixed(2)}}`;
+}}
+updateCopyVals();
+
+let testInterval = null;
+function testMouth() {{
+  let t=0; clearInterval(testInterval);
+  testInterval=setInterval(()=>{{
+    mouthTarget=0.3+0.6*Math.abs(Math.sin(t++*.4));
+    if(t>35){{clearInterval(testInterval);mouthTarget=0;}}
+  }},80);
+}}
+
+function toggleMorphMode() {{
+  useMorphMode = !useMorphMode;
+  document.getElementById('morphBtn').textContent =
+    '🖼 Modo: '+(useMorphMode?'morph':'overlay');
+}}
+
+// ── VAD + gravação ───────────────────────────────────────────────────────────
+const SILENCE_MS=1500, MIN_DB=-42;
+let mediaRec=null,chunks=[],audioCtx=null,analyser=null,micStream=null;
+let isRec=false,isSpeaking=false,vadActive=false,speechHit=false;
+let silTimer=null,silStart=null,curAudio=null,ttsAnalyser=null;
+
+const statusEl=document.getElementById('status');
+const tLabel=document.getElementById('tLabel'),tUser=document.getElementById('tUser');
+const tSep=document.getElementById('tSep'),tAi=document.getElementById('tAi');
+const tWait=document.getElementById('tWait');
+const sil=document.getElementById('sil'),silFill=document.getElementById('silFill');
+const micBtn=document.getElementById('micBtn'),errBox=document.getElementById('errBox');
+
+function setStatus(t,c=''){{statusEl.textContent=t;statusEl.className='status '+c;}}
+function showErr(m){{errBox.textContent=m;setTimeout(()=>errBox.textContent='',5000);}}
+function showSil(p){{sil.classList.add('show');silFill.style.width=p+'%';}}
+function hideSil(){{sil.classList.remove('show');silFill.style.width='0%';}}
+function showTranscript(u,a){{
+  tWait.style.display='none';
+  if(u){{tLabel.textContent='Você disse:';tUser.textContent=u;tUser.style.display='block';}}
+  if(a){{tSep.style.display='block';tAi.textContent=a;tAi.style.display='block';}}
+}}
+
+function getMicRMS(){{
   if(!analyser) return -100;
   const d=new Float32Array(analyser.fftSize);
   analyser.getFloatTimeDomainData(d);
@@ -1015,19 +1319,35 @@ function getRMS(){{
   const r=Math.sqrt(s/d.length); return r>0?20*Math.log10(r):-100;
 }}
 
+function getTTSAmplitude(){{
+  if(!ttsAnalyser) return 0;
+  const d=new Uint8Array(ttsAnalyser.fftSize);
+  ttsAnalyser.getByteTimeDomainData(d);
+  let sum=0; for(let i=0;i<d.length;i++) sum+=Math.abs(d[i]-128);
+  // Divisor menor = mais sensível (8-20). Suaviza picos com média móvel.
+  return Math.min(sum/d.length/10, 1.0);
+}}
+
+function updateMouthFromTTS(){{
+  if(!isSpeaking){{mouthTarget=0;return;}}
+  const amp=getTTSAmplitude();
+  mouthTarget=mouthTarget*0.55+amp*0.45;
+  requestAnimationFrame(updateMouthFromTTS);
+}}
+
 function runVAD(){{
   if(!vadActive) return;
-  const loud=getRMS()>MIN_DB;
+  const loud=getMicRMS()>MIN_DB;
   if(loud){{
-    speechHit=true; clearTimeout(silTimer); silStart=null; hideSil();
-    if(isSpeaking&&curAudio){{ curAudio.pause(); curAudio=null; isSpeaking=false; }}
-  }} else if(speechHit){{
-    if(!silStart){{ silStart=Date.now(); animSil(); }}
+    speechHit=true;clearTimeout(silTimer);silStart=null;hideSil();
+    if(isSpeaking&&curAudio){{curAudio.pause();curAudio=null;isSpeaking=false;mouthTarget=0;}}
+  }}else if(speechHit){{
+    if(!silStart){{silStart=Date.now();animSil();}}
     clearTimeout(silTimer);
     silTimer=setTimeout(()=>{{
       if(vadActive&&speechHit){{
-        vadActive=false; speechHit=false; mediaRec.stop();
-        setRing('processing'); setStatus('Processando...','s-processing');
+        vadActive=false;speechHit=false;mediaRec.stop();
+        setStatus('Processando...','s-processing');
         tLabel.textContent='Transcrevendo...';
       }}
     }},SILENCE_MS);
@@ -1038,129 +1358,127 @@ function runVAD(){{
 function animSil(){{
   if(!silStart) return;
   const p=Math.min((Date.now()-silStart)/SILENCE_MS*100,100);
-  showSil(p); if(p<100&&silStart) requestAnimationFrame(animSil);
+  showSil(p);if(p<100&&silStart)requestAnimationFrame(animSil);
 }}
 
 async function startRec(){{
   if(isRec) return;
-  try{{
-    micStream=await navigator.mediaDevices.getUserMedia({{audio:{{
-      echoCancellation:true, noiseSuppression:true, sampleRate:16000
-    }}}});
-  }}catch(e){{ showErr('Permissão de microfone negada.'); return; }}
-
+  try{{micStream=await navigator.mediaDevices.getUserMedia({{audio:{{echoCancellation:true,noiseSuppression:true,sampleRate:16000}}}});}}
+  catch(e){{showErr('Permissão de microfone negada.');return;}}
   audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  analyser=audioCtx.createAnalyser(); analyser.fftSize=512;
+  analyser=audioCtx.createAnalyser();analyser.fftSize=512;
   audioCtx.createMediaStreamSource(micStream).connect(analyser);
-
-  const mime=['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg']
-             .find(m=>MediaRecorder.isTypeSupported(m))||'';
-  try{{
-    mediaRec=new MediaRecorder(micStream,mime?{{mimeType:mime}}:{{}});
-  }}catch(e){{
-    mediaRec=new MediaRecorder(micStream);
-  }}
+  const mime=['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/ogg'].find(m=>MediaRecorder.isTypeSupported(m))||'';
+  try{{mediaRec=new MediaRecorder(micStream,mime?{{mimeType:mime}}:{{}});}}
+  catch(e){{mediaRec=new MediaRecorder(micStream);}}
   chunks=[];
-  mediaRec.ondataavailable=e=>{{ if(e.data&&e.data.size>0) chunks.push(e.data); }};
+  mediaRec.ondataavailable=e=>{{if(e.data&&e.data.size>0)chunks.push(e.data);}};
   mediaRec.onstop=()=>uploadAudio(new Blob(chunks,{{type:mediaRec.mimeType||'audio/webm'}}));
-  mediaRec.onerror=e=>{{ showErr('Erro na gravação: '+e.error); resetToIdle(); }};
+  mediaRec.onerror=e=>{{showErr('Erro: '+e.error);resetToIdle();}};
   mediaRec.start(100);
-
-  isRec=true; vadActive=true; speechHit=false;
-  micBtn.classList.add('active'); micBtn.textContent='⏹';
-  setRing('listening'); setStatus('Ouvindo...','s-listening');
-  tWait.style.display='block'; tWait.textContent='—';
-  tUser.style.display='none'; tSep.style.display='none'; tAi.style.display='none';
+  isRec=true;vadActive=true;speechHit=false;
+  micBtn.classList.add('active');micBtn.textContent='⏹';
+  setStatus('Ouvindo...','s-listening');
+  tWait.style.display='block';tWait.textContent='—';
+  tUser.style.display='none';tSep.style.display='none';tAi.style.display='none';
   tLabel.textContent='Aguardando sua fala...';
-  runVAD();
+  mouthTarget=0;runVAD();
 }}
 
 function stopRec(){{
-  vadActive=false; isRec=false; speechHit=false;
-  clearTimeout(silTimer); silStart=null; hideSil();
-  if(mediaRec&&mediaRec.state!=='inactive') try{{mediaRec.stop();}}catch(e){{}}
-  if(micStream) micStream.getTracks().forEach(t=>t.stop()); micStream=null;
-  if(audioCtx) try{{audioCtx.close();}}catch(e){{}} audioCtx=null; analyser=null;
-  micBtn.classList.remove('active'); micBtn.textContent='🎤';
+  vadActive=false;isRec=false;speechHit=false;
+  clearTimeout(silTimer);silStart=null;hideSil();
+  if(mediaRec&&mediaRec.state!=='inactive')try{{mediaRec.stop();}}catch(e){{}}
+  if(micStream)micStream.getTracks().forEach(t=>t.stop());micStream=null;
+  if(audioCtx)try{{audioCtx.close();}}catch(e){{}}audioCtx=null;analyser=null;
+  micBtn.classList.remove('active');micBtn.textContent='🎤';mouthTarget=0;
 }}
 
 function uploadAudio(blob){{
-  if(blob.size<1500){{ resetToIdle(); return; }}
+  if(blob.size<1500){{resetToIdle();return;}}
   const par=window.parent.document;
-  // Esconde apenas audio (não stFileUploader — o de foto precisa aparecer no perfil)
-  if(!par.getElementById('vm-hide-css')){{
-    const s=par.createElement('style'); s.id='vm-hide-css';
-    s.textContent=`audio{{display:none!important;}}`;
-    par.head.appendChild(s);
-  }}
   function tryInject(attempt){{
     let input=par.querySelector('[data-testid="stFileUploader"] input[type="file"]')
-           || par.querySelector('[data-testid="stFileUploaderDropzone"] input[type="file"]')
-           || Array.from(par.querySelectorAll('input[type="file"]')).find(i=>i.accept&&i.accept.includes('webm'));
+           ||par.querySelector('[data-testid="stFileUploaderDropzone"] input[type="file"]')
+           ||Array.from(par.querySelectorAll('input[type="file"]')).find(i=>i.accept&&i.accept.includes('webm'));
     if(!input){{
-      if(attempt<8){{ setTimeout(()=>tryInject(attempt+1),300); return; }}
-      showErr('Mic input não encontrado — recarregue a página.');
-      resetToIdle(); return;
+      if(attempt<8){{setTimeout(()=>tryInject(attempt+1),300);return;}}
+      showErr('Input não encontrado.');resetToIdle();return;
     }}
-    // Esconde o widget inteiro do vm_audio_upload
-    let uploaderWidget = input;
+    let uw=input;
     for(let i=0;i<6;i++){{
-      if(uploaderWidget && uploaderWidget.getAttribute && uploaderWidget.getAttribute('data-testid')==='stFileUploader'){{ break; }}
-      if(uploaderWidget) uploaderWidget=uploaderWidget.parentElement;
+      if(uw&&uw.getAttribute&&uw.getAttribute('data-testid')==='stFileUploader')break;
+      if(uw)uw=uw.parentElement;
     }}
-    if(uploaderWidget && uploaderWidget.getAttribute && uploaderWidget.getAttribute('data-testid')==='stFileUploader'){{
-      uploaderWidget.style.cssText='position:fixed!important;top:-9999px!important;left:-9999px!important;width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;';
-    }}
+    if(uw&&uw.getAttribute&&uw.getAttribute('data-testid')==='stFileUploader')
+      uw.style.cssText='position:fixed!important;top:-9999px!important;left:-9999px!important;width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;';
     input.style.cssText+='pointer-events:auto!important;';
-    if(input.parentElement) input.parentElement.style.pointerEvents='auto';
+    if(input.parentElement)input.parentElement.style.pointerEvents='auto';
     const ext=blob.type.includes('ogg')?'ogg':(blob.type.includes('mp4')?'mp4':'webm');
     const file=new File([blob],`vm_${{Date.now()}}.${{ext}}`,{{type:blob.type||'audio/webm'}});
-    const dt=new DataTransfer(); dt.items.add(file);
+    const dt=new DataTransfer();dt.items.add(file);
     input.files=dt.files;
     input.dispatchEvent(new Event('change',{{bubbles:true}}));
-    input.dispatchEvent(new Event('input', {{bubbles:true}}));
+    input.dispatchEvent(new Event('input',{{bubbles:true}}));
   }}
   tryInject(0);
 }}
 
 function resetToIdle(){{
-  stopRec(); setRing('idle'); setStatus('Clique no microfone para continuar','');
+  stopRec();mouthTarget=0;
+  setStatus('Clique no microfone para continuar','');
 }}
 
 function playTTS(b64,txt){{
-  isSpeaking=true; setRing('speaking'); setStatus('Professora falando...','s-speaking');
+  isSpeaking=true;setStatus('Falando...','s-speaking');
   if(b64&&b64.length>20){{
+    const ttsCtx=new(window.AudioContext||window.webkitAudioContext)();
+    ttsAnalyser=ttsCtx.createAnalyser();ttsAnalyser.fftSize=256;
     curAudio=new Audio('data:audio/mpeg;base64,'+b64);
-    curAudio.onended=()=>{{ isSpeaking=false; curAudio=null; resetToIdle(); startRec(); }};
-    curAudio.onerror=()=>{{ isSpeaking=false; curAudio=null; fallbackTTS(txt); }};
-    curAudio.play().catch(()=>fallbackTTS(txt));
-  }} else {{ fallbackTTS(txt); }}
+    curAudio.crossOrigin='anonymous';
+    curAudio.oncanplaythrough=()=>{{
+      try{{
+        const src=ttsCtx.createMediaElementSource(curAudio);
+        src.connect(ttsAnalyser);ttsAnalyser.connect(ttsCtx.destination);
+      }}catch(e){{}}
+      curAudio.play().catch(()=>fallbackTTS(txt));
+      updateMouthFromTTS();
+    }};
+    curAudio.onended=()=>{{
+      isSpeaking=false;curAudio=null;mouthTarget=0;ttsAnalyser=null;
+      try{{ttsCtx.close();}}catch(e){{}}
+      resetToIdle();startRec();
+    }};
+    curAudio.onerror=()=>{{isSpeaking=false;mouthTarget=0;fallbackTTS(txt);}};
+  }}else{{fallbackTTS(txt);}}
 }}
 
 function fallbackTTS(text){{
-  isSpeaking=true; setRing('speaking'); setStatus('Professora falando...','s-speaking');
+  isSpeaking=true;setStatus('Falando...','s-speaking');
+  let t0=Date.now();
+  function synthMouth(){{
+    if(!isSpeaking){{mouthTarget=0;return;}}
+    mouthTarget=0.25+0.5*Math.abs(Math.sin((Date.now()-t0)/200));
+    requestAnimationFrame(synthMouth);
+  }}
+  synthMouth();
   const u=new SpeechSynthesisUtterance(text.substring(0,500));
-  u.lang=SPEECH_LANG; u.rate=0.95; u.pitch=1.05;
+  u.lang=SPEECH_LANG;u.rate=0.95;u.pitch=1.05;
   const vv=speechSynthesis.getVoices();
   const pick=vv.find(v=>v.lang===SPEECH_LANG)||vv.find(v=>v.lang.startsWith(SPEECH_LANG.split('-')[0]));
-  if(pick) u.voice=pick;
-  u.onend=u.onerror=()=>{{ isSpeaking=false; resetToIdle(); startRec(); }};
+  if(pick)u.voice=pick;
+  u.onend=u.onerror=()=>{{isSpeaking=false;mouthTarget=0;resetToIdle();startRec();}};
   speechSynthesis.speak(u);
 }}
 
-micBtn.onclick=()=>{{ if(isRec) resetToIdle(); else startRec(); }};
+micBtn.onclick=()=>{{if(isRec)resetToIdle();else startRec();}};
 
 window.addEventListener('load',()=>{{
-  if(PY_ERROR&&PY_ERROR.length>1){{
-    showErr(PY_ERROR); setRing(''); setStatus('Erro — tente novamente',''); return;
-  }}
-  if(PY_REPLY&&PY_REPLY.length>1){{
-    showTranscript(PY_USER_SAID,PY_REPLY);
-    playTTS(PY_TTS_B64,PY_REPLY); return;
-  }}
-  if(PY_USER_SAID&&PY_USER_SAID.length>1) showTranscript(PY_USER_SAID,'');
+  if(PY_ERROR&&PY_ERROR.length>1){{showErr(PY_ERROR);setStatus('Erro','');return;}}
+  if(PY_REPLY&&PY_REPLY.length>1){{showTranscript(PY_USER_SAID,PY_REPLY);playTTS(PY_TTS_B64,PY_REPLY);return;}}
+  if(PY_USER_SAID&&PY_USER_SAID.length>1)showTranscript(PY_USER_SAID,'');
 }});
-</script></body></html>""", height=660, scrolling=False)
+</script></body></html>""", height=720, scrolling=False)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1254,6 +1572,37 @@ def show_chat():
         show_voice_mode()
         return
 
+    # ── Para todo áudio ao navegar/recarregar/trocar conversa ────────────────
+    components.html("""<script>
+(function() {
+  const par = window.parent;
+  if (!par) return;
+  function stopAllAudio() {
+    par.document.querySelectorAll('audio').forEach(function(a) {
+      a.pause(); a.currentTime = 0;
+    });
+    par.document.querySelectorAll('iframe').forEach(function(iframe) {
+      try {
+        iframe.contentDocument.querySelectorAll('audio').forEach(function(a) {
+          a.pause(); a.currentTime = 0;
+        });
+        iframe.contentDocument.querySelectorAll('#b').forEach(function(b) {
+          b.textContent = '\u25b6 Ouvir';
+        });
+        if (iframe.contentWindow.speechSynthesis) {
+          iframe.contentWindow.speechSynthesis.cancel();
+        }
+      } catch(e) {}
+    });
+    if (par.speechSynthesis) par.speechSynthesis.cancel();
+  }
+  stopAllAudio();
+  const observer = new MutationObserver(function() { stopAllAudio(); });
+  observer.observe(par.document.body, { childList: true, subtree: false });
+  window.addEventListener('beforeunload', function() { observer.disconnect(); });
+})();
+</script>""", height=0)
+    
     # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
         # ── CSS sidebar estilo ChatGPT ────────────────────────────────────────

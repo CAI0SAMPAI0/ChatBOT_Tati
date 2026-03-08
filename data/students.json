@@ -39,5 +39,26 @@
       "speech_lang": "en-US"
     },
     "email": "cmsampaio71@gmail.com"
+  },
+  "programador": {
+    "name": "Programador",
+    "password": "144c09255fa63a971dfb3b39ad96f6a8790e5f2f34d11f2cd79ad381fb868495",
+    "role": "programador",
+    "email": "",
+    "level": "Advanced",
+    "focus": "General Conversation",
+    "created_at": "2026-03-07T21:19:37.979370",
+    "profile": {
+      "theme": "dark",
+      "accent_color": "#f0a500",
+      "language": "pt-BR",
+      "nickname": "Dev",
+      "occupation": "Programador",
+      "ai_style": "Warm & Encouraging",
+      "ai_tone": "Teacher",
+      "custom_instructions": "",
+      "voice_lang": "en",
+      "speech_lang": "en-US"
+    }
   }
 }
