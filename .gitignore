@@ -17,3 +17,4 @@ venv/
 *.egg-info/
 .streamlit/secrets.toml
 streamlit.txt
+teste_jessica.mp3

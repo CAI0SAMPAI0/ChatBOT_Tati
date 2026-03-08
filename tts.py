@@ -5,24 +5,17 @@ Rotação automática de chaves — usa sempre a com menor uso (abaixo de 80% pr
 .env esperado:
     ELEVEN_KEY_1=sk_...
     ELEVEN_KEY_2=sk_...
-    ELEVEN_KEY_3=sk_...
 
     # Opcional — sobrescreve a voz padrão:
-    ELEVENLABS_VOICE_ID=21m00Tcm4TlvDq8ikWAM
+    ELEVENLABS_VOICE_ID=cgSgspJ2msm6clMCkdW9
 """
 
 import os
 import re
 import requests
 
-ELEVEN_MODEL = "eleven_turbo_v2_5"
-
-# ── Vozes femininas gratuitas disponíveis em qualquer conta ElevenLabs ────────
-# Rachel : 21m00Tcm4TlvDq8ikWAM  (feminina, suave) ← padrão
-# Domi   : AZnzlk1XvdvUeBnXmlld  (feminina, confiante)
-# Bella  : EXAVITQu4vr4xnSDxMaL  (feminina, jovem)
-# Elli   : MF3mGyEYCl7XYWbV9V6O  (feminina, emocional)
-DEFAULT_VOICE_ID = "cgSgspJ2msm6clMCkdW9" 
+ELEVEN_MODEL     = "eleven_turbo_v2_5"
+DEFAULT_VOICE_ID = "cgSgspJ2msm6clMCkdW9"   # Jessica — Playful, Bright, Warm
 USAGE_THRESHOLD  = 0.80
 
 
@@ -45,11 +38,8 @@ def _load_keys() -> list[str]:
 
 
 def _voice() -> str:
-    """Retorna o voice ID — prioriza .env, fallback para Rachel (feminina)."""
     v = os.getenv("ELEVENLABS_VOICE_ID", "").strip()
-    if v:
-        return v
-    return DEFAULT_VOICE_ID
+    return v if v else DEFAULT_VOICE_ID
 
 
 # ── Consulta de uso ───────────────────────────────────────────────────────────
@@ -121,17 +111,13 @@ def tts_available() -> bool:
 
 
 def text_to_speech(text: str) -> bytes | None:
-    def text_to_speech(text: str) -> bytes | None:
-        import os
-        print("DEBUG ENV:", os.environ.get("ELEVENLABS_VOICE_ID", "NAO ENCONTRADO"))
-        print("DEBUG _voice():", _voice())
     key = _get_key()
     if not key:
         print("🚨 TTS: nenhuma chave ElevenLabs encontrada no .env")
         return None
 
     voice_id = _voice()
-    print(f"🎙️  TTS: usando voice_id={voice_id}, key=")
+    print(f"🎙️  TTS: usando voice_id={voice_id}, chave=...{key[-6:]}")
 
     text = re.sub(r'\*+', '', text).strip()[:600]
     if not text:
