@@ -1127,7 +1127,7 @@ def show_voice_mode() -> None:
 
     conv_id = get_or_create_conv(username)
 
-    # Botão fechar — fora do iframe, clicável pelo JS interno
+    # Botão fechar — invisível no Streamlit, acionado pelo JS do iframe
     if st.button("✕ Fechar Modo Voz", key="close_voice_inner"):
         st.session_state.voice_mode = False
         for k in ["_vm_history", "_vm_reply", "_vm_tts_b64", "_vm_user_said",
@@ -1135,6 +1135,8 @@ def show_voice_mode() -> None:
             st.session_state.pop(k, None)
         st.rerun()
     st.markdown("""<style>
+/* Esconde TODOS os botões Streamlit no modo voz — só usamos o do iframe */
+[data-testid="stMain"] button { display: none !important; }
 [data-testid="stSidebar"]{display:none!important;}
 [data-testid="stHeader"]{display:none!important;}
 [data-testid="stToolbar"]{display:none!important;}
@@ -1256,19 +1258,40 @@ html,body{{
 /* ── Avatar central ── */
 .avatar-section{{
   display:flex;flex-direction:column;align-items:center;
-  padding-top:48px;gap:10px;flex-shrink:0;
+  padding-top:36px;gap:8px;flex-shrink:0;
 }}
+
+/* Ondas sonoras ao redor do avatar */
+.avatar-outer{{
+  position:relative;width:160px;height:160px;
+  display:flex;align-items:center;justify-content:center;
+}}
+.wave{{
+  position:absolute;border-radius:50%;border:2px solid rgba(240,165,0,0);
+  width:100%;height:100%;
+  transition:border-color .4s;
+}}
+.speaking .wave:nth-child(1){{
+  animation:wave1 1.4s ease-out infinite;
+}}
+.speaking .wave:nth-child(2){{
+  animation:wave1 1.4s ease-out infinite .35s;
+}}
+.speaking .wave:nth-child(3){{
+  animation:wave1 1.4s ease-out infinite .7s;
+}}
+@keyframes wave1{{
+  0%  {{transform:scale(1);   border-color:rgba(240,165,0,.7);opacity:1;}}
+  100%{{transform:scale(1.55);border-color:rgba(240,165,0,0); opacity:0;}}
+}}
+
 .avatar-ring{{
   width:140px;height:140px;border-radius:50%;overflow:hidden;
-  box-shadow:0 0 0 3px rgba(240,165,0,.35),0 0 24px rgba(240,165,0,.15);
-  transition:box-shadow .4s;position:relative;
+  box-shadow:0 0 0 3px rgba(240,165,0,.4),0 0 20px rgba(240,165,0,.15);
+  transition:box-shadow .4s;position:relative;z-index:2;flex-shrink:0;
 }}
-.avatar-ring.speaking{{
-  animation:avpulse 1.1s ease-in-out infinite alternate;
-}}
-@keyframes avpulse{{
-  from{{box-shadow:0 0 0 3px rgba(240,165,0,.5),0 0 20px rgba(240,165,0,.2);}}
-  to  {{box-shadow:0 0 0 7px rgba(240,165,0,.9),0 0 55px rgba(240,165,0,.5);}}
+.speaking .avatar-ring{{
+  box-shadow:0 0 0 4px rgba(240,165,0,.9),0 0 40px rgba(240,165,0,.4);
 }}
 .avatar-ring img{{width:100%;height:100%;object-fit:cover;object-position:top;}}
 .avatar-ring .emoji{{
@@ -1276,7 +1299,7 @@ html,body{{
   justify-content:center;font-size:60px;background:#0f1824;
 }}
 .av-name{{color:#f0a500;font-weight:700;font-size:.95rem;}}
-.av-status{{color:#8b949e;font-size:.72rem;min-height:18px;}}
+.av-status{{color:#8b949e;font-size:.72rem;min-height:18px;letter-spacing:.3px;}}
 
 /* ── Área de mensagens ── */
 .messages{{
@@ -1362,11 +1385,16 @@ html,body{{
 
   <!-- Avatar -->
   <div class="avatar-section">
-    <div class="avatar-ring" id="avRing">
-      {"<img src='" + photo_src + "' alt='Tati'>" if photo_src else "<div class='emoji'>🧑‍🏫</div>"}
+    <div class="avatar-outer {"speaking" if is_speaking else ""}">
+      <div class="wave"></div>
+      <div class="wave"></div>
+      <div class="wave"></div>
+      <div class="avatar-ring">
+        {"<img src='" + photo_src + "' alt='Tati'>" if photo_src else "<div class='emoji'>🧑‍🏫</div>"}
+      </div>
     </div>
     <div class="av-name">{PROF_NAME}</div>
-    <div class="av-status" id="avStatus">Toque no microfone para falar</div>
+    <div class="av-status" id="avStatus">{"🗣 Falando..." if is_speaking else "Toque no microfone para falar"}</div>
   </div>
 
   <!-- Mensagens -->
@@ -1401,17 +1429,17 @@ function scrollBottom(){{ msgEl.scrollTop = msgEl.scrollHeight; }}
 scrollBottom();
 
 // ── Estado do avatar ──────────────────────────────────────────────────────────
-const avRing   = document.getElementById('avRing');
+const avOuter  = document.querySelector('.avatar-outer');
 const avStatus = document.getElementById('avStatus');
 const micBtn   = document.getElementById('micBtn');
 const micIcon  = document.getElementById('micIcon');
 const hintText = document.getElementById('hintText');
 
 function setAvatarState(state){{
-  avRing.classList.remove('speaking');
+  avOuter.classList.remove('speaking');
   micBtn.classList.remove('recording','processing');
   if(state==='speaking'){{
-    avRing.classList.add('speaking');
+    avOuter.classList.add('speaking');
     avStatus.textContent='🗣 Falando...';
     micBtn.classList.add('processing');
     micIcon.className='fa-solid fa-volume-high';
@@ -1724,7 +1752,7 @@ def show_chat() -> None:
                     _logout(); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── CSS do chat ───────────────────────────────────────────────────────────
+    # ── CSS do chat estilo ChatGPT ────────────────────────────────────────────
     st.markdown("""<style>
 [data-testid="stChatInput"] textarea {
     max-height: 120px !important; min-height: 44px !important; font-size: .88rem !important;
@@ -1732,14 +1760,47 @@ def show_chat() -> None:
 [data-testid="stChatInputContainer"] { padding: 6px 10px !important; }
 .main .block-container { padding-bottom: 80px !important; }
 section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
+
+/* Mensagens estilo ChatGPT */
+.msg-row { display:flex; align-items:flex-end; gap:10px; margin:6px 0; }
+.msg-row.user-row { flex-direction:row-reverse; }
+.msg-row.bot-row  { flex-direction:row; }
+
+.msg-bubble {
+    max-width: 68%; padding: 10px 15px; border-radius: 18px;
+    font-size: .88rem; line-height: 1.6; word-break: break-word;
+}
+.msg-bubble.user {
+    background: #2d6a4f; color: #d8f3dc;
+    border-bottom-right-radius: 4px;
+}
+.msg-bubble.bot {
+    background: #1a1f2e; color: #e6edf3;
+    border: 1px solid #252d3d;
+    border-bottom-left-radius: 4px;
+}
+.msg-bubble.audio-msg { font-style: italic; opacity: .85; }
+
+.msg-av {
+    width: 30px; height: 30px; border-radius: 50%;
+    overflow: hidden; flex-shrink: 0; margin-bottom: 2px;
+}
+.msg-av img { width:100%; height:100%; object-fit:cover; object-position:top; }
+.msg-av .av-emoji {
+    width:100%; height:100%; background:#1e2a3a;
+    display:flex; align-items:center; justify-content:center; font-size:14px;
+}
+.msg-time {
+    font-size: .6rem; color: #4a5a6a;
+    margin: 2px 4px 0; text-align: right;
+}
+.bot-row .msg-time { text-align: left; }
+
 @media (max-width: 768px) {
-    .main .block-container { padding: 0 8px 80px !important; }
-    [data-testid="stChatInput"] textarea { font-size: .82rem !important; }
-    div.bubble { max-width: 90% !important; font-size: .82rem !important; }
+    .msg-bubble { max-width: 88% !important; font-size: .82rem !important; }
 }
 @media (max-width: 480px) {
-    div.bubble { max-width: 96% !important; }
-    [data-testid="stChatInput"] textarea { font-size: .78rem !important; }
+    .msg-bubble { max-width: 94% !important; }
 }
 </style>""", unsafe_allow_html=True)
 
@@ -1752,25 +1813,42 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
         </div></div>""", unsafe_allow_html=True)
 
     # ── Histórico de mensagens ────────────────────────────────────────────────
+    # Mini-avatar da Tati para o chat
+    _tati_mini = ""
+    for _p in [Path("assets/tati.png"), Path("assets/tati.jpg"),
+               Path(__file__).parent/"assets"/"tati.png"]:
+        if _p.exists():
+            _ext = _p.suffix.lstrip(".").lower()
+            _mime = "jpeg" if _ext in ("jpg","jpeg") else _ext
+            _tati_mini = f"data:image/{_mime};base64,{base64.b64encode(_p.read_bytes()).decode()}"
+            break
+    if not _tati_mini:
+        _tati_mini = get_photo_b64() or ""
+
+    tati_av_html = (f'<div class="msg-av"><img src="{_tati_mini}"></div>'
+                    if _tati_mini else
+                    '<div class="msg-av"><div class="av-emoji">🧑‍🏫</div></div>')
+
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
     for i, msg in enumerate(messages):
         content  = msg["content"].replace("\n", "<br>")
         t        = msg.get("time", "")
 
         if msg["role"] == "assistant":
-            av      = avatar_html(36, speaking and i == len(messages)-1)
             tts_b64 = msg.get("tts_b64", "")
             is_file = msg.get("is_file", False)
             st.markdown(
-                f'<div class="bubble-row bot"><div class="bav-s">{av}</div><div>'
-                f'<div class="bubble bot">{content}</div></div></div>',
+                f'<div class="msg-row bot-row">'
+                f'{tati_av_html}'
+                f'<div>'
+                f'<div class="msg-bubble bot">{content}</div>'
+                f'<div class="msg-time">{t}</div>'
+                f'</div></div>',
                 unsafe_allow_html=True)
             if tts_b64:
-                # Player de áudio pré-gerado pelo ElevenLabs
                 components.html(render_audio_player(tts_b64, t, f"msg_{i}_{conv_id}"),
                                 height=44, scrolling=False)
             elif not is_file:
-                # Fallback: Web Speech API via JS
                 clean_text = (msg["content"]
                     .replace("\\", "").replace("`", "")
                     .replace("'", "\\'").replace('"', '\\"')
@@ -1780,15 +1858,13 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
 <style>
 *{{margin:0;padding:0;box-sizing:border-box;}}
 html,body{{background:transparent;overflow:hidden;}}
-.row{{display:flex;align-items:center;gap:8px;padding:2px 0 0 46px;}}
-.ts{{font-size:.6rem;color:#8b949e;font-family:'JetBrains Mono',monospace;}}
+.row{{display:flex;align-items:center;gap:8px;padding:2px 0 0 40px;}}
 .btn{{background:none;border:1px solid #30363d;border-radius:16px;
       color:#8b949e;font-size:.68rem;padding:2px 10px;cursor:pointer;
       transition:all .15s;white-space:nowrap;}}
 .btn:hover,.btn.on{{border-color:#f0a500;color:#f0a500;}}
 </style></head><body>
 <div class="row">
-  <span class="ts">{t}</span>
   <button class="btn" id="btn">▶ Ouvir</button>
 </div>
 <script>
@@ -1816,18 +1892,17 @@ html,body{{background:transparent;overflow:hidden;}}
 }})();
 </script></body></html>""", height=28, scrolling=False)
             else:
-                st.markdown(f'<div class="btime" style="margin-left:46px;">{t}</div>',
+                st.markdown(f'<div class="msg-time" style="margin-left:40px;">{t}</div>',
                             unsafe_allow_html=True)
         else:
             is_audio = msg.get("audio", False)
             extra    = " audio-msg" if is_audio else ""
-            uav_html = user_avatar_html(username, size=36, fallback_emoji="🎓")
             st.markdown(
-                f'<div class="bubble-row user" style="justify-content:flex-end;padding-left:50%;">'
-                f'<div class="bav-u" style="margin-right:8px;flex-shrink:0;">{uav_html}</div>'
-                f'<div style="display:flex;flex-direction:column;align-items:flex-end;">'
-                f'<div class="bubble user{extra}">{content}</div>'
-                f'<div class="btime" style="text-align:right;">{t}</div></div></div>',
+                f'<div class="msg-row user-row">'
+                f'<div>'
+                f'<div class="msg-bubble user{extra}">{content}</div>'
+                f'<div class="msg-time">{t}</div>'
+                f'</div></div>',
                 unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
