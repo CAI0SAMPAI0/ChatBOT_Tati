@@ -493,24 +493,39 @@ for k, v in _defaults.items():
 
 def js_save_session(token: str) -> None:
     """
-    Persiste o token no localStorage + cookie via iframe com height=1.
-    height=0 é descartado pelo Streamlit Cloud — height=1 garante execução.
+    Salva o token no localStorage usando iframe de height=60.
+    Height=1 é ignorado no Streamlit Cloud — 60 garante execução do JS.
+    O iframe é visualmente ocultado via CSS (overflow:hidden, opacity:0).
     """
+    # CSS para esconder o iframe sem usar height=0/1
+    st.markdown("""<style>
+    iframe[title="st.iframe"] { height: 0 !important; }
+    div[data-testid="stCustomComponentV1"] { height: 0 !important; min-height: 0 !important; }
+    </style>""", unsafe_allow_html=True)
+
     components.html(
         f"""<!DOCTYPE html><html><body><script>
         (function() {{
             var token = '{token}';
-            var maxAge = 60 * 60 * 24 * 365;
+            var maxAge = 60 * 60 * 24 * 90; // 90 dias
+            // Cookie com SameSite=None;Secure para funcionar em iframe
+            var cookieStr = 'pav_session=' + encodeURIComponent(token)
+                + ';max-age=' + maxAge + ';path=/;SameSite=None;Secure';
             try {{
-                window.parent.document.cookie = 'pav_session=' + encodeURIComponent(token)
-                    + ';max-age=' + maxAge + ';path=/;SameSite=None;Secure';
+                window.parent.document.cookie = cookieStr;
             }} catch(e) {{}}
+            try {{ document.cookie = cookieStr; }} catch(e) {{}}
+            // localStorage — tenta no parent e no próprio iframe
             try {{ window.parent.localStorage.setItem('pav_session', token); }} catch(e) {{}}
             try {{ localStorage.setItem('pav_session', token); }} catch(e) {{}}
+            // Também salva na sessionStorage como fallback
+            try {{ window.parent.sessionStorage.setItem('pav_session', token); }} catch(e) {{}}
+            try {{ sessionStorage.setItem('pav_session', token); }} catch(e) {{}}
         }})();
         </script></body></html>""",
-        height=1
+        height=60,
     )
+
 
 def js_clear_session() -> None:
     """Remove o token de sessão de cookie e localStorage."""
@@ -851,22 +866,30 @@ def show_login() -> None:
     (function() {
         function readToken() {
             try {
+                var s = window.parent.sessionStorage.getItem('pav_session');
+                if (s && s.length > 10) return s;
+            } catch(e) {}
+            try {
+                var s2 = sessionStorage.getItem('pav_session');
+                if (s2 && s2.length > 10) return s2;
+            } catch(e) {}
+            try {
                 var match = window.parent.document.cookie.split(';')
                     .map(function(c) { return c.trim(); })
                     .find(function(c) { return c.startsWith('pav_session='); });
                 if (match) {
                     var val = decodeURIComponent(match.split('=')[1]);
-                    if (val && val.length > 5) return val;
+                    if (val && val.length > 10) return val;
                 }
             } catch(e) {}
             try {
                 var v = window.parent.localStorage.getItem('pav_session');
-                if (v && v.length > 5) return v;
+                if (v && v.length > 10) return v;
             } catch(e) {}
             try {
                 var v2 = localStorage.getItem('pav_session')
                       || localStorage.getItem('pav_user') || '';
-                if (v2 && v2.length > 5) return v2;
+                if (v2 && v2.length > 10) return v2;
             } catch(e) {}
             return '';
         }
@@ -880,7 +903,7 @@ def show_login() -> None:
             window.parent.location.replace(url.toString());
         }
     })();
-    </script></body></html>""", height=1)
+    </script></body></html>""", height=60)
 
     params = st.query_params
     if "_token" in params:
@@ -2568,9 +2591,27 @@ def show_dashboard() -> None:
 # ROTEADOR PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Tenta auto-login via cookie HTTP antes de qualquer render
 if not st.session_state.logged_in:
-    _try_autologin_from_cookie()
+    _qp = st.query_params
+    if "_token" in _qp:
+        _token = _qp["_token"]
+        _udata = validate_session(_token)
+        if _udata:
+            _uname = _udata.get("_resolved_username") or next(
+                (k for k, v in load_students().items() if v["password"] == _udata["password"]),
+                None
+            )
+            if _uname:
+                st.session_state.logged_in         = True
+                st.session_state.user              = {"username": _uname, **_udata}
+                st.session_state.page              = "dashboard" if _udata["role"] == "professor" else "chat"
+                st.session_state.conv_id           = None
+                st.session_state["_session_token"] = _token
+                st.query_params.clear()
+                st.rerun()
+        else:
+            # Token inválido — limpa
+            st.query_params.clear()
 
 # Roteador principal
 if not st.session_state.logged_in:
