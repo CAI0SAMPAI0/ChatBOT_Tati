@@ -275,11 +275,13 @@ def user_avatar_html(username: str, size: int = 36, fallback_emoji: str = "🎓"
 def avatar_html(size: int = 52, speaking: bool = False) -> str:
     """Avatar da professora com anel de 'speaking' animado."""
     cls   = "speaking" if speaking else ""
-    photo = get_photo_b64()   # sempre fresco — pega upload recente
+    photo = PHOTO_B64  # usa cache — evita re-leitura e flash
     if photo:
         return (
-            f'<div class="avatar-wrap {cls}" style="width:{size}px;height:{size}px">'
-            f'<img src="{photo}" class="avatar-img"/>'
+            f'<div class="avatar-wrap {cls}" style="width:{size}px;height:{size}px;'
+            f'overflow:hidden;border-radius:50%;">'
+            f'<img src="{photo}" class="avatar-img" style="width:100%;height:100%;'
+            f'object-fit:cover;object-position:top;display:block;"/>'
             f'<div class="avatar-ring"></div></div>'
         )
     return (
@@ -307,6 +309,14 @@ st.markdown("""<style>
 section[data-testid="stMain"] > div {
     transition: all .25s ease;
     max-width: 100% !important;
+}
+/* Evita flash de imagem desestilizada */
+img { max-width: 100%; }
+.avatar-wrap img, .avatar-ring img { display: block; }
+/* Esconde conteúdo do st.markdown durante re-render */
+[data-testid="stMarkdownContainer"] img {
+    opacity: 1;
+    transition: opacity .15s;
 }
 .main .block-container {
     max-width: 100% !important;
@@ -436,91 +446,7 @@ def js_clear_session() -> None:
         height=1
     )
 
-# ── PATCH 2: Auto-login (bloco completo — substitui o bloco "AUTO-LOGIN" atual)
-# Substitua o bloco que começa com "if not st.session_state.logged_in:"
-# e termina antes de "HELPERS DE CONVERSA" pelo código abaixo:
-
-if not st.session_state.logged_in:
-
-    # JS lê token do cookie/localStorage e injeta na URL como query param
-    # height=1 garante execução no Streamlit Cloud (height=0 é descartado)
-    components.html("""<!DOCTYPE html><html><body><script>
-    (function() {
-        function readToken() {
-            // Tenta cookie do parent
-            try {
-                var match = window.parent.document.cookie.split(';')
-                    .map(function(c) { return c.trim(); })
-                    .find(function(c) { return c.startsWith('pav_session='); });
-                if (match) {
-                    var val = decodeURIComponent(match.split('=')[1]);
-                    if (val && val.length > 5) return val;
-                }
-            } catch(e) {}
-            // Tenta localStorage do parent
-            try {
-                var v = window.parent.localStorage.getItem('pav_session');
-                if (v && v.length > 5) return v;
-            } catch(e) {}
-            // Tenta localStorage local
-            try {
-                var v2 = localStorage.getItem('pav_session')
-                      || localStorage.getItem('pav_user') || '';
-                if (v2 && v2.length > 5) return v2;
-            } catch(e) {}
-            return '';
-        }
-
-        var val = readToken();
-        if (!val) return;
-
-        var url      = new URL(window.parent.location.href);
-        var isToken  = val.length > 20;
-        var paramKey = isToken ? '_token' : '_u';
-
-        if (url.searchParams.get(paramKey) !== val) {
-            url.searchParams.set(paramKey, val);
-            window.parent.location.replace(url.toString());
-        }
-    })();
-    </script></body></html>""", height=1)
-
-    params = st.query_params
-
-    if "_token" in params:
-        token = params["_token"]
-        udata = validate_session(token)
-        if udata:
-            uname = udata.get("_resolved_username") or next(
-                (k for k, v in load_students().items() if v["password"] == udata["password"]),
-                None
-            )
-            if uname:
-                st.session_state.logged_in          = True
-                st.session_state.user               = {"username": uname, **udata}
-                st.session_state.page               = "dashboard" if udata["role"] == "professor" else "chat"
-                st.session_state.conv_id            = None
-                st.session_state["_session_token"]  = token
-                st.query_params.clear()
-                st.rerun()
-        else:
-            js_clear_session()
-            st.query_params.clear()
-
-    elif "_u" in params:
-        uname    = params["_u"]
-        students = load_students()
-        if uname in students:
-            udata = students[uname]
-            token = create_session(uname)
-            st.session_state.logged_in         = True
-            st.session_state.user              = {"username": uname, **udata}
-            st.session_state.page              = "dashboard" if udata["role"] == "professor" else "chat"
-            st.session_state.conv_id           = None
-            st.session_state["_session_token"] = token
-            js_save_session(token)
-            st.query_params.clear()
-            st.rerun()
+# Auto-login via token movido para dentro do show_login()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -828,6 +754,78 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
 
 def show_login() -> None:
     """Renderiza a tela de login com aba de registro. Cria sessão ao autenticar."""
+
+    # ── Auto-login via token salvo (cookie/localStorage) ──────────────────────
+    # Roda ANTES de qualquer render para evitar flash
+    components.html("""<!DOCTYPE html><html><body><script>
+    (function() {
+        function readToken() {
+            try {
+                var match = window.parent.document.cookie.split(';')
+                    .map(function(c) { return c.trim(); })
+                    .find(function(c) { return c.startsWith('pav_session='); });
+                if (match) {
+                    var val = decodeURIComponent(match.split('=')[1]);
+                    if (val && val.length > 5) return val;
+                }
+            } catch(e) {}
+            try {
+                var v = window.parent.localStorage.getItem('pav_session');
+                if (v && v.length > 5) return v;
+            } catch(e) {}
+            try {
+                var v2 = localStorage.getItem('pav_session')
+                      || localStorage.getItem('pav_user') || '';
+                if (v2 && v2.length > 5) return v2;
+            } catch(e) {}
+            return '';
+        }
+        var val = readToken();
+        if (!val) return;
+        var url      = new URL(window.parent.location.href);
+        var isToken  = val.length > 20;
+        var paramKey = isToken ? '_token' : '_u';
+        if (url.searchParams.get(paramKey) !== val) {
+            url.searchParams.set(paramKey, val);
+            window.parent.location.replace(url.toString());
+        }
+    })();
+    </script></body></html>""", height=1)
+
+    params = st.query_params
+    if "_token" in params:
+        token = params["_token"]
+        udata = validate_session(token)
+        if udata:
+            uname = udata.get("_resolved_username") or next(
+                (k for k, v in load_students().items() if v["password"] == udata["password"]),
+                None
+            )
+            if uname:
+                st.session_state.logged_in         = True
+                st.session_state.user              = {"username": uname, **udata}
+                st.session_state.page              = "dashboard" if udata["role"] == "professor" else "chat"
+                st.session_state.conv_id           = None
+                st.session_state["_session_token"] = token
+                st.query_params.clear()
+                st.rerun()
+        else:
+            js_clear_session()
+            st.query_params.clear()
+    elif "_u" in params:
+        uname    = params["_u"]
+        students = load_students()
+        if uname in students:
+            udata = students[uname]
+            token = create_session(uname)
+            st.session_state.logged_in         = True
+            st.session_state.user              = {"username": uname, **udata}
+            st.session_state.page              = "dashboard" if udata["role"] == "professor" else "chat"
+            st.session_state.conv_id           = None
+            st.session_state["_session_token"] = token
+            js_save_session(token)
+            st.query_params.clear()
+            st.rerun()
 
     if "_login_tab" not in st.session_state:
         st.session_state["_login_tab"] = "login"
