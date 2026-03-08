@@ -1563,9 +1563,7 @@ html,body{{
 <div class="vm-wrap">
 
   <!-- Fechar -->
-  <button class="close-btn" onclick="closeModeVoz()">
-    <i class="fa-solid fa-xmark"></i> Fechar
-  </button>
+  <button class="close-btn" onclick="closeModeVoz()">Fechar</button>
 
   <!-- Avatar -->
   <div class="avatar-section">
@@ -1642,7 +1640,7 @@ const STR_CLOSE     = {js_close};
 }})();
 
 // Traduz botão fechar
-document.querySelector('.close-btn').innerHTML = '<i class="fa-solid fa-xmark"></i> ' + STR_CLOSE;
+document.querySelector('.close-btn').textContent = STR_CLOSE;
 
 // ── Scroll mensagens para baixo ───────────────────────────────────────────────
 const msgEl = document.getElementById('messages');
