@@ -356,7 +356,7 @@ div[data-testid="stButton"] button {
 # ══════════════════════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = f"""You are a digital avatar of an English teacher called {PROF_NAME} — warm, witty, and encouraging.
-Students: teenagers (False Beginner/Pre-Intermediate) and adults focused on Business/News.
+Students: teenagers (Beginner/Pre-Intermediate) and adults focused on Business/News.
 
 TEACHING STYLE:
 - Neuro-learning: guide students to discover errors. Never just give the answer.
@@ -1044,7 +1044,7 @@ def show_profile() -> None:
     st.markdown("---")
 
     is_prof    = user.get("role") == "professor"
-    level_opts = ["False Beginner", "Pre-Intermediate", "Intermediate", "Business English", "Advanced", "Native"]
+    level_opts = ["Beginner", "Pre-Intermediate", "Intermediate", "Business English", "Advanced", "Native"]
     focus_opts = ["General Conversation", "Sports & Games", "Business & News", "Series & Pop Culture", "Teaching"]
 
     def safe_index(lst, val, default=0):
@@ -1092,7 +1092,7 @@ def show_profile() -> None:
                 placeholder="ex: Professora, Desenvolvedor", key="pf_occ")
         with col2:
             level = st.selectbox(t("english_level", ui_lang), level_opts,
-                index=safe_index(level_opts, user.get("level", "False Beginner")), key="pf_level")
+                index=safe_index(level_opts, user.get("level", "Beginner")), key="pf_level")
             focus = st.selectbox(t("focus", ui_lang), focus_opts,
                 index=safe_index(focus_opts, user.get("focus", "General Conversation")), key="pf_focus")
 
@@ -2413,7 +2413,7 @@ def show_dashboard() -> None:
     if not stats:
         st.info("Nenhum aluno ainda.")
     else:
-        badge = {"False Beginner": "badge-blue", "Pre-Intermediate": "badge-green",
+        badge = {"Beginner": "badge-blue", "Pre-Intermediate": "badge-green",
                  "Intermediate": "badge-gold",   "Business English": "badge-gold"}
         rows = "".join(f"""<tr>
             <td><b>{s['name']}</b><br><span style="color:#8b949e;font-size:.75rem">@{s['username']}</span></td>
