@@ -121,13 +121,17 @@ def tts_available() -> bool:
 
 
 def text_to_speech(text: str) -> bytes | None:
+    def text_to_speech(text: str) -> bytes | None:
+    import os
+    print("DEBUG ENV:", os.environ.get("ELEVENLABS_VOICE_ID", "NAO ENCONTRADO"))
+    print("DEBUG _voice():", _voice())
     key = _get_key()
     if not key:
         print("🚨 TTS: nenhuma chave ElevenLabs encontrada no .env")
         return None
 
     voice_id = _voice()
-    print(f"🎙️  TTS: usando voice_id={voice_id}")
+    print(f"🎙️  TTS: usando voice_id={voice_id}, key=")
 
     text = re.sub(r'\*+', '', text).strip()[:600]
     if not text:
