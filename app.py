@@ -237,36 +237,40 @@ for k, v in _defaults.items():
 
 def js_save_session(token: str) -> None:
     """
-    Persiste o token via cookie (funciona em iOS/Android) + localStorage fallback.
+    Persiste o token no localStorage + cookie via iframe com height=1.
+    height=0 é descartado pelo Streamlit Cloud — height=1 garante execução.
     """
     components.html(
-        f"""<script>
+        f"""<!DOCTYPE html><html><body><script>
         (function() {{
             var token = '{token}';
-            // Cookie — persiste entre sessões, funciona no iOS
             var maxAge = 60 * 60 * 24 * 30;
-            document.cookie = 'pav_session=' + encodeURIComponent(token)
-                + ';max-age=' + maxAge + ';path=/;SameSite=Lax';
-            // localStorage como fallback
+            try {{
+                window.parent.document.cookie = 'pav_session=' + encodeURIComponent(token)
+                    + ';max-age=' + maxAge + ';path=/;SameSite=Lax';
+            }} catch(e) {{}}
+            try {{ window.parent.localStorage.setItem('pav_session', token); }} catch(e) {{}}
             try {{ localStorage.setItem('pav_session', token); }} catch(e) {{}}
         }})();
-        </script>""",
-        height=0
+        </script></body></html>""",
+        height=1
     )
 
 def js_clear_session() -> None:
-    """
-    Remove o token de sessão de cookie e localStorage.
-    """
+    """Remove o token de sessão de cookie e localStorage."""
     components.html(
-        """<script>
+        """<!DOCTYPE html><html><body><script>
         (function() {
-            document.cookie = 'pav_session=;max-age=0;path=/;SameSite=Lax';
+            try {
+                window.parent.document.cookie = 'pav_session=;max-age=0;path=/;SameSite=Lax';
+            } catch(e) {}
+            try { window.parent.localStorage.removeItem('pav_session'); } catch(e) {}
+            try { window.parent.localStorage.removeItem('pav_user'); } catch(e) {}
             try { localStorage.removeItem('pav_session'); } catch(e) {}
             try { localStorage.removeItem('pav_user'); } catch(e) {}
         })();
-        </script>""",
-        height=0
+        </script></body></html>""",
+        height=1
     )
 
 # ── PATCH 2: Auto-login (bloco completo — substitui o bloco "AUTO-LOGIN" atual)
@@ -275,23 +279,36 @@ def js_clear_session() -> None:
 
 if not st.session_state.logged_in:
 
-    # JS lê token do cookie primeiro, depois localStorage, e injeta na URL
-    components.html("""<script>
+    # JS lê token do cookie/localStorage e injeta na URL como query param
+    # height=1 garante execução no Streamlit Cloud (height=0 é descartado)
+    components.html("""<!DOCTYPE html><html><body><script>
     (function() {
-        // Lê do cookie
-        function readCookie() {
-            var match = document.cookie.split(';')
-                .map(function(c) { return c.trim(); })
-                .find(function(c) { return c.startsWith('pav_session='); });
-            if (match) return decodeURIComponent(match.split('=')[1]);
+        function readToken() {
+            // Tenta cookie do parent
+            try {
+                var match = window.parent.document.cookie.split(';')
+                    .map(function(c) { return c.trim(); })
+                    .find(function(c) { return c.startsWith('pav_session='); });
+                if (match) {
+                    var val = decodeURIComponent(match.split('=')[1]);
+                    if (val && val.length > 5) return val;
+                }
+            } catch(e) {}
+            // Tenta localStorage do parent
+            try {
+                var v = window.parent.localStorage.getItem('pav_session');
+                if (v && v.length > 5) return v;
+            } catch(e) {}
+            // Tenta localStorage local
+            try {
+                var v2 = localStorage.getItem('pav_session')
+                      || localStorage.getItem('pav_user') || '';
+                if (v2 && v2.length > 5) return v2;
+            } catch(e) {}
             return '';
         }
 
-        var token  = readCookie();
-        var legacy = '';
-        try { legacy = localStorage.getItem('pav_session') || localStorage.getItem('pav_user') || ''; } catch(e) {}
-
-        var val = token || legacy;
+        var val = readToken();
         if (!val) return;
 
         var url      = new URL(window.parent.location.href);
@@ -303,7 +320,7 @@ if not st.session_state.logged_in:
             window.parent.location.replace(url.toString());
         }
     })();
-    </script>""", height=0)
+    </script></body></html>""", height=1)
 
     params = st.query_params
 
@@ -1751,7 +1768,7 @@ def show_chat() -> None:
         return
 
     # ── JS: para todo áudio ao trocar de conversa ou recarregar ──────────────
-    components.html("""<script>
+    components.html("""<!DOCTYPE html><html><body><script>
 (function() {
   const par = window.parent;
   if (!par) return;
@@ -1779,7 +1796,7 @@ def show_chat() -> None:
   observer.observe(par.document.body, { childList: true, subtree: false });
   window.addEventListener('beforeunload', function() { observer.disconnect(); });
 })();
-</script>""", height=0)
+</script></body></html>""", height=1)
 
     # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
@@ -2071,7 +2088,7 @@ html,body{{background:transparent;overflow:hidden;}}
         st.rerun()
 
     # ── JS: move botão de clipe para dentro da chat bar ──────────────────────
-    components.html("""
+    components.html("""<!DOCTYPE html><html><body>
 <script>
 function pavMoveToChatBar() {
   const parent = window.parent ? window.parent.document : document;
@@ -2142,7 +2159,7 @@ function pavFixAudioInput() {
 setInterval(pavMoveToChatBar, 1000);
 setInterval(pavFixAudioInput, 500);
 </script>
-""", height=0)
+</body></html>""", height=1)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

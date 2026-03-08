@@ -16,3 +16,4 @@ faster_whisper_models/
 venv/
 *.egg-info/
 .streamlit/secrets.toml
+streamlit.txt
