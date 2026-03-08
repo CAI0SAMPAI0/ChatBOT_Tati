@@ -18,3 +18,5 @@ venv/
 .streamlit/secrets.toml
 streamlit.txt
 teste_jessica.mp3
+ngrok_recovery_codes.txt
+wav2lip_colab.ipynb
