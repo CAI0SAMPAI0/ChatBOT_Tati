@@ -1,3 +1,8 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# app.py — Teacher Tati · English Learning AI
+# Autor: Caio (programador) · Arquitetura: Streamlit + Claude + ElevenLabs TTS
+# ══════════════════════════════════════════════════════════════════════════════
+
 import os
 import json
 import base64
@@ -9,88 +14,126 @@ import streamlit as st
 import streamlit.components.v1 as components
 import anthropic
 from datetime import datetime
+
+# ── Imports do banco e serviços ───────────────────────────────────────────────
 from database import (
     init_db, authenticate, register_student, load_students,
     new_conversation, list_conversations, load_conversation,
     append_message, get_all_students_stats, delete_conversation,
-    update_profile, update_password
+    update_profile, update_password,
+    create_session, validate_session, delete_session   # sessões persistentes
 )
 from transcriber import transcribe_bytes
 from tts import text_to_speech, tts_available
 from file_reader import extract_file
 
-st.markdown('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">', unsafe_allow_html=True)
+# ── Font Awesome (ícones de anexo, etc.) ─────────────────────────────────────
+st.markdown(
+    '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">',
+    unsafe_allow_html=True
+)
 
+# ── Inicialização do banco de dados (SQLite) ──────────────────────────────────
 init_db()
+
+# ── Variáveis de ambiente ─────────────────────────────────────────────────────
 API_KEY    = os.getenv("ANTHROPIC_API_KEY", "")
 PHOTO_PATH = os.getenv("PROFESSOR_PHOTO", "assets/professor.jpg")
 PROF_NAME  = os.getenv("PROFESSOR_NAME",  "Professor Avatar")
 
+# ── Contador de áudio — força re-render do widget nativo ─────────────────────
 if "audio_key" not in st.session_state:
     st.session_state.audio_key = 0
 
-# ── Foto ──────────────────────────────────────────────────────────────────────
-def get_photo_b64():
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HELPERS DE IMAGEM / AVATAR
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_photo_b64() -> str | None:
+    """Lê a foto da professora e devolve como data-URI base64."""
     p = Path(PHOTO_PATH)
     if p.exists():
-        ext = p.suffix.lower().replace(".","")
-        mime = "jpeg" if ext in ("jpg","jpeg") else ext
+        ext  = p.suffix.lower().replace(".", "")
+        mime = "jpeg" if ext in ("jpg", "jpeg") else ext
         return f"data:image/{mime};base64,{base64.b64encode(p.read_bytes()).decode()}"
     return None
 
 PHOTO_B64 = get_photo_b64()
 
-# ── Avatar individual do usuário ──────────────────────────────────────────────
+# ── Avatares individuais dos alunos ───────────────────────────────────────────
 AVATARS_DIR = Path("data/avatars")
 AVATARS_DIR.mkdir(parents=True, exist_ok=True)
 
-def get_user_avatar_b64(username: str):
+def get_user_avatar_b64(username: str) -> str | None:
+    """Retorna a foto de perfil do usuário como data-URI, ou None."""
     for ext in ("jpg", "jpeg", "png", "webp"):
         p = AVATARS_DIR / f"{username}.{ext}"
         if p.exists():
-            mime = "jpeg" if ext in ("jpg","jpeg") else ext
+            mime = "jpeg" if ext in ("jpg", "jpeg") else ext
             return f"data:image/{mime};base64,{base64.b64encode(p.read_bytes()).decode()}"
     return None
 
 def save_user_avatar(username: str, raw: bytes, suffix: str) -> str:
+    """Salva a foto de perfil do usuário e retorna o data-URI."""
     suffix = suffix.lower().lstrip(".")
-    if suffix == "jpg": suffix = "jpeg"
-    for ext in ("jpg","jpeg","png","webp"):
-        old_p = AVATARS_DIR / f"{username}.{ext}"
-        if old_p.exists(): old_p.unlink()
+    if suffix == "jpg":
+        suffix = "jpeg"
+    # Remove arquivos anteriores de qualquer extensão
+    for ext in ("jpg", "jpeg", "png", "webp"):
+        old = AVATARS_DIR / f"{username}.{ext}"
+        if old.exists():
+            old.unlink()
     dest = AVATARS_DIR / f"{username}.{suffix}"
     dest.write_bytes(raw)
     return f"data:image/{suffix};base64,{base64.b64encode(raw).decode()}"
 
-def remove_user_avatar(username: str):
-    for ext in ("jpg","jpeg","png","webp"):
+def remove_user_avatar(username: str) -> None:
+    """Remove a foto de perfil do usuário."""
+    for ext in ("jpg", "jpeg", "png", "webp"):
         p = AVATARS_DIR / f"{username}.{ext}"
-        if p.exists(): p.unlink()
+        if p.exists():
+            p.unlink()
 
 def user_avatar_html(username: str, size: int = 36, fallback_emoji: str = "🎓") -> str:
+    """Retorna HTML de avatar circular do usuário (foto ou emoji fallback)."""
     b64 = get_user_avatar_b64(username)
     if b64:
-        return (f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
-                f'background:url({b64}) center/cover;border:1.5px solid #f0a500;'
-                f'flex-shrink:0;"></div>')
-    return (f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
-            f'background:linear-gradient(135deg,#1e2a3a,#2a3a50);'
-            f'display:flex;align-items:center;justify-content:center;'
-            f'font-size:{int(size*.5)}px;flex-shrink:0;">{fallback_emoji}</div>')
+        return (
+            f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
+            f'background:url({b64}) center/cover;border:1.5px solid #f0a500;'
+            f'flex-shrink:0;"></div>'
+        )
+    return (
+        f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
+        f'background:linear-gradient(135deg,#1e2a3a,#2a3a50);'
+        f'display:flex;align-items:center;justify-content:center;'
+        f'font-size:{int(size*.5)}px;flex-shrink:0;">{fallback_emoji}</div>'
+    )
 
-def avatar_html(size=52, speaking=False):
+def avatar_html(size: int = 52, speaking: bool = False) -> str:
+    """Avatar da professora com anel de 'speaking' animado."""
     cls   = "speaking" if speaking else ""
-    photo = get_photo_b64()   # sempre fresco — pega upload recente da professora
+    photo = get_photo_b64()   # sempre fresco — pega upload recente
     if photo:
-        return (f'<div class="avatar-wrap {cls}" style="width:{size}px;height:{size}px">'
-                f'<img src="{photo}" class="avatar-img"/><div class="avatar-ring"></div></div>')
-    return (f'<div class="avatar-circle {cls}" '
-            f'style="width:{size}px;height:{size}px;font-size:{int(size*.48)}px">🧑‍🏫</div>')
+        return (
+            f'<div class="avatar-wrap {cls}" style="width:{size}px;height:{size}px">'
+            f'<img src="{photo}" class="avatar-img"/>'
+            f'<div class="avatar-ring"></div></div>'
+        )
+    return (
+        f'<div class="avatar-circle {cls}" '
+        f'style="width:{size}px;height:{size}px;font-size:{int(size*.48)}px">🧑‍🏫</div>'
+    )
 
-# ── Config ────────────────────────────────────────────────────────────────────
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CONFIGURAÇÃO STREAMLIT
+# ══════════════════════════════════════════════════════════════════════════════
+
 st.set_page_config(page_title=f"{PROF_NAME} · English", page_icon="🎓", layout="wide")
 
-def load_css(path: str):
+def load_css(path: str) -> None:
     css = Path(path).read_text(encoding="utf-8")
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
@@ -98,37 +141,28 @@ load_css("styles/style.css")
 
 # ── CSS responsivo global ──────────────────────────────────────────────────────
 st.markdown("""<style>
-/* Garante que o conteúdo principal sempre se ajuste à sidebar */
 section[data-testid="stMain"] > div {
     transition: all .25s ease;
     max-width: 100% !important;
 }
-/* Remove largura máxima artificial do Streamlit */
 .main .block-container {
     max-width: 100% !important;
     padding-left: clamp(10px, 2vw, 40px) !important;
     padding-right: clamp(10px, 2vw, 40px) !important;
     padding-top: 1rem !important;
 }
-/* Sidebar responsiva */
 section[data-testid="stSidebar"] {
     min-width: 220px !important;
     max-width: 340px !important;
 }
-/* Botões e elementos se adaptam */
 div[data-testid="stButton"] button {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-/* Tablets */
 @media (max-width: 1024px) {
-    .main .block-container {
-        padding-left: 12px !important;
-        padding-right: 12px !important;
-    }
+    .main .block-container { padding-left: 12px !important; padding-right: 12px !important; }
 }
-/* Mobile */
 @media (max-width: 768px) {
     section[data-testid="stSidebar"] { min-width: 0 !important; }
     .main .block-container {
@@ -142,6 +176,11 @@ div[data-testid="stButton"] button {
     .bav-s, .bav-u { display: none !important; }
 }
 </style>""", unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PROMPT DO SISTEMA
+# ══════════════════════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = f"""You are a digital avatar of an English teacher called {PROF_NAME} — warm, witty, and encouraging.
 Students: teenagers (False Beginner/Pre-Intermediate) and adults focused on Business/News.
@@ -172,124 +211,229 @@ ACTIVITY GENERATION:
   Use "pdf" or "docx" as format. Put ALL the exercise content inside "content".
   The system will intercept this and generate the real file for download."""
 
-# ── Session state ─────────────────────────────────────────────────────────────
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SESSION STATE — valores padrão na primeira execução
+# ══════════════════════════════════════════════════════════════════════════════
+
 _defaults = {
-    "logged_in": False, "user": None, "page": "chat", "speaking": False,
-    "conv_id": None, "voice_mode": False,
-    # File staging — arquivo selecionado aguardando envio
-    "staged_file": None,       # dict com info do arquivo
-    "staged_file_name": None,  # nome original
+    "logged_in":        False,
+    "user":             None,
+    "page":             "chat",
+    "speaking":         False,
+    "conv_id":          None,
+    "voice_mode":       False,
+    "staged_file":      None,   # arquivo anexado aguardando envio
+    "staged_file_name": None,
 }
 for k, v in _defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-# ── Auto-login via localStorage ───────────────────────────────────────────────
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SESSÃO PERSISTENTE — funções de salvar/limpar no localStorage
+# ══════════════════════════════════════════════════════════════════════════════
+
+def js_save_session(token: str) -> None:
+    """
+    Persiste o token de sessão no localStorage do browser.
+    Ao reabrir o app, o JS envia o token via query param para restaurar o login.
+    """
+    components.html(
+        f"<script>localStorage.setItem('pav_session', '{token}');</script>",
+        height=0
+    )
+
+def js_clear_session() -> None:
+    """
+    Remove o token de sessão e qualquer dado legado do localStorage.
+    Chamada em todos os fluxos de logout.
+    """
+    components.html(
+        "<script>"
+        "localStorage.removeItem('pav_session');"
+        "localStorage.removeItem('pav_user');"   # compatibilidade com versão anterior
+        "</script>",
+        height=0
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AUTO-LOGIN — restaura sessão ao reabrir o app sem precisar logar novamente
+# ══════════════════════════════════════════════════════════════════════════════
+
 if not st.session_state.logged_in:
+
+    # 1. O JS lê o token do localStorage e o injeta na URL como query param
     components.html("""<script>
-    const u = localStorage.getItem("pav_user");
-    if(u){
-      const url=new URL(window.parent.location.href);
-      if(url.searchParams.get("_u")!==u){
-        url.searchParams.set("_u",u);
-        window.parent.location.replace(url.toString());
-      }
+    const token = localStorage.getItem('pav_session');
+    const legacy = localStorage.getItem('pav_user');   // suporte ao formato antigo
+    const val = token || legacy || '';
+    if (val) {
+        const url = new URL(window.parent.location.href);
+        const key = token ? '_token' : '_u';
+        if (url.searchParams.get(key) !== val) {
+            url.searchParams.set(key, val);
+            window.parent.location.replace(url.toString());
+        }
     }
     </script>""", height=0)
+
     params = st.query_params
-    if "_u" in params:
-        uname = params["_u"]
+
+    # 2a. Token de sessão moderno — valida no banco SQLite
+    if "_token" in params:
+        token = params["_token"]
+        udata = validate_session(token)
+        if udata:
+            # Localiza o username real pelo hash da senha armazenada
+            uname = udata.get("_resolved_username") or next(
+                (k for k, v in load_students().items() if v["password"] == udata["password"]),
+                None
+            )
+            if uname:
+                st.session_state.logged_in          = True
+                st.session_state.user               = {"username": uname, **udata}
+                st.session_state.page               = "dashboard" if udata["role"] == "professor" else "chat"
+                st.session_state.conv_id            = None
+                st.session_state["_session_token"]  = token
+                st.query_params.clear()
+                st.rerun()
+        else:
+            # Token expirado ou inválido — limpa tudo e pede novo login
+            js_clear_session()
+            st.query_params.clear()
+
+    # 2b. Username legado (localStorage antigo sem token) — migra para sessão moderna
+    elif "_u" in params:
+        uname    = params["_u"]
         students = load_students()
         if uname in students:
             udata = students[uname]
-            st.session_state.logged_in = True
-            st.session_state.user = {"username": uname, **udata}
-            st.session_state.page = "dashboard" if udata["role"]=="professor" else "chat"
-            st.session_state.conv_id = None
+            # Cria token persistente e salva no banco
+            token = create_session(uname)
+            st.session_state.logged_in         = True
+            st.session_state.user              = {"username": uname, **udata}
+            st.session_state.page              = "dashboard" if udata["role"] == "professor" else "chat"
+            st.session_state.conv_id           = None
+            st.session_state["_session_token"] = token
+            js_save_session(token)
             st.query_params.clear()
             st.rerun()
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-def get_or_create_conv(username):
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HELPERS DE CONVERSA / CLAUDE
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_or_create_conv(username: str) -> str:
+    """Retorna o conv_id ativo ou cria uma nova conversa."""
     if not st.session_state.conv_id:
         st.session_state.conv_id = new_conversation(username)
     return st.session_state.conv_id
 
-def send_to_claude(username, user, conv_id, text, image_b64=None, image_media_type=None):
+
+def send_to_claude(username: str, user: dict, conv_id: str,
+                   text: str, image_b64: str = None, image_media_type: str = None) -> str:
+    """
+    Envia a mensagem ao Claude Haiku, obtém a resposta,
+    gera TTS opcional e salva no banco.
+    Retorna o texto da resposta.
+    """
     client  = anthropic.Anthropic(api_key=API_KEY)
     context = f"\n\nStudent: Name={user['name']}, Level={user['level']}, Focus={user['focus']}."
-    msgs    = load_conversation(username, conv_id)
-    api_msgs = [{"role":"user" if m["role"]=="user" else "assistant",
-                 "content": m["content"]} for m in msgs]
-    if image_b64 and image_media_type and api_msgs and api_msgs[-1]["role"]=="user":
-        api_msgs[-1]["content"] = [
-            {"type":"image","source":{"type":"base64","media_type":image_media_type,"data":image_b64}},
-            {"type":"text","text":text}]
 
-    # Atividades/arquivos precisam de mais tokens
-    is_activity = any(w in text.lower() for w in
-        ["pdf","word","docx","atividade","exercício","exercicio","worksheet",
-         "activity","exercise","generate","criar arquivo","crie um","make a"])
+    # Monta histórico da conversa para a API
+    msgs     = load_conversation(username, conv_id)
+    api_msgs = [
+        {"role": "user" if m["role"] == "user" else "assistant", "content": m["content"]}
+        for m in msgs
+    ]
+
+    # Adiciona imagem à última mensagem do usuário, se houver
+    if image_b64 and image_media_type and api_msgs and api_msgs[-1]["role"] == "user":
+        api_msgs[-1]["content"] = [
+            {"type": "image", "source": {"type": "base64", "media_type": image_media_type, "data": image_b64}},
+            {"type": "text",  "text": text}
+        ]
+
+    # Mais tokens para pedidos de atividade/arquivo
+    is_activity = any(w in text.lower() for w in [
+        "pdf", "word", "docx", "atividade", "exercício", "exercicio",
+        "worksheet", "activity", "exercise", "generate", "criar arquivo", "crie um", "make a"
+    ])
     max_tok = 2000 if is_activity else 400
 
-    resp = client.messages.create(
+    resp       = client.messages.create(
         model="claude-haiku-4-5", max_tokens=max_tok,
-        system=SYSTEM_PROMPT + context, messages=api_msgs)
+        system=SYSTEM_PROMPT + context, messages=api_msgs
+    )
     reply_text = resp.content[0].text
 
-    # Interceptar pedido de geração de arquivo
+    # Verifica se a IA quer gerar um arquivo (PDF/DOCX)
     if "<<<GENERATE_FILE>>>" in reply_text:
-        generated = _intercept_file_generation(reply_text, username, conv_id)
-        return generated
+        return _intercept_file_generation(reply_text, username, conv_id)
 
+    # Gera áudio TTS e armazena no banco junto com a mensagem
     tts_b64_str = None
     if tts_available():
         audio_bytes = text_to_speech(reply_text)
         if audio_bytes:
             tts_b64_str = base64.b64encode(audio_bytes).decode()
             st.session_state["_tts_audio"] = tts_b64_str
+
     append_message(username, conv_id, "assistant", reply_text, tts_b64=tts_b64_str)
     return reply_text
 
 
 def _intercept_file_generation(reply_text: str, username: str, conv_id: str) -> str:
-    """Intercepta resposta com <<<GENERATE_FILE>>> e gera o arquivo real."""
-    import json, re, tempfile, os
+    """
+    Intercepta o bloco <<<GENERATE_FILE>>> na resposta da IA
+    e cria o arquivo PDF ou DOCX real para download.
+    """
+    import re
+
     try:
-        match = re.search(r'<<<GENERATE_FILE>>>\s*(\{.*?\})\s*<<<END_FILE>>>', reply_text, re.DOTALL)
+        match = re.search(
+            r'<<<GENERATE_FILE>>>\s*(\{.*?\})\s*<<<END_FILE>>>',
+            reply_text, re.DOTALL
+        )
         if not match:
             append_message(username, conv_id, "assistant", reply_text)
             return reply_text
-        meta = json.loads(match.group(1))
-        fmt      = meta.get("format","pdf").lower()
-        title    = meta.get("title","Activity")
-        raw_content = meta.get("content","")
+
+        meta     = json.loads(match.group(1))
+        fmt      = meta.get("format", "pdf").lower()
+        title    = meta.get("title", "Activity")
+        content  = meta.get("content", "")
         filename = meta.get("filename", f"activity.{fmt}")
         if not filename.endswith(f".{fmt}"):
             filename = f"{filename}.{fmt}"
 
-        # Gerar o arquivo
-        out_dir = Path("data/generated")
+        out_dir  = Path("data/generated")
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / filename
 
         if fmt == "pdf":
-            _generate_pdf(title, raw_content, out_path)
+            _generate_pdf(title, content, out_path)
         else:
-            _generate_docx(title, raw_content, out_path)
+            _generate_docx(title, content, out_path)
 
-        # Salvar referência no session_state para download
+        # Armazena para exibir o botão de download no chat
         with open(out_path, "rb") as f:
             file_bytes = f.read()
-        b64_file = base64.b64encode(file_bytes).decode()
         st.session_state["_pending_download"] = {
-            "b64": b64_file,
+            "b64":      base64.b64encode(file_bytes).decode(),
             "filename": filename,
-            "mime": "application/pdf" if fmt == "pdf" else
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "mime":     "application/pdf" if fmt == "pdf" else
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         }
 
-        display_msg = f"📎 Arquivo gerado: **{filename}**\n\n_{title}_\n\nClique em **⬇ Baixar arquivo** abaixo para salvar."
+        display_msg = (
+            f"📎 Arquivo gerado: **{filename}**\n\n_{title}_\n\n"
+            "Clique em **⬇ Baixar arquivo** abaixo para salvar."
+        )
         append_message(username, conv_id, "assistant", display_msg, is_file=True)
         return display_msg
 
@@ -299,63 +443,62 @@ def _intercept_file_generation(reply_text: str, username: str, conv_id: str) -> 
         return err
 
 
-def _generate_pdf(title: str, content: str, out_path: Path):
+def _generate_pdf(title: str, content: str, out_path: Path) -> None:
+    """Gera PDF profissional com ReportLab."""
     from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import cm
-    from reportlab.lib import colors
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
-    from reportlab.lib.enums import TA_LEFT, TA_CENTER
+    from reportlab.lib.styles   import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units    import cm
+    from reportlab.lib          import colors
+    from reportlab.platypus     import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+    from reportlab.lib.enums    import TA_CENTER
 
-    doc = SimpleDocTemplate(str(out_path), pagesize=A4,
-        leftMargin=2.5*cm, rightMargin=2.5*cm, topMargin=2.5*cm, bottomMargin=2.5*cm)
+    doc    = SimpleDocTemplate(str(out_path), pagesize=A4,
+                               leftMargin=2.5*cm, rightMargin=2.5*cm,
+                               topMargin=2.5*cm, bottomMargin=2.5*cm)
     styles = getSampleStyleSheet()
-    story = []
+    story  = []
 
-    title_style = ParagraphStyle("t", parent=styles["Title"],
-        fontSize=18, spaceAfter=6, textColor=colors.HexColor("#1a1a2e"), alignment=TA_CENTER)
-    sub_style   = ParagraphStyle("s", parent=styles["Normal"],
-        fontSize=9, textColor=colors.HexColor("#888888"), alignment=TA_CENTER, spaceAfter=14)
-    body_style  = ParagraphStyle("b", parent=styles["Normal"],
-        fontSize=11, leading=18, spaceAfter=8)
+    t_style = ParagraphStyle("t", parent=styles["Title"],   fontSize=18, spaceAfter=6,
+                              textColor=colors.HexColor("#1a1a2e"), alignment=TA_CENTER)
+    s_style = ParagraphStyle("s", parent=styles["Normal"],  fontSize=9,  spaceAfter=14,
+                              textColor=colors.HexColor("#888888"),  alignment=TA_CENTER)
+    b_style = ParagraphStyle("b", parent=styles["Normal"],  fontSize=11, leading=18, spaceAfter=8)
 
-    story.append(Paragraph(title, title_style))
-    story.append(Paragraph(f"Teacher {PROF_NAME}", sub_style))
+    story.append(Paragraph(title, t_style))
+    story.append(Paragraph(f"Teacher {PROF_NAME}", s_style))
     story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#f0a500")))
     story.append(Spacer(1, 0.4*cm))
 
     for line in content.split("\\n"):
         if line.strip():
-            story.append(Paragraph(line.strip(), body_style))
+            story.append(Paragraph(line.strip(), b_style))
         else:
             story.append(Spacer(1, 0.2*cm))
 
     doc.build(story)
 
 
-def _generate_docx(title: str, content: str, out_path: Path):
-    from docx import Document
-    from docx.shared import Pt, RGBColor, Cm
+def _generate_docx(title: str, content: str, out_path: Path) -> None:
+    """Gera DOCX profissional com python-docx."""
+    from docx           import Document
+    from docx.shared    import Pt, RGBColor, Cm
     from docx.enum.text import WD_ALIGN_PARAGRAPH
 
     doc = Document()
-    # Margens
     for sec in doc.sections:
-        sec.top_margin = Cm(2.5); sec.bottom_margin = Cm(2.5)
-        sec.left_margin = Cm(2.5); sec.right_margin = Cm(2.5)
+        sec.top_margin    = Cm(2.5); sec.bottom_margin = Cm(2.5)
+        sec.left_margin   = Cm(2.5); sec.right_margin  = Cm(2.5)
 
-    # Título
     h = doc.add_heading(title, 0)
     h.alignment = WD_ALIGN_PARAGRAPH.CENTER
     for run in h.runs:
-        run.font.color.rgb = RGBColor(0x1a,0x1a,0x2e)
+        run.font.color.rgb = RGBColor(0x1a, 0x1a, 0x2e)
 
     sub = doc.add_paragraph(f"Teacher {PROF_NAME}")
-    sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    sub.runs[0].font.size = Pt(9)
-    sub.runs[0].font.color.rgb = RGBColor(0x88,0x88,0x88)
-
-    doc.add_paragraph()  # espaço
+    sub.alignment       = WD_ALIGN_PARAGRAPH.CENTER
+    sub.runs[0].font.size      = Pt(9)
+    sub.runs[0].font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+    doc.add_paragraph()
 
     for line in content.split("\\n"):
         if line.strip():
@@ -366,13 +509,13 @@ def _generate_docx(title: str, content: str, out_path: Path):
 
     doc.save(str(out_path))
 
-def js_save_user(u):
-    components.html(f"<script>localStorage.setItem('pav_user','{u}');</script>", height=0)
-def js_clear_user():
-    components.html("<script>localStorage.removeItem('pav_user');</script>", height=0)
 
-# ── Audio player ──────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# PLAYER DE ÁUDIO TTS — mini player inline nos balões da IA
+# ══════════════════════════════════════════════════════════════════════════════
+
 def render_audio_player(tts_b64: str, msg_time: str, player_id: str) -> str:
+    """Retorna HTML completo do player de áudio com controles de velocidade e volume."""
     return f"""<!DOCTYPE html><html><head>
 <style>
 *{{box-sizing:border-box;margin:0;padding:0;}}
@@ -433,14 +576,16 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# LOGIN — moderno e profissional
+# TELA DE LOGIN / REGISTRO
 # ══════════════════════════════════════════════════════════════════════════════
-def show_login():
-    # ── Controle de aba ───────────────────────────────────────────────────────
+
+def show_login() -> None:
+    """Renderiza a tela de login com aba de registro. Cria sessão ao autenticar."""
+
     if "_login_tab" not in st.session_state:
         st.session_state["_login_tab"] = "login"
 
-    # ── CSS global da página de login ─────────────────────────────────────────
+    # ── CSS exclusivo da página de login ──────────────────────────────────────
     st.markdown("""<style>
 [data-testid="stSidebar"]    { display:none!important; }
 [data-testid="stHeader"]     { display:none!important; }
@@ -450,7 +595,6 @@ footer                       { display:none!important; }
 .stApp                       { background:#060a10!important; }
 .block-container             { padding-top:0!important; max-width:100%!important; }
 section.main > div           { padding:0!important; }
-
 .stTextInput label {
   font-size:.7rem!important; color:#4a5a6a!important;
   font-weight:700!important; text-transform:uppercase!important;
@@ -483,12 +627,11 @@ div[data-testid="stButton"] button {
   border-radius:10px!important; font-size:.82rem!important;
   font-weight:600!important; transition:all .2s!important;
 }
-/* Esconde o "Press Enter to submit form" nativo do Streamlit */
 [data-testid="InputInstructions"] { display:none!important; }
 small[data-testid="InputInstructions"] { display:none!important; }
 </style>""", unsafe_allow_html=True)
 
-    # ── Header visual via components.html (sem comentários HTML que bugam st.markdown) ──
+    # ── Header visual animado ─────────────────────────────────────────────────
     avatar_src = PHOTO_B64 if PHOTO_B64 else ""
     components.html(f"""<!DOCTYPE html><html><head>
 <meta charset="UTF-8">
@@ -541,22 +684,22 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
 </div>
 </body></html>""", height=320, scrolling=False)
 
-    # ── Formulários Streamlit centralizados ───────────────────────────────────
+    # ── Formulários centralizados ─────────────────────────────────────────────
     _, col, _ = st.columns([1, 2.2, 1])
     with col:
         c1, c2 = st.columns(2)
         with c1:
             if st.button("🔑 Entrar", use_container_width=True, key="tab_btn_login",
-                         type="primary" if st.session_state["_login_tab"]=="login" else "secondary"):
+                         type="primary" if st.session_state["_login_tab"] == "login" else "secondary"):
                 st.session_state["_login_tab"] = "login"; st.rerun()
         with c2:
             if st.button("✨ Criar Conta", use_container_width=True, key="tab_btn_reg",
-                         type="primary" if st.session_state["_login_tab"]=="reg" else "secondary"):
+                         type="primary" if st.session_state["_login_tab"] == "reg" else "secondary"):
                 st.session_state["_login_tab"] = "reg"; st.rerun()
 
         st.markdown("<div style='height:2px'></div>", unsafe_allow_html=True)
 
-        # ── Feedbacks ─────────────────────────────────────────────────────────
+        # ── Feedback de operações anteriores ──────────────────────────────────
         login_err = st.session_state.pop("_login_err", "")
         reg_err   = st.session_state.pop("_reg_err",   "")
         reg_ok    = st.session_state.pop("_reg_ok",    False)
@@ -565,7 +708,7 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
         if reg_err:   st.error(f"❌ {reg_err}")
         if reg_ok:    st.success(f"✅ Conta criada! Bem-vindo(a), {reg_name}! Faça login.")
 
-        # ── Form LOGIN ────────────────────────────────────────────────────────
+        # ── Aba LOGIN ─────────────────────────────────────────────────────────
         if st.session_state["_login_tab"] == "login":
             with st.form("form_login", clear_on_submit=False):
                 u = st.text_input("Username", placeholder="seu.usuario", key="li_u")
@@ -578,18 +721,26 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
                         user = authenticate(u, p)
                         if user:
                             real_u = user.get("_resolved_username", u.lower())
+
+                            # Atualiza session state
                             st.session_state.update(
                                 logged_in=True,
                                 user={"username": real_u, **user},
-                                page="dashboard" if user["role"]=="professor" else "chat",
+                                page="dashboard" if user["role"] == "professor" else "chat",
                                 conv_id=None
                             )
-                            js_save_user(real_u)
+
+                            # ── Cria sessão persistente ───────────────────────
+                            token = create_session(real_u)
+                            st.session_state["_session_token"] = token
+                            js_save_session(token)  # persiste no localStorage
+                            # ─────────────────────────────────────────────────
+
                             st.rerun()
                         else:
                             st.error("❌ Usuário ou senha incorretos.")
 
-        # ── Form REGISTRO ─────────────────────────────────────────────────────
+        # ── Aba REGISTRO ──────────────────────────────────────────────────────
         else:
             with st.form("form_reg", clear_on_submit=False):
                 rn = st.text_input("Nome completo", placeholder="João Silva",     key="r_n")
@@ -615,70 +766,68 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
                         else:
                             st.error(f"❌ {msg}")
 
-        st.markdown(f'<p style="text-align:center;font-size:.65rem;color:#1a2535;margin-top:16px;">© 2025 · {PROF_NAME} · AI English Coach</p>',
-                    unsafe_allow_html=True)
+        st.markdown(
+            f'<p style="text-align:center;font-size:.65rem;color:#1a2535;margin-top:16px;">'
+            f'© 2025 · {PROF_NAME} · AI English Coach</p>',
+            unsafe_allow_html=True
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PERFIL DO USUÁRIO
 # ══════════════════════════════════════════════════════════════════════════════
-def show_profile():
+
+def show_profile() -> None:
+    """Página de configurações: aparência, personalização e dados da conta."""
     user     = st.session_state.user
     username = user["username"]
     profile  = user.get("profile", {})
 
-    # CSS: garante que o file uploader de foto NUNCA seja escondido nesta página
+    # Garante que o file uploader de foto seja visível nesta página
     st.markdown("""<style>
 [data-testid="stFileUploader"] {
-    position: static !important;
-    top: auto !important; left: auto !important;
+    position: static !important; top: auto !important; left: auto !important;
     width: auto !important; height: auto !important;
     overflow: visible !important; opacity: 1 !important;
     pointer-events: auto !important;
 }
-[data-testid="stFileUploaderDropzone"] {
-    display: flex !important; visibility: visible !important;
-}
+[data-testid="stFileUploaderDropzone"] { display: flex !important; visibility: visible !important; }
 </style>""", unsafe_allow_html=True)
 
     st.markdown("## ⚙️ Configurações do Perfil")
     st.markdown("---")
 
-    is_prof = user.get("role") == "professor"
+    is_prof    = user.get("role") == "professor"
+    level_opts = ["False Beginner", "Pre-Intermediate", "Intermediate", "Business English", "Advanced", "Native"]
+    focus_opts = ["General Conversation", "Sports & Games", "Business & News", "Series & Pop Culture", "Teaching"]
 
-    # Listas de nivel e foco — professora tem opcoes extras
-    level_opts = ["False Beginner","Pre-Intermediate","Intermediate","Business English","Advanced","Native"]
-    focus_opts  = ["General Conversation","Sports & Games","Business & News","Series & Pop Culture","Teaching"]
-
-    # Valor seguro para index (evita ValueError se valor nao esta na lista)
     def safe_index(lst, val, default=0):
-        try: return lst.index(val)
-        except ValueError: return default
+        try:    return lst.index(val)
+        except: return default
 
     tab_geral, tab_pers, tab_conta = st.tabs(["🎨 Geral", "🧠 Personalização", "👤 Conta"])
 
+    # ── Aba Geral ─────────────────────────────────────────────────────────────
     with tab_geral:
         st.markdown("### Aparência")
         col1, col2 = st.columns(2)
         with col1:
-            theme = st.selectbox("Tema", ["dark","light","system"],
-                index=safe_index(["dark","light","system"], profile.get("theme","dark")), key="pf_theme")
-            lang = st.selectbox("Idioma da interface", ["pt-BR","en-US","en-UK"],
-                index=safe_index(["pt-BR","en-US","en-UK"], profile.get("language","pt-BR")), key="pf_lang")
+            theme = st.selectbox("Tema", ["dark", "light", "system"],
+                index=safe_index(["dark", "light", "system"], profile.get("theme", "dark")), key="pf_theme")
+            lang  = st.selectbox("Idioma da interface", ["pt-BR", "en-US", "en-UK"],
+                index=safe_index(["pt-BR", "en-US", "en-UK"], profile.get("language", "pt-BR")), key="pf_lang")
         with col2:
             accent = st.color_picker("Cor de destaque",
-                value=profile.get("accent_color","#f0a500"), key="pf_accent")
+                value=profile.get("accent_color", "#f0a500"), key="pf_accent")
 
         st.markdown("### Voz")
         col3, col4 = st.columns(2)
         with col3:
-            voice_lang = st.selectbox("Idioma da transcrição (Whisper)",
-                ["en","pt","es","fr","de"],
-                index=safe_index(["en","pt","es","fr","de"], profile.get("voice_lang","en")), key="pf_vlang")
+            voice_lang = st.selectbox("Idioma da transcrição (Whisper)", ["en", "pt", "es", "fr", "de"],
+                index=safe_index(["en", "pt", "es", "fr", "de"], profile.get("voice_lang", "en")), key="pf_vlang")
         with col4:
-            speech_lang = st.selectbox("Sotaque (Text-to-Speech fallback)",
-                ["en-US","en-UK","pt-BR"],
-                index=safe_index(["en-US","en-UK","pt-BR"], profile.get("speech_lang","en-US")), key="pf_slang")
+            speech_lang = st.selectbox("Sotaque (TTS fallback)", ["en-US", "en-UK", "pt-BR"],
+                index=safe_index(["en-US", "en-UK", "pt-BR"], profile.get("speech_lang", "en-US")), key="pf_slang")
 
         if st.button("💾 Salvar Geral", key="save_geral"):
             update_profile(username, {"theme": theme, "language": lang,
@@ -687,40 +836,39 @@ def show_profile():
             st.session_state.user = {"username": username, **u}
             st.success("✅ Configurações salvas!")
 
+    # ── Aba Personalização ────────────────────────────────────────────────────
     with tab_pers:
         st.markdown("### Sobre Você")
         col1, col2 = st.columns(2)
         with col1:
-            nickname   = st.text_input("Apelido", value=profile.get("nickname",""), key="pf_nick")
-            occupation = st.text_input("Ocupação", value=profile.get("occupation",""),
+            nickname   = st.text_input("Apelido", value=profile.get("nickname", ""), key="pf_nick")
+            occupation = st.text_input("Ocupação", value=profile.get("occupation", ""),
                 placeholder="ex: Professora, Desenvolvedor", key="pf_occ")
         with col2:
-            # Professora vê lista expandida de níveis
             level = st.selectbox("Nível de inglês", level_opts,
-                index=safe_index(level_opts, user.get("level","False Beginner")), key="pf_level")
+                index=safe_index(level_opts, user.get("level", "False Beginner")), key="pf_level")
             focus = st.selectbox("Foco", focus_opts,
-                index=safe_index(focus_opts, user.get("focus","General Conversation")), key="pf_focus")
+                index=safe_index(focus_opts, user.get("focus", "General Conversation")), key="pf_focus")
 
-        # Campos de IA só para alunos
         if not is_prof:
             st.markdown("### Estilo da IA")
             col3, col4 = st.columns(2)
-            ai_style_opts = ["Warm & Encouraging","Formal & Professional","Fun & Casual","Strict & Direct"]
-            ai_tone_opts  = ["Teacher","Conversation Partner","Tutor","Business Coach"]
+            ai_style_opts = ["Warm & Encouraging", "Formal & Professional", "Fun & Casual", "Strict & Direct"]
+            ai_tone_opts  = ["Teacher", "Conversation Partner", "Tutor", "Business Coach"]
             with col3:
                 ai_style = st.selectbox("Tom das conversas", ai_style_opts,
-                    index=safe_index(ai_style_opts, profile.get("ai_style","Warm & Encouraging")), key="pf_aistyle")
+                    index=safe_index(ai_style_opts, profile.get("ai_style", "Warm & Encouraging")), key="pf_aistyle")
             with col4:
                 ai_tone = st.selectbox("Papel da IA", ai_tone_opts,
-                    index=safe_index(ai_tone_opts, profile.get("ai_tone","Teacher")), key="pf_aitone")
+                    index=safe_index(ai_tone_opts, profile.get("ai_tone", "Teacher")), key="pf_aitone")
             custom = st.text_area("Instruções personalizadas para a IA",
-                value=profile.get("custom_instructions",""),
+                value=profile.get("custom_instructions", ""),
                 placeholder="ex: Sempre me corrija quando eu errar o Past Simple.",
                 height=100, key="pf_custom")
         else:
-            ai_style = profile.get("ai_style","Warm & Encouraging")
-            ai_tone  = profile.get("ai_tone","Teacher")
-            custom   = profile.get("custom_instructions","")
+            ai_style = profile.get("ai_style", "Warm & Encouraging")
+            ai_tone  = profile.get("ai_tone",  "Teacher")
+            custom   = profile.get("custom_instructions", "")
 
         if st.button("💾 Salvar Personalização", key="save_pers"):
             update_profile(username, {"nickname": nickname, "occupation": occupation,
@@ -730,11 +878,11 @@ def show_profile():
             st.session_state.user = {"username": username, **u}
             st.success("✅ Perfil salvo!")
 
+    # ── Aba Conta ─────────────────────────────────────────────────────────────
     with tab_conta:
-        # ── Foto de perfil ────────────────────────────────────────────────────
         st.markdown("### 📸 Foto de Perfil")
         cur_avatar = get_user_avatar_b64(username)
-        MAX_BYTES  = 15 * 1024 * 1024  # 15 MB
+        MAX_BYTES  = 15 * 1024 * 1024
 
         col_av, col_btns = st.columns([1, 3])
         with col_av:
@@ -755,8 +903,7 @@ def show_profile():
         with col_btns:
             photo_file = st.file_uploader(
                 "Alterar foto — JPG, PNG ou WEBP (máx 15 MB)",
-                type=["jpg","jpeg","png","webp"],
-                key="pf_photo_upload")
+                type=["jpg", "jpeg", "png", "webp"], key="pf_photo_upload")
             if photo_file:
                 file_id = f"{photo_file.name}_{photo_file.size}"
                 if st.session_state.get("_last_photo_saved") != file_id:
@@ -772,20 +919,18 @@ def show_profile():
                 if st.button("🗑️ Remover foto", key="pf_remove_photo"):
                     remove_user_avatar(username)
                     st.session_state.pop("_last_photo_saved", None)
-                    st.success("Foto removida.")
-                    st.rerun()
+                    st.success("Foto removida."); st.rerun()
 
         st.markdown("---")
-        # ── Informações básicas ───────────────────────────────────────────────
         st.markdown("### Informações da Conta")
         col1, col2 = st.columns(2)
         with col1:
-            full_name = st.text_input("Nome completo", value=user.get("name",""), key="pf_fname")
+            full_name = st.text_input("Nome completo", value=user.get("name", ""), key="pf_fname")
         with col2:
-            email = st.text_input("E-mail", value=user.get("email",""), key="pf_email")
+            email = st.text_input("E-mail", value=user.get("email", ""), key="pf_email")
 
         st.markdown(f"**Username:** `{username}`")
-        st.markdown(f"**Conta criada em:** {user.get('created_at','')[:10]}")
+        st.markdown(f"**Conta criada em:** {user.get('created_at', '')[:10]}")
 
         if st.button("💾 Salvar Dados", key="save_conta"):
             update_profile(username, {"name": full_name, "email": email})
@@ -794,7 +939,6 @@ def show_profile():
             st.success("✅ Dados atualizados!")
 
         st.markdown("---")
-        # ── Alterar senha ─────────────────────────────────────────────────────
         st.markdown("### Alterar Senha")
         col3, col4 = st.columns(2)
         with col3:
@@ -812,7 +956,6 @@ def show_profile():
                 st.success("✅ Senha alterada!")
 
     st.markdown("---")
-    # Botão de voltar — professora vai ao dashboard, aluno vai ao chat
     back_label = "← Voltar ao Dashboard" if is_prof else "← Voltar ao Chat"
     back_page  = "dashboard" if is_prof else "chat"
     if st.button(back_label, key="back_chat"):
@@ -820,41 +963,62 @@ def show_profile():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MODO CONVERSA (Voice Mode)
+# MODO CONVERSA — avatar animado com microfone contínuo (VAD)
 # ══════════════════════════════════════════════════════════════════════════════
+
 def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
+    """
+    Transcreve o áudio gravado, envia ao Claude e armazena
+    a resposta + TTS no session_state para o JS exibir.
+    """
     txt = transcribe_bytes(raw, suffix=".webm", language=lang)
     if not txt or txt.startswith("❌") or txt.startswith("⚠️"):
         st.session_state["_vm_error"] = txt or "Não entendi. Tente novamente."
         return
+
     st.session_state["_vm_user_said"] = txt
     if not API_KEY:
         st.session_state["_vm_error"] = "❌ ANTHROPIC_API_KEY não configurada."
         return
-    user    = st.session_state.user
+
+    user     = st.session_state.user
     username = user["username"]
-    history = st.session_state.get("_vm_history", [])
-    context = f"\n\nStudent: Name={user['name']}, Level={user['level']}, Focus={user['focus']}."
-    history.append({"role":"user","content":txt})
+    history  = st.session_state.get("_vm_history", [])
+    context  = f"\n\nStudent: Name={user['name']}, Level={user['level']}, Focus={user['focus']}."
+
+    history.append({"role": "user", "content": txt})
     client = anthropic.Anthropic(api_key=API_KEY)
     resp   = client.messages.create(
         model="claude-haiku-4-5", max_tokens=1000,
-        system=SYSTEM_PROMPT + context, messages=history)
+        system=SYSTEM_PROMPT + context, messages=history
+    )
     reply = resp.content[0].text
-    history.append({"role":"assistant","content":reply})
+    history.append({"role": "assistant", "content": reply})
     st.session_state["_vm_history"] = history
+
+    # Gera TTS para o modo voz
     tts_b64 = ""
     if tts_available():
         ab = text_to_speech(reply)
-        if ab: tts_b64 = base64.b64encode(ab).decode()
+        if ab:
+            tts_b64 = base64.b64encode(ab).decode()
+
     st.session_state["_vm_reply"]   = reply
     st.session_state["_vm_tts_b64"] = tts_b64
-    # Salvar no histórico da conversa em tempo real
+
+    # Persiste no histórico da conversa atual
     append_message(username, conv_id, "user",      txt,   audio=True)
     append_message(username, conv_id, "assistant", reply, tts_b64=tts_b64 or None)
 
 
-def show_voice_mode():
+def show_voice_mode() -> None:
+    """
+    Renderiza o modo de conversa por voz com:
+    - Avatar animado (morph de 3 imagens: closed/mid/open)
+    - VAD (detecção automática de silêncio)
+    - Animações: respiração, piscar, inclinação de cabeça
+    - Painel de debug para o usuário 'programador'
+    """
     user     = st.session_state.user
     username = user["username"]
     profile  = user.get("profile", {})
@@ -866,19 +1030,20 @@ def show_voice_mode():
 
     if st.button("✕ Fechar Modo Voz", key="close_voice_inner"):
         st.session_state.voice_mode = False
-        for k in ["_vm_history","_vm_reply","_vm_tts_b64","_vm_user_said",
-                  "_vm_error","_vm_last_upload"]:
+        for k in ["_vm_history", "_vm_reply", "_vm_tts_b64", "_vm_user_said",
+                  "_vm_error", "_vm_last_upload"]:
             st.session_state.pop(k, None)
         st.rerun()
 
+    # Uploader oculto — recebe o blob de áudio enviado pelo JS
     audio_upload = st.file_uploader(
         "vm_audio", key="vm_audio_upload", label_visibility="collapsed",
-        type=["webm","wav","ogg","mp4","m4a"])
+        type=["webm", "wav", "ogg", "mp4", "m4a"])
     if audio_upload:
         uid = f"{audio_upload.name}_{audio_upload.size}"
         if uid != st.session_state.get("_vm_last_upload"):
             st.session_state["_vm_last_upload"] = uid
-            for k in ["_vm_reply","_vm_tts_b64","_vm_user_said","_vm_error"]:
+            for k in ["_vm_reply", "_vm_tts_b64", "_vm_user_said", "_vm_error"]:
                 st.session_state.pop(k, None)
             _vm_process_audio(audio_upload.read(), whisper_lang, conv_id)
             st.rerun()
@@ -888,13 +1053,13 @@ def show_voice_mode():
     tts_b64   = st.session_state.get("_vm_tts_b64",   "")
     vm_error  = st.session_state.get("_vm_error",     "")
 
-    # ── Carrega avatares (closed / mid / open) ────────────────────────────────
-    def load_avatar(filename):
+    # ── Carrega as 3 imagens do avatar (closed / mid / open) ─────────────────
+    def load_avatar(filename: str) -> str:
         p = Path(f"data/avatars/{filename}")
         if p.exists():
-            b64 = base64.b64encode(p.read_bytes()).decode()
-            ext = p.suffix.lstrip(".")
-            mime = "jpeg" if ext in ("jpg","jpeg") else ext
+            b64  = base64.b64encode(p.read_bytes()).decode()
+            ext  = p.suffix.lstrip(".")
+            mime = "jpeg" if ext in ("jpg", "jpeg") else ext
             return f"data:image/{mime};base64,{b64}"
         return ""
 
@@ -902,6 +1067,7 @@ def show_voice_mode():
     src_mid    = load_avatar("avatar_mid.png")    or src_closed
     src_open   = load_avatar("avatar_open.png")   or src_closed
 
+    # Serializa dados Python → JS com json.dumps para evitar problemas de aspas
     us_js     = json.dumps(user_said)
     rep_js    = json.dumps(reply)
     tts_js    = json.dumps(tts_b64)
@@ -929,21 +1095,15 @@ html,body{{background:var(--bg);font-family:'Sora',sans-serif;color:var(--text);
   border-radius:50%;overflow:hidden;flex-shrink:0;
   box-shadow:0 0 40px rgba(240,165,0,.15);
 }}
-
-/* As 3 imagens empilhadas — morph via opacity */
 .avatar-wrap canvas{{
-  position:absolute;top:0;left:0;
-  width:100%;height:100%;
-  border-radius:50%;
+  position:absolute;top:0;left:0;width:100%;height:100%;border-radius:50%;
 }}
 
-/* Painel debug — só para programador */
+/* Painel debug — visível apenas para o usuário 'programador' */
 #debug-panel{{
   position:fixed;top:10px;right:10px;
-  background:rgba(10,16,24,.95);
-  border:1px solid var(--accent);
-  border-radius:10px;padding:12px 16px;
-  font-size:.72rem;z-index:9999;
+  background:rgba(10,16,24,.95);border:1px solid var(--accent);
+  border-radius:10px;padding:12px 16px;font-size:.72rem;z-index:9999;
   min-width:220px;display:none;
 }}
 #debug-panel label{{color:var(--muted);display:block;margin-top:8px;}}
@@ -985,31 +1145,23 @@ html,body{{background:var(--bg);font-family:'Sora',sans-serif;color:var(--text);
 .err{{font-size:.74rem;color:var(--red);text-align:center;max-width:340px;min-height:18px;}}
 </style></head><body>
 
-<!-- Botão debug (só para programador) -->
 <button id="debug-toggle" onclick="toggleDebug()">⚙ Ajustar boca</button>
 
-<!-- Painel de ajuste em tempo real -->
 <div id="debug-panel">
   <div style="color:var(--accent);font-weight:700;margin-bottom:4px;">⚙ Posição da Boca</div>
-
   <label>← → Horizontal (X): <span class="val" id="vx">0.50</span></label>
   <input type="range" id="rx" min="0" max="1" step="0.01" value="0.50" oninput="updateParam('x',this.value)">
-
   <label>↑ ↓ Vertical (Y): <span class="val" id="vy">0.54</span></label>
   <input type="range" id="ry" min="0" max="1" step="0.01" value="0.54" oninput="updateParam('y',this.value)">
-
   <label>↔ Largura (W): <span class="val" id="vw">0.08</span></label>
   <input type="range" id="rw" min="0.02" max="0.4" step="0.01" value="0.08" oninput="updateParam('w',this.value)">
-
   <label>↕ Altura max (H): <span class="val" id="vh">0.05</span></label>
   <input type="range" id="rh" min="0.01" max="0.15" step="0.005" value="0.05" oninput="updateParam('h',this.value)">
-
   <div style="margin-top:10px;padding:7px;background:rgba(240,165,0,.08);border-radius:6px;
               font-family:monospace;font-size:.65rem;color:#aaa;line-height:1.6;">
     Copie para o código:<br>
     <span id="copy-vals" style="color:var(--accent);"></span>
   </div>
-
   <div style="margin-top:8px;display:flex;gap:6px;">
     <button onclick="testMouth()" style="flex:1;padding:5px;background:rgba(240,165,0,.15);
       border:1px solid var(--accent);border-radius:6px;color:var(--accent);cursor:pointer;font-size:.72rem;">
@@ -1020,23 +1172,16 @@ html,body{{background:var(--bg);font-family:'Sora',sans-serif;color:var(--text);
       🖼 Modo: overlay
     </button>
   </div>
-
-  <div style="margin-top:8px;font-size:.62rem;color:#3a4a5c;border-top:1px solid var(--border);padding-top:6px;">
-    💡 Coloque avatar_closed.png, avatar_mid.png e avatar_open.png<br>
-    em data/avatars/ para ativar o morph entre imagens.
-  </div>
 </div>
 
 <div class="vm" id="vm">
   <div class="avatar-wrap" id="avatarWrap">
     <canvas id="avatarCanvas" width="400" height="400"></canvas>
   </div>
-
   <div class="info">
     <div class="prof-name">{PROF_NAME}</div>
     <div class="status" id="status">Clique no microfone para falar</div>
   </div>
-
   <div class="transcript">
     <div class="t-label" id="tLabel">Aguardando...</div>
     <div class="t-user" id="tUser"></div>
@@ -1044,7 +1189,6 @@ html,body{{background:var(--bg);font-family:'Sora',sans-serif;color:var(--text);
     <div class="t-ai" id="tAi"></div>
     <div class="t-wait" id="tWait">—</div>
   </div>
-
   <div class="sil" id="sil"><div class="sil-fill" id="silFill"></div></div>
   <button class="mic-btn" id="micBtn">🎤</button>
   <div class="hint">Detecção automática de silêncio (1.5s)</div>
@@ -1052,6 +1196,7 @@ html,body{{background:var(--bg);font-family:'Sora',sans-serif;color:var(--text);
 </div>
 
 <script>
+// Dados vindos do Python (via session_state)
 const PY_USER_SAID = {us_js};
 const PY_REPLY     = {rep_js};
 const PY_TTS_B64   = {tts_js};
@@ -1060,7 +1205,7 @@ const SPEECH_LANG  = {sl_js};
 const PROF_NAME    = {pnm_js};
 const IS_DEV       = {is_dev_js};
 
-// ── Imagens do avatar ────────────────────────────────────────────────────────
+// ── Imagens do avatar (3 estados de boca) ────────────────────────────────────
 const SRC_CLOSED = `{src_closed}`;
 const SRC_MID    = `{src_mid}`;
 const SRC_OPEN   = `{src_open}`;
@@ -1075,34 +1220,33 @@ const imgClosed = loadImg(SRC_CLOSED);
 const imgMid    = loadImg(SRC_MID);
 const imgOpen   = loadImg(SRC_OPEN);
 
-// ── Parâmetros da boca (modo overlay) ───────────────────────────────────────
+// ── Parâmetros da boca (modo overlay — fallback sem 3 imagens) ───────────────
 let MOUTH = {{ x:0.50, y:0.54, w:0.08, h:0.05 }};
-let useMorphMode = HAS_MORPH; // usa morph se tiver 3 imagens, senão overlay
+let useMorphMode = HAS_MORPH;
 
 // ── Canvas ───────────────────────────────────────────────────────────────────
 const canvas = document.getElementById('avatarCanvas');
 const ctx    = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
 
-let mouthOpen   = 0;
-let mouthTarget = 0;
+let mouthOpen   = 0;  // valor atual suavizado
+let mouthTarget = 0;  // valor alvo (0=fechado, 1=aberto)
 
 // ── Estado das animações extras ──────────────────────────────────────────────
 let breathe    = 0;       // fase da respiração (0→2π em loop)
-let blinkAlpha = 0;       // opacidade do escurecimento do piscar (0=aberto)
-let blinkTimer = null;    // timer do próximo piscar
-let headTilt   = 0;       // rotação atual da cabeça (graus)
-let headTiltT  = 0;       // target da rotação
+let blinkAlpha = 0;       // opacidade do escurecimento do piscar
+let blinkTimer = null;
+let headTilt   = 0;       // rotação atual (graus, suavizada)
+let headTiltT  = 0;       // rotação alvo
 
-// Região dos olhos (fração da imagem) — para piscar
+// Região dos olhos (fração da imagem 0-1) — usada no piscar
 const EX1=0.25, EY1=0.28, EX2=0.75, EY2=0.48;
 
+// Agenda o próximo piscar aleatório entre 3-7s
 function scheduleBlink() {{
-  const delay = 3000 + Math.random() * 4000; // 3-7s
+  const delay = 3000 + Math.random() * 4000;
   blinkTimer = setTimeout(() => {{
-    // Fecha (escurece)
-    const closeDur = 80;
-    const openDur  = 120;
+    const closeDur = 80, openDur = 120;
     let t0 = Date.now();
     function closeAnim() {{
       const p = Math.min((Date.now()-t0)/closeDur, 1);
@@ -1124,171 +1268,134 @@ function scheduleBlink() {{
 }}
 scheduleBlink();
 
+// Loop principal de desenho — chamado por requestAnimationFrame
 function drawFrame() {{
   ctx.clearRect(0, 0, W, H);
 
-  // ── Atualiza animações de estado ─────────────────────────────────────────
-  breathe += 0.018; // velocidade da respiração
+  // Atualiza parâmetros de animação
+  breathe += 0.018;
   const breatheScale = 1 + 0.008 * Math.sin(breathe);
 
-  // Head tilt: -3° ao ouvir, ±2° ao falar baseado na boca
-  if (isRec) {{
-    headTiltT = -3;
-  }} else if (isSpeaking) {{
-    headTiltT = (mouthOpen - 0.3) * 6; // -1.8°..+4.2° proporcional à abertura
-  }} else {{
-    headTiltT = 0;
-  }}
-  headTilt += (headTiltT - headTilt) * 0.06; // suaviza
+  // Inclinação: -3° ao ouvir, proporcional à boca ao falar
+  headTiltT = isRec ? -3 : (isSpeaking ? (mouthOpen - 0.3) * 6 : 0);
+  headTilt += (headTiltT - headTilt) * 0.06;
 
-  // ── Aplica transformações ao canvas ──────────────────────────────────────
+  // Aplica transformações: respira + inclina cabeça
   ctx.save();
   ctx.translate(W/2, H/2);
   ctx.rotate(headTilt * Math.PI / 180);
   ctx.scale(breatheScale, breatheScale);
   ctx.translate(-W/2, -H/2);
 
-  // Clip circular (dentro do transform)
+  // Clip circular
   ctx.beginPath();
   ctx.arc(W/2, H/2, W/2, 0, Math.PI*2);
   ctx.clip();
 
-  // Região da boca detectada por diff automático (fração da imagem)
+  // Região da boca detectada por diff automático (fração 0-1 da imagem)
   const MX1=0.328, MY1=0.468, MX2=0.873, MY2=1.000;
 
   if (useMorphMode && HAS_MORPH) {{
-    // ── Modo morph cirúrgico: base=closed, só região da boca interpola ─────
-    const t = mouthOpen;
-
-    // Coordenadas do recorte no canvas (400x400)
+    // Morph cirúrgico: base=closed, só a região da boca interpola entre closed→mid→open
+    const t  = mouthOpen;
     const rx = MX1*W, ry = MY1*H;
     const rw = (MX2-MX1)*W, rh = (MY2-MY1)*H;
 
-    // 1. Fundo sempre closed completo
     ctx.globalAlpha = 1;
-    ctx.drawImage(imgClosed, 0, 0, W, H);
+    ctx.drawImage(imgClosed, 0, 0, W, H); // base sempre fechada
 
-    // 2. Interpola só a região da boca
     if (t < 0.5) {{
       // closed → mid
-      const a = t * 2;
-      ctx.globalAlpha = a;
+      ctx.globalAlpha = t * 2;
       ctx.drawImage(imgMid,
         MX1*imgMid.naturalWidth,  MY1*imgMid.naturalHeight,
         (MX2-MX1)*imgMid.naturalWidth, (MY2-MY1)*imgMid.naturalHeight,
         rx, ry, rw, rh);
     }} else {{
-      // mid → open: primeiro pinta mid, depois open por cima
-      const a = (t - 0.5) * 2;
+      // mid → open: pinta mid primeiro, open por cima
       ctx.globalAlpha = 1;
       ctx.drawImage(imgMid,
         MX1*imgMid.naturalWidth,  MY1*imgMid.naturalHeight,
         (MX2-MX1)*imgMid.naturalWidth, (MY2-MY1)*imgMid.naturalHeight,
         rx, ry, rw, rh);
-      ctx.globalAlpha = a;
+      ctx.globalAlpha = (t - 0.5) * 2;
       ctx.drawImage(imgOpen,
         MX1*imgOpen.naturalWidth,  MY1*imgOpen.naturalHeight,
         (MX2-MX1)*imgOpen.naturalWidth, (MY2-MY1)*imgOpen.naturalHeight,
         rx, ry, rw, rh);
     }}
     ctx.globalAlpha = 1;
+
   }} else {{
-    // ── Modo overlay: desenha boca em canvas ──────────────────────────────
+    // Modo overlay: desenha boca vetorial sobre a imagem closed
     ctx.drawImage(imgClosed, 0, 0, W, H);
-    ctx.restore();
-    ctx.save();
+    ctx.restore(); ctx.save();
     ctx.beginPath();
     ctx.arc(W/2, H/2, W/2, 0, Math.PI*2);
     ctx.clip();
 
     if (mouthOpen > 0.015) {{
-      const mx = W * MOUTH.x;
-      const my = H * MOUTH.y;
-      const mw = W * MOUTH.w;
-      const mh = H * MOUTH.h * mouthOpen;
-
-      // Interior escuro
+      const mx = W * MOUTH.x, my = H * MOUTH.y;
+      const mw = W * MOUTH.w, mh = H * MOUTH.h * mouthOpen;
       ctx.beginPath();
       ctx.ellipse(mx, my, mw*0.82, Math.max(mh*0.85,1), 0, 0, Math.PI*2);
       ctx.fillStyle = '#110505'; ctx.fill();
-
-      // Lábio superior
       ctx.beginPath();
       ctx.moveTo(mx-mw, my);
       ctx.bezierCurveTo(mx-mw*.5, my-mh*1.5, mx+mw*.5, my-mh*1.5, mx+mw, my);
       ctx.bezierCurveTo(mx+mw*.5, my-mh*.25, mx-mw*.5, my-mh*.25, mx-mw, my);
       ctx.fillStyle='#a05555'; ctx.fill();
-
-      // Lábio inferior
       ctx.beginPath();
       ctx.moveTo(mx-mw, my);
       ctx.bezierCurveTo(mx-mw*.5, my+mh*1.7, mx+mw*.5, my+mh*1.7, mx+mw, my);
       ctx.bezierCurveTo(mx+mw*.5, my+mh*.35, mx-mw*.5, my+mh*.35, mx-mw, my);
       ctx.fillStyle='#b56565'; ctx.fill();
-
-      // Linha central
-      ctx.beginPath();
-      ctx.moveTo(mx-mw, my);
-      ctx.bezierCurveTo(mx-mw*.3, my+mh*.3, mx+mw*.3, my+mh*.3, mx+mw, my);
-      ctx.strokeStyle='#7a3333'; ctx.lineWidth=Math.max(mh*.15,.5); ctx.stroke();
     }}
   }}
 
   ctx.restore();
 
-  // Interpola suavemente
-  // 0.06-0.12: menor = mais lento e suave
+  // Suaviza abertura da boca (0.08 = velocidade de resposta)
   mouthOpen += (mouthTarget - mouthOpen) * 0.08;
   requestAnimationFrame(drawFrame);
 }}
 
-// Inicia quando a primeira imagem carregar
-imgClosed.onload = () => drawFrame();
+imgClosed.onload  = () => drawFrame();
 imgClosed.onerror = () => drawFrame();
 
-// ── Painel debug (só programador) ────────────────────────────────────────────
-if (IS_DEV) {{
-  document.getElementById('debug-toggle').style.display = 'block';
-}}
+// ── Painel de debug (apenas programador) ─────────────────────────────────────
+if (IS_DEV) document.getElementById('debug-toggle').style.display = 'block';
 
 function toggleDebug() {{
   const p = document.getElementById('debug-panel');
   p.style.display = p.style.display === 'block' ? 'none' : 'block';
   updateCopyVals();
-  document.getElementById('morphBtn').textContent =
-    '🖼 Modo: ' + (useMorphMode ? 'morph' : 'overlay');
+  document.getElementById('morphBtn').textContent = '🖼 Modo: ' + (useMorphMode ? 'morph' : 'overlay');
 }}
-
 function updateParam(prop, val) {{
   MOUTH[prop] = parseFloat(val);
   document.getElementById('v'+prop).textContent = parseFloat(val).toFixed(2);
   updateCopyVals();
   mouthTarget = 0.7;
-  setTimeout(()=>{{ mouthTarget=0; }}, 700);
+  setTimeout(() => {{ mouthTarget = 0; }}, 700);
 }}
-
 function updateCopyVals() {{
   document.getElementById('copy-vals').textContent =
     `x:${{MOUTH.x.toFixed(2)}} y:${{MOUTH.y.toFixed(2)}} w:${{MOUTH.w.toFixed(2)}} h:${{MOUTH.h.toFixed(2)}}`;
 }}
 updateCopyVals();
-
 let testInterval = null;
 function testMouth() {{
   let t=0; clearInterval(testInterval);
-  testInterval=setInterval(()=>{{
-    mouthTarget=0.3+0.6*Math.abs(Math.sin(t++*.4));
-    if(t>35){{clearInterval(testInterval);mouthTarget=0;}}
-  }},80);
+  testInterval=setInterval(()=>{{ mouthTarget=0.3+0.6*Math.abs(Math.sin(t++*.4));
+    if(t>35){{clearInterval(testInterval);mouthTarget=0;}} }},80);
 }}
-
 function toggleMorphMode() {{
-  useMorphMode = !useMorphMode;
-  document.getElementById('morphBtn').textContent =
-    '🖼 Modo: '+(useMorphMode?'morph':'overlay');
+  useMorphMode=!useMorphMode;
+  document.getElementById('morphBtn').textContent='🖼 Modo:'+(useMorphMode?'morph':'overlay');
 }}
 
-// ── VAD + gravação ───────────────────────────────────────────────────────────
+// ── VAD (Voice Activity Detection) + gravação ─────────────────────────────────
 const SILENCE_MS=1500, MIN_DB=-42;
 let mediaRec=null,chunks=[],audioCtx=null,analyser=null,micStream=null;
 let isRec=false,isSpeaking=false,vadActive=false,speechHit=false;
@@ -1324,7 +1431,6 @@ function getTTSAmplitude(){{
   const d=new Uint8Array(ttsAnalyser.fftSize);
   ttsAnalyser.getByteTimeDomainData(d);
   let sum=0; for(let i=0;i<d.length;i++) sum+=Math.abs(d[i]-128);
-  // Divisor menor = mais sensível (8-20). Suaviza picos com média móvel.
   return Math.min(sum/d.length/10, 1.0);
 }}
 
@@ -1405,15 +1511,6 @@ function uploadAudio(blob){{
       if(attempt<8){{setTimeout(()=>tryInject(attempt+1),300);return;}}
       showErr('Input não encontrado.');resetToIdle();return;
     }}
-    let uw=input;
-    for(let i=0;i<6;i++){{
-      if(uw&&uw.getAttribute&&uw.getAttribute('data-testid')==='stFileUploader')break;
-      if(uw)uw=uw.parentElement;
-    }}
-    if(uw&&uw.getAttribute&&uw.getAttribute('data-testid')==='stFileUploader')
-      uw.style.cssText='position:fixed!important;top:-9999px!important;left:-9999px!important;width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;';
-    input.style.cssText+='pointer-events:auto!important;';
-    if(input.parentElement)input.parentElement.style.pointerEvents='auto';
     const ext=blob.type.includes('ogg')?'ogg':(blob.type.includes('mp4')?'mp4':'webm');
     const file=new File([blob],`vm_${{Date.now()}}.${{ext}}`,{{type:blob.type||'audio/webm'}});
     const dt=new DataTransfer();dt.items.add(file);
@@ -1437,10 +1534,8 @@ function playTTS(b64,txt){{
     curAudio=new Audio('data:audio/mpeg;base64,'+b64);
     curAudio.crossOrigin='anonymous';
     curAudio.oncanplaythrough=()=>{{
-      try{{
-        const src=ttsCtx.createMediaElementSource(curAudio);
-        src.connect(ttsAnalyser);ttsAnalyser.connect(ttsCtx.destination);
-      }}catch(e){{}}
+      try{{const src=ttsCtx.createMediaElementSource(curAudio);
+            src.connect(ttsAnalyser);ttsAnalyser.connect(ttsCtx.destination);}}catch(e){{}}
       curAudio.play().catch(()=>fallbackTTS(txt));
       updateMouthFromTTS();
     }};
@@ -1464,30 +1559,45 @@ function fallbackTTS(text){{
   synthMouth();
   const u=new SpeechSynthesisUtterance(text.substring(0,500));
   u.lang=SPEECH_LANG;u.rate=0.95;u.pitch=1.05;
-  const vv=speechSynthesis.getVoices();
-  const pick=vv.find(v=>v.lang===SPEECH_LANG)||vv.find(v=>v.lang.startsWith(SPEECH_LANG.split('-')[0]));
-  if(pick)u.voice=pick;
-  u.onend=u.onerror=()=>{{isSpeaking=false;mouthTarget=0;resetToIdle();startRec();}};
-  speechSynthesis.speak(u);
+  speechSynthesis.getVoices();
+  setTimeout(()=>{{
+    const vv=speechSynthesis.getVoices();
+    const pick=vv.find(v=>v.lang===SPEECH_LANG)||vv.find(v=>v.lang.startsWith(SPEECH_LANG.split('-')[0]));
+    if(pick)u.voice=pick;
+    u.onend=u.onerror=()=>{{isSpeaking=false;mouthTarget=0;resetToIdle();startRec();}};
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  }},100);
 }}
 
-micBtn.onclick=()=>{{if(isRec)resetToIdle();else startRec();}};
+// Clique no microfone: para áudio imediatamente e alterna gravação
+micBtn.onclick=()=>{{
+  if(curAudio){{curAudio.pause();curAudio=null;}}
+  try{{speechSynthesis.cancel();}}catch(e){{}}
+  isSpeaking=false;mouthTarget=0;ttsAnalyser=null;
+  if(isRec) resetToIdle();
+  else startRec();
+}};
 
+// Restaura estado ao carregar (resposta já disponível no session_state)
 window.addEventListener('load',()=>{{
   if(PY_ERROR&&PY_ERROR.length>1){{showErr(PY_ERROR);setStatus('Erro','');return;}}
   if(PY_REPLY&&PY_REPLY.length>1){{showTranscript(PY_USER_SAID,PY_REPLY);playTTS(PY_TTS_B64,PY_REPLY);return;}}
-  if(PY_USER_SAID&&PY_USER_SAID.length>1)showTranscript(PY_USER_SAID,'');
+  if(PY_USER_SAID&&PY_USER_SAID.length>1) showTranscript(PY_USER_SAID,'');
 }});
 </script></body></html>""", height=720, scrolling=False)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CHAT
+# HELPERS DO CHAT — processamento de arquivos
 # ══════════════════════════════════════════════════════════════════════════════
-def _process_and_send_file(username, user, conv_id, raw, filename, extra_text=""):
+
+def _process_and_send_file(username: str, user: dict, conv_id: str,
+                            raw: bytes, filename: str, extra_text: str = "") -> bool:
     """
-    Processa um arquivo e envia para o Claude, com texto adicional opcional.
-    Retorna True se foi processado com sucesso.
+    Processa um arquivo (áudio / texto / imagem) e envia ao Claude
+    com um texto adicional opcional do usuário.
+    Retorna True se o envio foi bem-sucedido.
     """
     result = extract_file(raw, filename)
     kind, label = result["kind"], result["label"]
@@ -1496,63 +1606,45 @@ def _process_and_send_file(username, user, conv_id, raw, filename, extra_text=""
         with st.spinner("🔄 Transcrevendo áudio..."):
             text = transcribe_bytes(raw, suffix=Path(filename).suffix.lower(), language="en")
         if text.startswith("❌") or text.startswith("⚠️"):
-            st.error(text)
-            return False
-        # ✅ SEM emoji de microfone — apenas o texto transcrito limpo
-        user_display = text
-        if extra_text:
-            user_display = f"{extra_text}\n\n[Áudio transcrito: {text}]"
+            st.error(text); return False
+        user_display = f"{extra_text}\n\n[Áudio transcrito: {text}]" if extra_text else text
+        claude_msg   = f"{extra_text}\n\n[Áudio: '{filename}']\n{text}" if extra_text else \
+                       f"[Áudio: '{filename}']\n{text}"
         append_message(username, conv_id, "user", user_display, audio=True)
-        claude_msg = f"[Áudio: '{filename}']\n{text}"
-        if extra_text:
-            claude_msg = f"{extra_text}\n\n[Áudio: '{filename}']\n{text}"
         st.session_state.speaking = True
-        try:
-            send_to_claude(username, user, conv_id, claude_msg)
-        except Exception as e:
-            st.error(f"❌ {e}")
+        try:   send_to_claude(username, user, conv_id, claude_msg)
+        except Exception as e: st.error(f"❌ {e}")
         st.session_state.speaking = False
         return True
 
     elif kind == "text":
         extracted = result["text"]
-        if extracted.startswith("❌"):
-            st.error(extracted)
-            return False
-        if not extracted:
-            st.warning(f"Sem texto em '{filename}'.")
-            return False
-        preview = extracted[:200].replace('\n', ' ')
-        user_display = f"📄 [{label}: '{filename}'] — {preview}{'…' if len(extracted) > 200 else ''}"
-        if extra_text:
-            user_display = f"{extra_text}\n\n{user_display}"
+        if extracted.startswith("❌"):  st.error(extracted);  return False
+        if not extracted:               st.warning(f"Sem texto em '{filename}'."); return False
+        preview      = extracted[:200].replace('\n', ' ')
+        user_display = f"📄 [{label}: '{filename}'] — {preview}{'…' if len(extracted)>200 else ''}"
+        if extra_text: user_display = f"{extra_text}\n\n{user_display}"
+        claude_msg   = (f"📄 [{label}: '{filename}']\n\n{extracted}\n\n"
+                        "Please help me understand this content — explain vocabulary, grammar, and key ideas.")
+        if extra_text: claude_msg = f"{extra_text}\n\n{claude_msg}"
         append_message(username, conv_id, "user", user_display)
-        claude_msg = (f"📄 [{label}: '{filename}']\n\n{extracted}\n\n"
-                      "Please help me understand this content — explain vocabulary, grammar, and key ideas.")
-        if extra_text:
-            claude_msg = f"{extra_text}\n\n{claude_msg}"
         st.session_state.speaking = True
-        try:
-            send_to_claude(username, user, conv_id, claude_msg)
-        except Exception as e:
-            st.error(f"❌ {e}")
+        try:   send_to_claude(username, user, conv_id, claude_msg)
+        except Exception as e: st.error(f"❌ {e}")
         st.session_state.speaking = False
         return True
 
     elif kind == "image":
         user_display = f"📸 [Imagem: '{filename}']"
-        if extra_text:
-            user_display = f"{extra_text}\n\n{user_display}"
+        if extra_text: user_display = f"{extra_text}\n\n{user_display}"
+        claude_msg   = f"📸 [Imagem: '{filename}']\nPlease look at this image and help me learn English from it."
+        if extra_text: claude_msg = f"{extra_text}\n\n{claude_msg}"
         append_message(username, conv_id, "user", user_display)
-        claude_msg = f"📸 [Imagem: '{filename}']\nPlease look at this image and help me learn English from it."
-        if extra_text:
-            claude_msg = f"{extra_text}\n\n{claude_msg}"
         st.session_state.speaking = True
         try:
             send_to_claude(username, user, conv_id, claude_msg,
                            image_b64=result["b64"], image_media_type=result["media_type"])
-        except Exception as e:
-            st.error(f"❌ {e}")
+        except Exception as e: st.error(f"❌ {e}")
         st.session_state.speaking = False
         return True
 
@@ -1561,18 +1653,37 @@ def _process_and_send_file(username, user, conv_id, raw, filename, extra_text=""
         return False
 
 
-def show_chat():
+# ══════════════════════════════════════════════════════════════════════════════
+# CHAT — tela principal de conversa
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _logout() -> None:
+    """
+    Encerra a sessão: apaga o token do banco SQLite e do localStorage,
+    e limpa o session_state.
+    """
+    token = st.session_state.get("_session_token", "")
+    if token:
+        delete_session(token)          # remove do banco SQLite
+    js_clear_session()                 # remove do localStorage do browser
+    st.session_state.pop("_session_token", None)
+    st.session_state.update(logged_in=False, user=None, conv_id=None)
+
+
+def show_chat() -> None:
+    """Tela principal do chat — sidebar com histórico + área de mensagens."""
     user     = st.session_state.user
     username = user["username"]
     conv_id  = get_or_create_conv(username)
     messages = load_conversation(username, conv_id)
     speaking = st.session_state.speaking
 
+    # Redireciona para o modo voz se ativo
     if st.session_state.voice_mode:
         show_voice_mode()
         return
 
-    # ── Para todo áudio ao navegar/recarregar/trocar conversa ────────────────
+    # ── JS: para todo áudio ao trocar de conversa ou recarregar ──────────────
     components.html("""<script>
 (function() {
   const par = window.parent;
@@ -1602,10 +1713,9 @@ def show_chat():
   window.addEventListener('beforeunload', function() { observer.disconnect(); });
 })();
 </script>""", height=0)
-    
+
     # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
-        # ── CSS sidebar estilo ChatGPT ────────────────────────────────────────
         st.markdown("""<style>
         section[data-testid="stSidebar"] { overflow: hidden; }
         section[data-testid="stSidebar"] > div:first-child {
@@ -1615,7 +1725,7 @@ def show_chat():
         div.sidebar-footer { margin-top: auto; }
         </style>""", unsafe_allow_html=True)
 
-        # ── Topo: professora ──────────────────────────────────────────────────
+        # Topo com avatar da professora
         st.markdown(f"""<div style="padding:14px 14px 10px;border-bottom:1px solid #21262d;flex-shrink:0;">
             <div style="display:flex;align-items:center;gap:10px;">
                 {avatar_html(40)}<div>
@@ -1628,7 +1738,6 @@ def show_chat():
         if st.button("🎙️  Modo Conversa", use_container_width=True, key="btn_voice"):
             st.session_state.voice_mode = True; st.rerun()
 
-        # ── Histórico rolável ─────────────────────────────────────────────────
         st.markdown('<div style="font-size:.68rem;color:#8b949e;text-transform:uppercase;'
                     'letter-spacing:1px;padding:10px 4px 4px;">Conversas</div>',
                     unsafe_allow_html=True)
@@ -1639,11 +1748,11 @@ def show_chat():
                         unsafe_allow_html=True)
         for c in convs:
             is_active = c["id"] == conv_id
-            label = ("▶ " if is_active else "") + c["title"]
+            label     = ("▶ " if is_active else "") + c["title"]
             col_conv, col_del = st.columns([5, 1])
             with col_conv:
-                if st.button(label, key=f"conv_{c['id']}",
-                             use_container_width=True, help=f"📅 {c['date']} · 💬 {c['count']} msgs"):
+                if st.button(label, key=f"conv_{c['id']}", use_container_width=True,
+                             help=f"📅 {c['date']} · 💬 {c['count']} msgs"):
                     st.session_state.conv_id = c["id"]; st.rerun()
             with col_del:
                 if st.button("🗑", key=f"del_{c['id']}", help="Excluir conversa"):
@@ -1654,8 +1763,8 @@ def show_chat():
             st.markdown(f'<div style="font-size:.62rem;color:#6e7681;margin:-10px 0 2px 6px;">'
                         f'📅 {c["date"]} · 💬 {c["count"]} msg</div>', unsafe_allow_html=True)
 
-        # ── Rodapé fixo ───────────────────────────────────────────────────────
-        user_msgs   = len([m for m in messages if m["role"]=="user"])
+        # ── Rodapé da sidebar com botões de ação ──────────────────────────────
+        user_msgs   = len([m for m in messages if m["role"] == "user"])
         uav_sidebar = user_avatar_html(username, size=34, fallback_emoji="🎓")
         st.markdown('<div class="sidebar-footer">', unsafe_allow_html=True)
         st.markdown("<hr style='border-color:#21262d;margin:8px 0 0'>", unsafe_allow_html=True)
@@ -1667,55 +1776,40 @@ def show_chat():
               <div style="color:#8b949e;font-size:.68rem;">{user['level']} · {user_msgs} msgs</div>
             </div></div>""", unsafe_allow_html=True)
 
-        # Botões do rodapé em 2 colunas (ou 3 se professor)
         if user["role"] == "professor":
             col_a, col_b = st.columns(2)
             with col_a:
-                if st.button("📊 Painel", use_container_width=True, key="btn_dash", help="Painel"):
+                if st.button("📊 Painel", use_container_width=True, key="btn_dash"):
                     st.session_state.page = "dashboard"; st.rerun()
             with col_b:
-                if st.button("⚙️ Perfil", use_container_width=True, key="btn_profile", help="Perfil"):
+                if st.button("⚙️ Perfil", use_container_width=True, key="btn_profile"):
                     st.session_state.page = "profile"; st.rerun()
+            # Logout da professora: apaga sessão persistente
             if st.button("🚪 Sair", use_container_width=True, key="btn_sair"):
-                js_clear_user()
-                st.session_state.update(logged_in=False, user=None, conv_id=None); st.rerun()
+                _logout(); st.rerun()
         else:
             col_a, col_b = st.columns(2)
             with col_a:
                 if st.button("⚙️ Perfil", use_container_width=True, key="btn_profile"):
                     st.session_state.page = "profile"; st.rerun()
             with col_b:
+                # Logout do aluno: apaga sessão persistente
                 if st.button("🚪 Sair", use_container_width=True, key="btn_sair"):
-                    js_clear_user()
-                    st.session_state.update(logged_in=False, user=None, conv_id=None); st.rerun()
+                    _logout(); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── CSS responsivo: chat input compacto + layout se ajusta à sidebar ────────
+    # ── CSS do chat ───────────────────────────────────────────────────────────
     st.markdown("""<style>
-/* ── Chat input compacto e fixo no fundo ──────────────────────────── */
 [data-testid="stChatInput"] textarea {
-    max-height: 120px !important;
-    min-height: 44px !important;
-    font-size: .88rem !important;
+    max-height: 120px !important; min-height: 44px !important; font-size: .88rem !important;
 }
-[data-testid="stChatInputContainer"] {
-    padding: 6px 10px !important;
-}
-/* Espaço extra no fundo para não cobrir o último balão */
+[data-testid="stChatInputContainer"] { padding: 6px 10px !important; }
 .main .block-container { padding-bottom: 80px !important; }
-
-/* ── Responsivo: main area acompanha a sidebar automaticamente ────── */
-/* O Streamlit já faz isso via CSS vars — garantir que nada quebre */
-section[data-testid="stMain"] {
-    transition: margin-left .3s ease !important;
-}
-
-/* ── Mobile: sidebar some, conteúdo ocupa tela toda ──────────────── */
+section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
 @media (max-width: 768px) {
     .main .block-container { padding: 0 8px 80px !important; }
     [data-testid="stChatInput"] textarea { font-size: .82rem !important; }
     div.bubble { max-width: 90% !important; font-size: .82rem !important; }
-    div.prof-header h1 { font-size: 1rem !important; }
 }
 @media (max-width: 480px) {
     div.bubble { max-width: 96% !important; }
@@ -1723,7 +1817,7 @@ section[data-testid="stMain"] {
 }
 </style>""", unsafe_allow_html=True)
 
-    # ── Header ────────────────────────────────────────────────────────────────
+    # ── Header do chat ────────────────────────────────────────────────────────
     st.markdown(f"""<div class="prof-header">
         {avatar_html(56, speaking)}
         <div class="prof-info">
@@ -1731,31 +1825,26 @@ section[data-testid="stMain"] {
             <p><span class="status-dot"></span>Online · {user['level']} · {user['focus']}</p>
         </div></div>""", unsafe_allow_html=True)
 
-    # ── Mensagem de boas-vindas ───────────────────────────────────────────────
-    if not messages:
-        name_display = user.get("profile",{}).get("nickname","") or user["name"].split()[0]
-        # Sem mensagem automática — a IA responde quando o aluno falar primeiro
-        pass
-
     # ── Histórico de mensagens ────────────────────────────────────────────────
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
     for i, msg in enumerate(messages):
-        content = msg["content"].replace("\n","<br>")
-        t       = msg.get("time","")
+        content  = msg["content"].replace("\n", "<br>")
+        t        = msg.get("time", "")
+
         if msg["role"] == "assistant":
-            av       = avatar_html(36, speaking and i==len(messages)-1)
-            tts_b64  = msg.get("tts_b64","")
-            is_file  = msg.get("is_file", False)  # mensagens de arquivo não têm áudio
+            av      = avatar_html(36, speaking and i == len(messages)-1)
+            tts_b64 = msg.get("tts_b64", "")
+            is_file = msg.get("is_file", False)
             st.markdown(
                 f'<div class="bubble-row bot"><div class="bav-s">{av}</div><div>'
                 f'<div class="bubble bot">{content}</div></div></div>',
                 unsafe_allow_html=True)
             if tts_b64:
-                # TTS pré-gerado
+                # Player de áudio pré-gerado pelo ElevenLabs
                 components.html(render_audio_player(tts_b64, t, f"msg_{i}_{conv_id}"),
                                 height=44, scrolling=False)
             elif not is_file:
-                # Botão ouvir via Web Speech API — precisa de components.html para executar JS
+                # Fallback: Web Speech API via JS
                 clean_text = (msg["content"]
                     .replace("\\", "").replace("`", "")
                     .replace("'", "\\'").replace('"', '\\"')
@@ -1783,24 +1872,20 @@ html,body{{background:transparent;overflow:hidden;}}
   var speaking = false;
   btn.onclick = function() {{
     if (speaking) {{
-      speechSynthesis.cancel();
-      speaking = false;
-      btn.textContent = '▶ Ouvir';
-      btn.classList.remove('on');
-      return;
+      speechSynthesis.cancel(); speaking=false;
+      btn.textContent='▶ Ouvir'; btn.classList.remove('on'); return;
     }}
     var u = new SpeechSynthesisUtterance(txt);
-    u.lang = 'en-US'; u.rate = 0.95; u.pitch = 1.05;
-    speechSynthesis.getVoices(); // força carregamento
-    setTimeout(function() {{
-      var vv = speechSynthesis.getVoices();
-      var pick = vv.find(v => v.lang === 'en-US') || vv.find(v => v.lang.startsWith('en'));
-      if (pick) u.voice = pick;
-      u.onstart = function() {{ speaking = true; btn.textContent = '⏹ Parar'; btn.classList.add('on'); }};
-      u.onend = u.onerror = function() {{ speaking = false; btn.textContent = '▶ Ouvir'; btn.classList.remove('on'); }};
-      speechSynthesis.cancel();
-      speechSynthesis.speak(u);
-    }}, 100);
+    u.lang='en-US'; u.rate=0.95; u.pitch=1.05;
+    speechSynthesis.getVoices();
+    setTimeout(function(){{
+      var vv=speechSynthesis.getVoices();
+      var pick=vv.find(v=>v.lang==='en-US')||vv.find(v=>v.lang.startsWith('en'));
+      if(pick)u.voice=pick;
+      u.onstart=function(){{speaking=true;btn.textContent='⏹ Parar';btn.classList.add('on');}};
+      u.onend=u.onerror=function(){{speaking=false;btn.textContent='▶ Ouvir';btn.classList.remove('on');}};
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    }},100);
   }};
 }})();
 </script></body></html>""", height=28, scrolling=False)
@@ -1808,10 +1893,9 @@ html,body{{background:transparent;overflow:hidden;}}
                 st.markdown(f'<div class="btime" style="margin-left:46px;">{t}</div>',
                             unsafe_allow_html=True)
         else:
-            # ✅ Áudio sem emoji de microfone prefixado — ícone fica só no balão
-            is_audio  = msg.get("audio", False)
-            extra     = " audio-msg" if is_audio else ""
-            uav_html  = user_avatar_html(username, size=36, fallback_emoji="🎓")
+            is_audio = msg.get("audio", False)
+            extra    = " audio-msg" if is_audio else ""
+            uav_html = user_avatar_html(username, size=36, fallback_emoji="🎓")
             st.markdown(
                 f'<div class="bubble-row user" style="justify-content:flex-end;padding-left:50%;">'
                 f'<div class="bav-u" style="margin-right:8px;flex-shrink:0;">{uav_html}</div>'
@@ -1821,15 +1905,12 @@ html,body{{background:transparent;overflow:hidden;}}
                 unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # FILE STAGING — banner de arquivo pendente
-    # ══════════════════════════════════════════════════════════════════════════
+    # ── Banner de arquivo em staging (aguardando envio) ───────────────────────
     staged = st.session_state.get("staged_file")
     if staged:
         fname = staged.get("name", "arquivo")
         fkind = staged.get("kind", "file")
-        icon  = {"audio":"🎵","text":"📄","image":"📸"}.get(fkind, "📎")
-
+        icon  = {"audio": "🎵", "text": "📄", "image": "📸"}.get(fkind, "📎")
         st.markdown(f"""
 <div style="background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.25);
      border-radius:10px;padding:10px 14px;margin:6px 0;
@@ -1839,18 +1920,14 @@ html,body{{background:transparent;overflow:hidden;}}
   <span style="font-size:.7rem;color:#f0a500;">↩ Digite uma mensagem ou envie</span>
 </div>
 """, unsafe_allow_html=True)
-
         if st.button("✕ Remover anexo", key="remove_staged"):
-            st.session_state.staged_file = None
+            st.session_state.staged_file      = None
             st.session_state.staged_file_name = None
             st.rerun()
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # DOWNLOAD DE ARQUIVO GERADO PELA IA
-    # ══════════════════════════════════════════════════════════════════════════
+    # ── Botão de download de arquivo gerado pela IA ───────────────────────────
     pending_dl = st.session_state.get("_pending_download")
     if pending_dl:
-        import base64 as _b64
         b64_data = pending_dl["b64"]
         fname    = pending_dl["filename"]
         mime     = pending_dl["mime"]
@@ -1865,40 +1942,29 @@ html,body{{background:transparent;overflow:hidden;}}
      text-decoration:none;white-space:nowrap;">⬇ Baixar arquivo</a>
 </div>""", unsafe_allow_html=True)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # CHAT INPUT — texto + envio com arquivo
-    # ══════════════════════════════════════════════════════════════════════════
+    # ── Chat input (texto) ────────────────────────────────────────────────────
     prompt = st.chat_input("Type a message…")
     if prompt:
         if not API_KEY:
             st.error("Configure ANTHROPIC_API_KEY no .env"); st.stop()
 
         staged = st.session_state.get("staged_file")
-
         if staged:
             # Envia arquivo + texto juntos
-            _process_and_send_file(
-                username, user, conv_id,
-                staged["raw"], staged["name"],
-                extra_text=prompt
-            )
-            st.session_state.staged_file = None
+            _process_and_send_file(username, user, conv_id,
+                                   staged["raw"], staged["name"], extra_text=prompt)
+            st.session_state.staged_file      = None
             st.session_state.staged_file_name = None
         else:
-            # Só texto
             append_message(username, conv_id, "user", prompt)
             st.session_state.speaking = True
-            try:
-                send_to_claude(username, user, conv_id, prompt)
-            except Exception as e:
-                st.error(f"❌ {e}")
+            try:   send_to_claude(username, user, conv_id, prompt)
+            except Exception as e: st.error(f"❌ {e}")
             st.session_state.speaking = False
 
         st.rerun()
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # GRAVADOR DE ÁUDIO NATIVO (st.audio_input)
-    # ══════════════════════════════════════════════════════════════════════════
+    # ── Gravador de áudio nativo (st.audio_input) ─────────────────────────────
     audio_val = st.audio_input(" ", key=f"voice_input_{st.session_state.audio_key}",
                                label_visibility="collapsed")
     if audio_val and audio_val != st.session_state.get("_last_audio"):
@@ -1907,43 +1973,37 @@ html,body{{background:transparent;overflow:hidden;}}
             txt = transcribe_bytes(audio_val.read(), ".wav", "en")
         if txt and not txt.startswith("❌") and not txt.startswith("⚠️"):
             if not API_KEY: st.error("Configure ANTHROPIC_API_KEY"); st.stop()
-            # ✅ Salva sem emoji de microfone prefixado
             append_message(username, conv_id, "user", txt, audio=True)
             st.session_state.speaking = True
-            try:
-                send_to_claude(username, user, conv_id, txt)
-            except Exception as e:
-                st.error(f"❌ {e}")
+            try:   send_to_claude(username, user, conv_id, txt)
+            except Exception as e: st.error(f"❌ {e}")
             st.session_state.speaking = False
             st.session_state.audio_key += 1
             st.rerun()
         elif txt:
             st.error(txt)
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # FILE UPLOADER — agora faz STAGING (não envia automaticamente)
-    # ══════════════════════════════════════════════════════════════════════════
+    # ── File uploader (oculto — acionado pelo clipe na chat bar) ─────────────
     uploaded = st.file_uploader(
         "📎", key="file_upload", label_visibility="collapsed",
-        type=["mp3","wav","ogg","m4a","webm","flac",
-              "pdf","doc","docx","txt","png","jpg","jpeg","webp"])
+        type=["mp3", "wav", "ogg", "m4a", "webm", "flac",
+              "pdf", "doc", "docx", "txt", "png", "jpg", "jpeg", "webp"])
 
     if uploaded and uploaded.name != st.session_state.get("_last_file"):
         st.session_state["_last_file"] = uploaded.name
-        raw = uploaded.read()
+        raw    = uploaded.read()
         result = extract_file(raw, uploaded.name)
-
-        # ✅ STAGING — guarda o arquivo, não envia ainda
+        # Staging: guarda o arquivo sem enviar ainda
         st.session_state.staged_file = {
-            "raw":  raw,
-            "name": uploaded.name,
-            "kind": result["kind"],
+            "raw":    raw,
+            "name":   uploaded.name,
+            "kind":   result["kind"],
             "result": result,
         }
         st.session_state.staged_file_name = uploaded.name
         st.rerun()
 
-    # ── JS: move anexo para a chat bar ───────────────────────────────────────
+    # ── JS: move botão de clipe para dentro da chat bar ──────────────────────
     components.html("""
 <script>
 function pavMoveToChatBar() {
@@ -1987,15 +2047,13 @@ function pavFixAudioInput() {
   if (!ai || !ci) return;
 
   const rect = ci.getBoundingClientRect();
-  
-  // Estilo da caixa principal (agora transparente e sem bordas)
   ai.style.cssText = `
     position: fixed !important;
     bottom: ${window.parent.innerHeight - rect.top + 42}px !important;
     left: ${rect.left}px !important;
     width: ${rect.width}px !important;
     z-index: 99 !important;
-    background: transparent !important; 
+    background: transparent !important;
     border: none !important;
     padding: 0 !important;
     height: 52px !important;
@@ -2004,15 +2062,12 @@ function pavFixAudioInput() {
     justify-content: center !important;
     box-shadow: none !important;
   `;
-  
-  // Arranca o fundo cinza e bordas das caixinhas internas do Streamlit
   const inners = ai.querySelectorAll('div');
   inners.forEach(d => {
       d.style.background = 'transparent';
       d.style.border = 'none';
       d.style.boxShadow = 'none';
   });
-
   const lbl = ai.querySelector('label');
   if (lbl) lbl.style.display = 'none';
 }
@@ -2024,9 +2079,11 @@ setInterval(pavFixAudioInput, 500);
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# DASHBOARD
+# DASHBOARD DA PROFESSORA
 # ══════════════════════════════════════════════════════════════════════════════
-def show_dashboard():
+
+def show_dashboard() -> None:
+    """Painel administrativo com estatísticas de todos os alunos."""
     with st.sidebar:
         user = st.session_state.user
         st.markdown(f"""<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
@@ -2035,37 +2092,45 @@ def show_dashboard():
             <div style="font-size:.7rem;color:#8b949e;"><span class="status-dot"></span>Professora</div>
             </div></div>
             <hr style="border-color:#30363d;margin:6px 0 12px">""", unsafe_allow_html=True)
-        if st.button("📊 Dashboard", use_container_width=True, type="primary"): pass
+        if st.button("📊 Dashboard",      use_container_width=True, type="primary"): pass
         if st.button("💬 Usar como Aluno", use_container_width=True, key="dash_chat"):
             st.session_state.page = "chat"; st.rerun()
-        if st.button("⚙️ Meu Perfil", use_container_width=True, key="dash_profile"):
+        if st.button("⚙️ Meu Perfil",     use_container_width=True, key="dash_profile"):
             st.session_state.page = "profile"; st.rerun()
-        if st.button("🚪 Sair", use_container_width=True):
-            js_clear_user(); st.session_state.update(logged_in=False, user=None); st.rerun()
+        # Logout da professora via dashboard — apaga sessão persistente
+        if st.button("🚪 Sair",           use_container_width=True):
+            _logout(); st.rerun()
 
     st.markdown("## 📊 Painel do Professor")
     st.markdown("---")
-    col_h1, col_h2 = st.columns([4,1])
+    col_h1, col_h2 = st.columns([4, 1])
     with col_h2:
         if st.button("💬 Entrar no Chat", use_container_width=True):
             st.session_state.page = "chat"; st.rerun()
     st.markdown("---")
+
     stats = get_all_students_stats()
     today = datetime.now().strftime("%Y-%m-%d")
-    c1,c2,c3,c4 = st.columns(4)
-    for col,val,lbl in zip([c1,c2,c3,c4],
-        [len(stats), sum(s["messages"] for s in stats), sum(s["corrections"] for s in stats),
-         sum(1 for s in stats if s["last_active"][:10]==today)],
-        ["Alunos","Mensagens","Correções","Ativos Hoje"]):
-        col.markdown(f'<div class="stat-card"><div class="val">{val}</div><div class="lbl">{lbl}</div></div>',
-                     unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns(4)
+    for col, val, lbl in zip(
+        [c1, c2, c3, c4],
+        [len(stats),
+         sum(s["messages"]    for s in stats),
+         sum(s["corrections"] for s in stats),
+         sum(1 for s in stats if s["last_active"][:10] == today)],
+        ["Alunos", "Mensagens", "Correções", "Ativos Hoje"]
+    ):
+        col.markdown(
+            f'<div class="stat-card"><div class="val">{val}</div><div class="lbl">{lbl}</div></div>',
+            unsafe_allow_html=True)
+
     st.markdown("<br>")
     st.markdown("### 👥 Alunos")
     if not stats:
         st.info("Nenhum aluno ainda.")
     else:
-        badge = {"False Beginner":"badge-blue","Pre-Intermediate":"badge-green",
-                 "Intermediate":"badge-gold","Business English":"badge-gold"}
+        badge = {"False Beginner": "badge-blue", "Pre-Intermediate": "badge-green",
+                 "Intermediate": "badge-gold",   "Business English": "badge-gold"}
         rows = "".join(f"""<tr>
             <td><b>{s['name']}</b><br><span style="color:#8b949e;font-size:.75rem">@{s['username']}</span></td>
             <td><span class="badge {badge.get(s['level'],'badge-blue')}">{s['level']}</span></td>
@@ -2074,19 +2139,24 @@ def show_dashboard():
             <td style="font-family:'JetBrains Mono',monospace;color:#f0a500">{s['corrections']}</td>
             <td style="color:#8b949e">{s['last_active']}</td>
         </tr>""" for s in sorted(stats, key=lambda x: x["messages"], reverse=True))
-        st.markdown(f'<div style="background:var(--surface);border:1px solid var(--border);'
-                    f'border-radius:12px;overflow:hidden"><table class="dash-table"><thead>'
-                    f'<tr><th>Aluno</th><th>Nível</th><th>Foco</th><th>Msgs</th>'
-                    f'<th>Correções</th><th>Último Acesso</th></tr></thead>'
-                    f'<tbody>{rows}</tbody></table></div>', unsafe_allow_html=True)
-
-
+        st.markdown(
+            f'<div style="background:var(--surface);border:1px solid var(--border);'
+            f'border-radius:12px;overflow:hidden"><table class="dash-table"><thead>'
+            f'<tr><th>Aluno</th><th>Nível</th><th>Foco</th><th>Msgs</th>'
+            f'<th>Correções</th><th>Último Acesso</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table></div>',
+            unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ROTEADOR
+# ROTEADOR PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
-if not st.session_state.logged_in:       show_login()
-elif st.session_state.page == "profile": show_profile()
-elif st.session_state.page == "dashboard": show_dashboard()
-else:                                    show_chat()
+
+if not st.session_state.logged_in:
+    show_login()
+elif st.session_state.page == "profile":
+    show_profile()
+elif st.session_state.page == "dashboard":
+    show_dashboard()
+else:
+    show_chat()
