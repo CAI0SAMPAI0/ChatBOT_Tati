@@ -1200,10 +1200,11 @@ section[data-testid="stMain"]>div{padding:0!important;}
         return ""
 
     _base = Path(__file__).parent
-    av_base   = _load_avatar([_base/"assets"/"avatar_1.png",      "assets/avatar_1.png"])
-    av_closed = _load_avatar([_base/"assets"/"avatar_closed.png", "assets/avatar_closed.png"])
-    av_mid    = _load_avatar([_base/"assets"/"avatar_mid.png",    "assets/avatar_mid.png"])
-    av_open   = _load_avatar([_base/"assets"/"avatar_open.png",   "assets/avatar_open.png"])
+    av_base   = _load_avatar([_base/"assets"/"avatar_tati_normal.png", "assets/avatar_tati_normal.png"])
+    av_closed = _load_avatar([_base/"assets"/"avatar_tati_closed.png", "assets/avatar_tati_closed.png"])
+    av_mid    = _load_avatar([_base/"assets"/"avatar_tati_meio.png",   "assets/avatar_tati_meio.png"])
+    av_open   = _load_avatar([_base/"assets"/"avatar_tati_bem_aberta.png", "assets/avatar_tati_bem_aberta.png",
+                               _base/"assets"/"avatar_tati_aberta.png",    "assets/avatar_tati_aberta.png"])
     _has_avatar = bool(av_base and av_closed and av_mid and av_open)
 
     is_speaking  = bool(reply)
