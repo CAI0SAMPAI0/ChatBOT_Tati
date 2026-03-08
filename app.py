@@ -44,7 +44,65 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# login lendo o cookie
 
+def _try_autologin_from_cookie() -> bool:
+    """
+    Tenta fazer login automático lendo o cookie pav_session do header HTTP.
+    Retorna True se o login foi restaurado com sucesso.
+
+    Requer Streamlit >= 1.31 (st.context.headers).
+    Funciona em todos os browsers, inclusive Safari e iOS.
+    """
+    if st.session_state.logged_in:
+        return True  # já logado
+
+    # Tenta ler os headers HTTP da requisição atual
+    try:
+        headers = st.context.headers
+        cookie_header = headers.get("Cookie", "") or headers.get("cookie", "")
+    except AttributeError:
+        # Streamlit < 1.31 — st.context não existe, usa fallback JS
+        return False
+
+    if not cookie_header:
+        return False
+
+    # Extrai pav_session do header Cookie
+    token = None
+    for part in cookie_header.split(";"):
+        part = part.strip()
+        if part.startswith("pav_session="):
+            import urllib.parse
+            token = urllib.parse.unquote(part.split("=", 1)[1].strip())
+            break
+
+    if not token or len(token) < 10:
+        return False
+
+    # Valida o token no banco
+    udata = validate_session(token)
+    if not udata:
+        return False
+
+    # Resolve o username
+    uname = udata.get("_resolved_username")
+    if not uname:
+        students = load_students()
+        uname = next(
+            (k for k, v in students.items() if v.get("password") == udata.get("password")),
+            None
+        )
+    if not uname:
+        return False
+
+    # Restaura a sessão
+    st.session_state.logged_in         = True
+    st.session_state.user              = {"username": uname, **udata}
+    st.session_state.page              = "dashboard" if udata.get("role") == "professor" else "chat"
+    st.session_state.conv_id           = None
+    st.session_state["_session_token"] = token
+    return True
 
 # ── Inicialização do banco de dados (SQLite) ──────────────────────────────────
 init_db()
@@ -796,6 +854,88 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
 
 def show_login() -> None:
     """Renderiza a tela de login com aba de registro. Cria sessão ao autenticar."""
+
+    # ── Auto-login via token salvo (cookie/localStorage) ──────────────────────
+    # Roda ANTES de qualquer render para evitar flash
+    components.html("""<!DOCTYPE html><html><body><script>
+    (function() {
+        function readToken() {
+            try {
+                var s = window.parent.sessionStorage.getItem('pav_session');
+                if (s && s.length > 10) return s;
+            } catch(e) {}
+            try {
+                var s2 = sessionStorage.getItem('pav_session');
+                if (s2 && s2.length > 10) return s2;
+            } catch(e) {}
+            try {
+                var match = window.parent.document.cookie.split(';')
+                    .map(function(c) { return c.trim(); })
+                    .find(function(c) { return c.startsWith('pav_session='); });
+                if (match) {
+                    var val = decodeURIComponent(match.split('=')[1]);
+                    if (val && val.length > 10) return val;
+                }
+            } catch(e) {}
+            try {
+                var v = window.parent.localStorage.getItem('pav_session');
+                if (v && v.length > 10) return v;
+            } catch(e) {}
+            try {
+                var v2 = localStorage.getItem('pav_session')
+                      || localStorage.getItem('pav_user') || '';
+                if (v2 && v2.length > 10) return v2;
+            } catch(e) {}
+            return '';
+        }
+        var val = readToken();
+        if (!val) return;
+        var url      = new URL(window.parent.location.href);
+        var isToken  = val.length > 20;
+        var paramKey = isToken ? '_token' : '_u';
+        if (url.searchParams.get(paramKey) !== val) {
+            url.searchParams.set(paramKey, val);
+            window.parent.location.replace(url.toString());
+        }
+    })();
+    </script></body></html>""", height=60)
+
+    st.write("query_params:", dict(st.query_params))
+
+    params = st.query_params
+    if "_token" in params:
+        token = params["_token"]
+        udata = validate_session(token)
+        if udata:
+            uname = udata.get("_resolved_username") or next(
+                (k for k, v in load_students().items() if v["password"] == udata["password"]),
+                None
+            )
+            if uname:
+                st.session_state.logged_in         = True
+                st.session_state.user              = {"username": uname, **udata}
+                st.session_state.page              = "dashboard" if udata["role"] == "professor" else "chat"
+                st.session_state.conv_id           = None
+                st.session_state["_session_token"] = token
+                st.query_params.clear()
+                st.rerun()
+        else:
+            js_clear_session()
+            st.query_params.clear()
+    elif "_u" in params:
+        uname    = params["_u"]
+        students = load_students()
+        if uname in students:
+            udata = students[uname]
+            token = create_session(uname)
+            st.session_state.logged_in         = True
+            st.session_state.user              = {"username": uname, **udata}
+            st.session_state.page              = "dashboard" if udata["role"] == "professor" else "chat"
+            st.session_state.conv_id           = None
+            st.session_state["_session_token"] = token
+            js_save_session(token)
+            st.query_params.clear()
+            st.rerun()
 
     if "_login_tab" not in st.session_state:
         st.session_state["_login_tab"] = "login"
@@ -1881,11 +2021,14 @@ def _process_and_send_file(username: str, user: dict, conv_id: str,
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _logout() -> None:
+    """
+    Encerra a sessão: apaga o token do banco SQLite e do localStorage,
+    e limpa o session_state.
+    """
     token = st.session_state.get("_session_token", "")
     if token:
-        delete_session(token)
-    js_clear_session()
-    st.query_params.pop("s", None)
+        delete_session(token)          # remove do banco SQLite
+    js_clear_session()                 # remove do localStorage do browser
     st.session_state.pop("_session_token", None)
     st.session_state.update(logged_in=False, user=None, conv_id=None)
 
@@ -2377,21 +2520,26 @@ setInterval(pavFixAudioInput, 500);
 
 def show_dashboard() -> None:
     """Painel administrativo com estatísticas de todos os alunos."""
+    user    = st.session_state.user
+    profile = user.get("profile", {})
+    ui_lang = profile.get("language", "pt-BR")
+
     with st.sidebar:
-        user = st.session_state.user
         st.markdown(f"""<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
             {avatar_html(44)}<div>
             <div style="font-weight:600;font-size:.9rem;">{PROF_NAME}</div>
             <div style="font-size:.7rem;color:#8b949e;"><span class="status-dot"></span>Professora</div>
             </div></div>
             <hr style="border-color:#30363d;margin:6px 0 12px">""", unsafe_allow_html=True)
-        if st.button("📊 Dashboard",      use_container_width=True, type="primary"): pass
+        if st.button("📊 Dashboard", use_container_width=True, type="primary"): pass
+        if st.button(t("voice_mode", ui_lang), use_container_width=True, key="dash_voice"):
+            st.session_state.page = "chat"
+            st.session_state.voice_mode = True; st.rerun()
         if st.button(t("use_as_student", ui_lang), use_container_width=True, key="dash_chat"):
             st.session_state.page = "chat"; st.rerun()
-        if st.button(t("my_profile", ui_lang),     use_container_width=True, key="dash_profile"):
+        if st.button(t("my_profile", ui_lang), use_container_width=True, key="dash_profile"):
             st.session_state.page = "profile"; st.rerun()
-        # Logout da professora via dashboard — apaga sessão persistente
-        if st.button("🚪 Sair",           use_container_width=True):
+        if st.button(t("logout", ui_lang), use_container_width=True, key="dash_logout"):
             _logout(); st.rerun()
 
     st.markdown("## 📊 Painel do Professor")
