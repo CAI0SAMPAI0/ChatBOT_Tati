@@ -1185,7 +1185,7 @@ def show_profile() -> None:
             u = load_students().get(username, {})
             # Atualiza session_state para refletir cor imediatamente
             st.session_state.user = {"username": username, **u}
-            st.success("✅ Configurações salvas!")
+            st.success("✅ Settings saved!")
 
     # ── Aba Personalização ────────────────────────────────────────────────────
     with tab_pers:
