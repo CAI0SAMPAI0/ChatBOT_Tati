@@ -1124,6 +1124,7 @@ def show_voice_mode() -> None:
     profile  = user.get("profile", {})
     whisper_lang    = profile.get("voice_lang",  "en")
     speech_lang_val = profile.get("speech_lang", "en-US")
+    accent_color    = profile.get("accent_color", "#f0a500")
 
     conv_id = get_or_create_conv(username)
 
@@ -1223,6 +1224,7 @@ section[data-testid="stMain"]>div{padding:0!important;}
     av_closed_js = json.dumps(av_closed)
     av_mid_js    = json.dumps(av_mid)
     av_open_js   = json.dumps(av_open)
+    accent_js    = json.dumps(accent_color)
 
     # Monta bolhas do histórico (pares user/assistant)
     bubbles_html = ""
@@ -1283,7 +1285,7 @@ html,body{{
 
 /* Ondas sonoras ao redor do avatar */
 .avatar-outer{{
-  position:relative;width:160px;height:160px;
+  position:relative;width:220px;height:220px;
   display:flex;align-items:center;justify-content:center;
 }}
 .wave{{
@@ -1301,24 +1303,24 @@ html,body{{
   animation:wave1 1.4s ease-out infinite .7s;
 }}
 @keyframes wave1{{
-  0%  {{transform:scale(1);   border-color:rgba(240,165,0,.7);opacity:1;}}
-  100%{{transform:scale(1.55);border-color:rgba(240,165,0,0); opacity:0;}}
+  0%  {{transform:scale(1);   border-color:var(--accent-70);opacity:1;}}
+  100%{{transform:scale(1.55);border-color:transparent;      opacity:0;}}
 }}
 
 .avatar-ring{{
-  width:140px;height:140px;border-radius:50%;overflow:hidden;
-  box-shadow:0 0 0 3px rgba(240,165,0,.4),0 0 20px rgba(240,165,0,.15);
+  width:200px;height:200px;border-radius:50%;overflow:hidden;
+  box-shadow:0 0 0 3px var(--accent-30),0 0 20px var(--accent-15);
   transition:box-shadow .4s;position:relative;z-index:2;flex-shrink:0;
 }}
 .speaking .avatar-ring{{
-  box-shadow:0 0 0 4px rgba(240,165,0,.9),0 0 40px rgba(240,165,0,.4);
+  box-shadow:0 0 0 4px var(--accent-full),0 0 40px var(--accent-40);
 }}
-.avatar-ring img{{width:100%;height:100%;object-fit:cover;object-position:top;}}
+.avatar-ring img{{width:100%;height:100%;object-fit:cover;object-position:top center;}}
 .avatar-ring .emoji{{
   width:100%;height:100%;display:flex;align-items:center;
   justify-content:center;font-size:60px;background:#0f1824;
 }}
-.av-name{{color:#f0a500;font-weight:700;font-size:.95rem;}}
+.av-name{{color:var(--accent-full);font-weight:700;font-size:.95rem;}}
 .av-status{{color:#8b949e;font-size:.72rem;min-height:18px;letter-spacing:.3px;}}
 
 /* ── Área de mensagens ── */
@@ -1337,8 +1339,8 @@ html,body{{
 }}
 .user-bubble{{
   align-self:flex-end;
-  background:#1c2a1e;border:1px solid #2a3f2c;
-  color:#c8d8ca;border-bottom-right-radius:4px;
+  background:var(--bubble-bg);border:1px solid var(--bubble-border);
+  color:var(--bubble-text);border-bottom-right-radius:4px;
 }}
 .ai-bubble{{
   align-self:flex-start;
@@ -1446,6 +1448,28 @@ const AV_BASE    = {av_base_js};
 const AV_CLOSED  = {av_closed_js};
 const AV_MID     = {av_mid_js};
 const AV_OPEN    = {av_open_js};
+const ACCENT     = {accent_js};
+
+// Injeta CSS vars dinamicas baseadas na cor do perfil
+(function applyAccent(){{
+  function hexToRgb(h){{
+    h=h.replace('#','');
+    if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    const n=parseInt(h,16);
+    return [(n>>16)&255,(n>>8)&255,n&255].join(',');
+  }}
+  const rgb = hexToRgb(ACCENT||'#f0a500');
+  const r = document.documentElement;
+  r.style.setProperty('--accent-full', ACCENT||'#f0a500');
+  r.style.setProperty('--accent-70',  `rgba(${{rgb}},.7)`);
+  r.style.setProperty('--accent-40',  `rgba(${{rgb}},.4)`);
+  r.style.setProperty('--accent-30',  `rgba(${{rgb}},.3)`);
+  r.style.setProperty('--accent-15',  `rgba(${{rgb}},.15)`);
+  // Bubble: deriva cor mais escura do accent para background
+  r.style.setProperty('--bubble-bg',     `rgba(${{rgb}},.12)`);
+  r.style.setProperty('--bubble-border', `rgba(${{rgb}},.3)`);
+  r.style.setProperty('--bubble-text',   '#e6edf3');
+}})();
 
 // ── Scroll mensagens para baixo ───────────────────────────────────────────────
 const msgEl = document.getElementById('messages');
