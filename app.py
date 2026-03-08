@@ -75,9 +75,9 @@ _STRINGS = {
         "password":           "Senha",
         "full_name":          "Nome completo",
         "email":              "E-mail",
-        "enter":              "🔑 Entrar",
-        "create_account":     "✨ Criar Conta",
-        "save_general":       "💾 Salvar Geral",
+        "enter":              "Entrar",
+        "create_account":     "Criar Conta",
+        "save_general":       "💾 Salvar Alterações",
         "save_custom":        "💾 Salvar Personalização",
         "save_data":          "💾 Salvar Dados",
         "change_password":    "🔒 Alterar Senha",
@@ -86,8 +86,8 @@ _STRINGS = {
         "close_voice":        "✕ Fechar Modo Voz",
         "close":              "✕ Fechar",
         "back":               "← Voltar ao Chat",
-        "use_as_student":     "💬 Usar como Aluno",
-        "enter_chat":         "💬 Entrar no Chat",
+        "use_as_student":     "Usar como Aluno",
+        "enter_chat":         "Entrar no Chat",
         "my_profile":         "⚙️ Meu Perfil",
         "interface_lang":     "Idioma da interface",
         "theme":              "Tema",
@@ -121,9 +121,9 @@ _STRINGS = {
         "password":           "Password",
         "full_name":          "Full name",
         "email":              "E-mail",
-        "enter":              "🔑 Sign In",
-        "create_account":     "✨ Create Account",
-        "save_general":       "💾 Save General",
+        "enter":              "Sign In",
+        "create_account":     "Create Account",
+        "save_general":       "💾 Save Changes",
         "save_custom":        "💾 Save Customization",
         "save_data":          "💾 Save Data",
         "change_password":    "🔒 Change Password",
@@ -132,8 +132,8 @@ _STRINGS = {
         "close_voice":        "✕ Close Voice Mode",
         "close":              "✕ Close",
         "back":               "← Back to Chat",
-        "use_as_student":     "💬 Use as Student",
-        "enter_chat":         "💬 Enter Chat",
+        "use_as_student":     "Use as Student",
+        "enter_chat":         "Enter Chat",
         "my_profile":         "⚙️ My Profile",
         "interface_lang":     "Interface language",
         "theme":              "Theme",
@@ -167,9 +167,9 @@ _STRINGS = {
         "password":           "Password",
         "full_name":          "Full name",
         "email":              "E-mail",
-        "enter":              "🔑 Sign In",
-        "create_account":     "✨ Create Account",
-        "save_general":       "💾 Save General",
+        "enter":              "Sign In",
+        "create_account":     "Create Account",
+        "save_general":       "💾 Save Changes",
         "save_custom":        "💾 Save Customisation",
         "save_data":          "💾 Save Data",
         "change_password":    "🔒 Change Password",
@@ -178,8 +178,8 @@ _STRINGS = {
         "close_voice":        "✕ Close Voice Mode",
         "close":              "✕ Close",
         "back":               "← Back to Chat",
-        "use_as_student":     "💬 Use as Student",
-        "enter_chat":         "💬 Enter Chat",
+        "use_as_student":     "Use as Student",
+        "enter_chat":         "Enter Chat",
         "my_profile":         "⚙️ My Profile",
         "interface_lang":     "Interface language",
         "theme":              "Theme",
@@ -343,8 +343,43 @@ div[data-testid="stButton"] button {
 # PROMPT DO SISTEMA
 # ══════════════════════════════════════════════════════════════════════════════
 
-SYSTEM_PROMPT = f"""You are a digital avatar of an English teacher called {PROF_NAME} — warm, witty, and encouraging.
+SYSTEM_PROMPT = f"""You are a digital avatar of an English teacher called {PROF_NAME} — warm, witty, very intelligent and encouraging. You help adults speak English with more confidence, over 25 years of experience, Advanced English Hunter College NY, and passionate about teaching.
 Students: teenagers (Beginner/Pre-Intermediate) and adults focused on Business/News.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BILINGUAL POLICY (VERY IMPORTANT)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The student's messages may arrive in English, Portuguese, or a mix.
+Adapt your language policy according to the student's level:
+
+BEGINNER / PRE-INTERMEDIATE:
+  • Student writes/speaks in Portuguese → Fully acceptable. Respond in simple English
+    AND provide the Portuguese translation of key words in parentheses.
+    Example: "Great question! The word is 'homework' (tarefa)."
+  • Student mixes PT and EN → Celebrate the English parts, gently supply the missing
+    English for the Portuguese parts. Never make them feel bad for using Portuguese.
+  • Always end your reply with an easy, encouraging question in English.
+  • Provide Portuguese support freely when they seem lost or frustrated.
+
+INTERMEDIATE:
+  • Respond primarily in English. Use Portuguese ONLY to clarify a specific word
+    or resolve a genuine comprehension block — keep it brief.
+  • If the student writes in Portuguese, acknowledge briefly in English and invite
+    them to try saying the same thing in English:
+    "I understood! Now, how would you say that in English? 😊"
+  • Encourage them to push further; celebrate every English sentence they produce.
+
+ADVANCED / BUSINESS ENGLISH:
+  • Respond exclusively in English.
+  • If the student writes in Portuguese, reply in English and say something like:
+    "Let's keep it in English — you've got this! 💪"
+  • You may add a brief Portuguese gloss ONLY for highly technical or idiomatic
+    terms where the meaning is genuinely ambiguous.
+
+TRANSLATION REQUESTS (any level):
+  • When the student asks "como se diz X?", "what does Y mean?", or similar,
+    always provide the translation + an example sentence in English.
+  • For Beginners/Pre-Intermediate: also include the Portuguese example.
 
 TEACHING STYLE:
 - Neuro-learning: guide students to discover errors. Never just give the answer.
@@ -356,8 +391,8 @@ TEACHING STYLE:
   Otherwise respond in plain, natural text.
 
 RULES:
-- Simple English. Teens→Fortnite/Netflix/TikTok refs. Adults→LinkedIn/news.
-- Portuguese → acknowledge briefly, switch to English.
+- Simple English. Teens→Fortnite/Netflix/TikTok/Movies and series refs. Adults→LinkedIn/news/geopolitics.
+- Portuguese → briefly acknowledge, when asked to speak Portuguese, speak, but switch to English.
 - NEVER start a conversation uninvited. Wait for the student to speak first.
 
 ACTIVITY GENERATION:
@@ -456,7 +491,14 @@ def send_to_claude(username: str, user: dict, conv_id: str,
     Retorna o texto da resposta.
     """
     client  = anthropic.Anthropic(api_key=API_KEY)
-    context = f"\n\nStudent: Name={user['name']}, Level={user['level']}, Focus={user['focus']}."
+    #context = f"\n\nStudent: Name={user['name']}, Level={user['level']}, Focus={user['focus']}."
+    context = (
+       f"\n\nStudent profile — Name: {user['name']} | "
+       f"Level: {user['level']} | Focus: {user['focus']} | "
+       f"Native language: Brazilian Portuguese.\n"
+       f"Apply the bilingual policy for level '{user['level']}' as instructed."
+   )
+
 
     # Monta histórico da conversa para a API
     msgs     = load_conversation(username, conv_id)
@@ -1066,8 +1108,13 @@ def show_profile() -> None:
         st.markdown("### Voz")
         col3, col4 = st.columns(2)
         with col3:
-            voice_lang = st.selectbox(t("transcription_lang", ui_lang), ["en", "pt", "es", "fr", "de"],
-                index=safe_index(["en", "pt", "es", "fr", "de"], profile.get("voice_lang", "en")), key="pf_vlang")
+            voice_lang = st.selectbox(
+       t("transcription_lang", ui_lang),
+       ["auto (pt+en)", "en", "pt", "es", "fr", "de"],
+       index=safe_index(["auto (pt+en)", "en", "pt", "es", "fr", "de"],
+                        profile.get("voice_lang", "auto (pt+en)")),
+       key="pf_vlang"
+   )
         with col4:
             speech_lang = st.selectbox(t("tts_accent", ui_lang), ["en-US", "en-UK", "pt-BR"],
                 index=safe_index(["en-US", "en-UK", "pt-BR"], profile.get("speech_lang", "en-US")), key="pf_slang")
@@ -1218,7 +1265,7 @@ def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
     Transcreve o áudio gravado, envia ao Claude e armazena
     a resposta + TTS no session_state para o JS exibir.
     """
-    txt = transcribe_bytes(raw, suffix=".webm", language=lang)
+    txt = transcribe_bytes(raw, suffix=".webm", language="auto")
     if not txt or txt.startswith("❌") or txt.startswith("⚠️"):
         st.session_state["_vm_error"] = txt or "Não entendi. Tente novamente."
         return
@@ -2279,7 +2326,7 @@ html,body{{background:transparent;overflow:hidden;}}
     if audio_val and audio_val != st.session_state.get("_last_audio"):
         st.session_state["_last_audio"] = audio_val
         with st.spinner("Transcrevendo..."):
-            txt = transcribe_bytes(audio_val.read(), ".wav", "en")
+            txt = transcribe_bytes(audio_val.read(), ".wav", "auto")
         if txt and not txt.startswith("❌") and not txt.startswith("⚠️"):
             if not API_KEY: st.error("Configure ANTHROPIC_API_KEY"); st.stop()
             append_message(username, conv_id, "user", txt, audio=True)
