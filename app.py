@@ -1116,8 +1116,8 @@ def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
 
 def show_voice_mode() -> None:
     """
-    Modo voz — usa st.audio_input nativo (funciona no Streamlit Cloud).
-    Avatar Three.js animado + TTS + Wav2Lip opcional.
+    Modo voz imersivo — estilo ChatGPT Voz.
+    Avatar centralizado, histórico de mensagens em bolhas, microfone como ícone FA.
     """
     user     = st.session_state.user
     username = user["username"]
@@ -1127,119 +1127,385 @@ def show_voice_mode() -> None:
 
     conv_id = get_or_create_conv(username)
 
+    # Botão fechar — fora do iframe, clicável pelo JS interno
     if st.button("✕ Fechar Modo Voz", key="close_voice_inner"):
         st.session_state.voice_mode = False
         for k in ["_vm_history", "_vm_reply", "_vm_tts_b64", "_vm_user_said",
                   "_vm_error", "_vm_last_upload", "_vm_video_b64", "_vm_audio_key"]:
             st.session_state.pop(k, None)
         st.rerun()
+    st.markdown("""<style>
+[data-testid="stSidebar"]{display:none!important;}
+[data-testid="stHeader"]{display:none!important;}
+[data-testid="stToolbar"]{display:none!important;}
+footer{display:none!important;}
+.main .block-container{padding:0!important;max-width:100%!important;}
+section[data-testid="stMain"]>div{padding:0!important;}
+/* Oculta o st.audio_input — só usamos ele via JS invisível */
+[data-testid="stAudioInput"]{
+    position:fixed!important;bottom:-200px!important;
+    left:-200px!important;opacity:0!important;
+    pointer-events:none!important;width:1px!important;height:1px!important;
+}
+</style>""", unsafe_allow_html=True)
 
-    # ── st.audio_input nativo — tem permissão de microfone no Streamlit Cloud ─
+    # ── Processa áudio quando chega ───────────────────────────────────────────
     if "_vm_audio_key" not in st.session_state:
         st.session_state["_vm_audio_key"] = 0
 
-    st.markdown("**🎙 Grave sua mensagem:**")
     audio_val = st.audio_input(
-        "Clique para gravar",
-        key=f"vm_audio_{st.session_state['_vm_audio_key']}",
-        label_visibility="visible",
+        " ", key=f"vm_audio_{st.session_state['_vm_audio_key']}",
+        label_visibility="collapsed",
     )
-
     if audio_val and audio_val != st.session_state.get("_vm_last_upload"):
         st.session_state["_vm_last_upload"] = audio_val
         for k in ["_vm_reply", "_vm_tts_b64", "_vm_user_said", "_vm_error", "_vm_video_b64"]:
             st.session_state.pop(k, None)
-        with st.spinner("⏳ Processando..."):
-            _vm_process_audio(audio_val.read(), whisper_lang, conv_id)
+        _vm_process_audio(audio_val.read(), whisper_lang, conv_id)
         st.session_state["_vm_audio_key"] += 1
         st.rerun()
 
+    # ── Dados do estado ───────────────────────────────────────────────────────
     user_said = st.session_state.get("_vm_user_said", "")
     reply     = st.session_state.get("_vm_reply",     "")
     tts_b64   = st.session_state.get("_vm_tts_b64",   "")
     video_b64 = st.session_state.get("_vm_video_b64", "")
     vm_error  = st.session_state.get("_vm_error",     "")
+    history   = st.session_state.get("_vm_history",   [])
 
-    # ── Avatar — foto real ou emoji fallback ──────────────────────────────────
-    photo = get_photo_b64()
-    is_speaking = bool(reply)
+    # Foto da professora — tati.png em assets/
+    photo_src = ""
+    for p in [Path("assets/tati.png"), Path("assets/tati.jpg"),
+              Path("assets/professor.jpg"), Path(PHOTO_PATH)]:
+        if p.exists():
+            ext  = p.suffix.lstrip(".").lower()
+            mime = "jpeg" if ext in ("jpg","jpeg") else ext
+            photo_src = f"data:image/{mime};base64,{base64.b64encode(p.read_bytes()).decode()}"
+            break
 
-    ring_color = "rgba(240,165,0,.9)" if is_speaking else "rgba(240,165,0,.4)"
-    glow       = "0 0 50px rgba(240,165,0,.45)" if is_speaking else "0 0 20px rgba(240,165,0,.15)"
-    anim       = "animation:pulse 1s ease-in-out infinite alternate;" if is_speaking else ""
+    is_speaking  = bool(reply)
+    is_processing = bool(user_said and not reply and not vm_error)
 
-    if photo:
-        avatar_block = (
-            f'<img src="{photo}" style="width:100%;height:100%;'
-            f'object-fit:cover;object-position:top;border-radius:50%;">'
-        )
-    else:
-        avatar_block = (
-            '<div style="width:100%;height:100%;display:flex;align-items:center;'
-            'justify-content:center;font-size:80px;border-radius:50%;">🧑‍🏫</div>'
-        )
+    # Serializa para JS
+    tts_js      = json.dumps(tts_b64)
+    video_js    = json.dumps(video_b64)
+    reply_js    = json.dumps(reply)
+    us_js       = json.dumps(user_said)
+    err_js      = json.dumps(vm_error)
+    sl_js       = json.dumps(speech_lang_val)
+    pnm_js      = json.dumps(PROF_NAME)
+    photo_js    = json.dumps(photo_src)
 
-    st.markdown(f"""
-<style>
-@keyframes pulse{{
-  from{{box-shadow:0 0 0 3px rgba(240,165,0,.4),0 0 20px rgba(240,165,0,.15);}}
-  to  {{box-shadow:0 0 0 6px rgba(240,165,0,.9),0 0 50px rgba(240,165,0,.45);}}
-}}
-</style>
-<div style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px 0;">
-  <div style="width:220px;height:220px;border-radius:50%;overflow:hidden;
-              box-shadow:0 0 0 3px {ring_color},{glow};{anim}">
-    {avatar_block}
-  </div>
-  <div style="color:#f0a500;font-weight:700;font-size:1rem;">{PROF_NAME}</div>
-  <div style="color:#8b949e;font-size:.8rem;">
-    {"🗣 Respondendo..." if is_speaking else "🎙 Aguardando gravação"}
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-    # ── Vídeo Wav2Lip ─────────────────────────────────────────────────────────
-    if video_b64:
-        st.markdown("**🎬 Teacher Tati respondendo:**")
-        components.html(f"""<!DOCTYPE html><html><body style="margin:0;background:transparent;">
-<video autoplay playsinline
-  style="width:220px;height:220px;border-radius:50%;object-fit:cover;
-         display:block;margin:0 auto;
-         box-shadow:0 0 0 4px rgba(240,165,0,.8),0 0 40px rgba(240,165,0,.4);"
-  src="data:video/mp4;base64,{video_b64}">
-</video>
-</body></html>""", height=240)
-
-    # ── Transcrição + resposta ────────────────────────────────────────────────
-    if vm_error:
-        st.error(f"❌ {vm_error}")
-
+    # Monta bolhas do histórico (pares user/assistant)
+    bubbles_html = ""
+    msgs = history[:-2] if (reply and len(history) >= 2) else history
+    for m in msgs:
+        txt = m["content"].replace("<","&lt;").replace(">","&gt;")
+        if m["role"] == "user":
+            bubbles_html += f'<div class="bubble user-bubble">{txt}</div>'
+        else:
+            bubbles_html += f'<div class="bubble ai-bubble">{txt}</div>'
+    # Adiciona o par mais recente
     if user_said:
-        st.markdown(f"""
-<div style="background:#0f1419;border:1px solid #1e2530;border-radius:12px;
-            padding:12px 16px;margin:8px 0;">
-  <div style="font-size:.65rem;color:#8b949e;text-transform:uppercase;
-              letter-spacing:1px;margin-bottom:6px;">Você disse</div>
-  <div style="color:#adbac7;font-size:.88rem;">{user_said}</div>
-</div>""", unsafe_allow_html=True)
-
+        txt_u = user_said.replace("<","&lt;").replace(">","&gt;")
+        bubbles_html += f'<div class="bubble user-bubble">{txt_u}</div>'
     if reply:
-        st.markdown(f"""
-<div style="background:#0f1419;border:1px solid rgba(240,165,0,.3);border-radius:12px;
-            padding:12px 16px;margin:8px 0;">
-  <div style="font-size:.65rem;color:#f0a500;text-transform:uppercase;
-              letter-spacing:1px;margin-bottom:6px;">Teacher Tati</div>
-  <div style="color:#e6edf3;font-size:.88rem;line-height:1.6;">{reply}</div>
-</div>""", unsafe_allow_html=True)
+        txt_r = reply.replace("<","&lt;").replace(">","&gt;")
+        bubbles_html += f'<div class="bubble ai-bubble">{txt_r}</div>'
+    if vm_error:
+        bubbles_html += f'<div class="bubble err-bubble">❌ {vm_error}</div>'
+    if is_processing:
+        bubbles_html += '<div class="bubble ai-bubble typing"><span></span><span></span><span></span></div>'
 
-        # Player de áudio TTS
-        if tts_b64 and not video_b64:
-            components.html(f"""<!DOCTYPE html><html><body style="margin:0;background:transparent;">
-<audio autoplay controls
-  style="width:100%;margin-top:4px;"
-  src="data:audio/mpeg;base64,{tts_b64}">
-</audio>
-</body></html>""", height=54)
+    components.html(f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<link rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&display=swap');
+*{{box-sizing:border-box;margin:0;padding:0;}}
+html,body{{
+  background:#080c12;font-family:'Sora',sans-serif;
+  color:#e6edf3;height:100vh;overflow:hidden;
+  display:flex;flex-direction:column;
+}}
+
+/* ── Layout principal ── */
+.vm-wrap{{
+  display:flex;flex-direction:column;
+  height:100vh;position:relative;
+  background:radial-gradient(ellipse at 50% 0%,rgba(240,165,0,.06) 0%,transparent 60%);
+}}
+
+/* ── Botão fechar ── */
+.close-btn{{
+  position:absolute;top:14px;left:16px;z-index:100;
+  background:rgba(255,255,255,.06);border:1px solid #2a3545;
+  color:#8b949e;border-radius:8px;padding:6px 14px;
+  font-size:.75rem;font-family:'Sora',sans-serif;cursor:pointer;
+  transition:all .2s;
+}}
+.close-btn:hover{{background:rgba(255,255,255,.12);color:#e6edf3;}}
+
+/* ── Avatar central ── */
+.avatar-section{{
+  display:flex;flex-direction:column;align-items:center;
+  padding-top:48px;gap:10px;flex-shrink:0;
+}}
+.avatar-ring{{
+  width:140px;height:140px;border-radius:50%;overflow:hidden;
+  box-shadow:0 0 0 3px rgba(240,165,0,.35),0 0 24px rgba(240,165,0,.15);
+  transition:box-shadow .4s;position:relative;
+}}
+.avatar-ring.speaking{{
+  animation:avpulse 1.1s ease-in-out infinite alternate;
+}}
+@keyframes avpulse{{
+  from{{box-shadow:0 0 0 3px rgba(240,165,0,.5),0 0 20px rgba(240,165,0,.2);}}
+  to  {{box-shadow:0 0 0 7px rgba(240,165,0,.9),0 0 55px rgba(240,165,0,.5);}}
+}}
+.avatar-ring img{{width:100%;height:100%;object-fit:cover;object-position:top;}}
+.avatar-ring .emoji{{
+  width:100%;height:100%;display:flex;align-items:center;
+  justify-content:center;font-size:60px;background:#0f1824;
+}}
+.av-name{{color:#f0a500;font-weight:700;font-size:.95rem;}}
+.av-status{{color:#8b949e;font-size:.72rem;min-height:18px;}}
+
+/* ── Área de mensagens ── */
+.messages{{
+  flex:1;overflow-y:auto;padding:16px 20px 12px;
+  display:flex;flex-direction:column;gap:10px;
+  scrollbar-width:thin;scrollbar-color:#1e2530 transparent;
+}}
+.messages::-webkit-scrollbar{{width:4px;}}
+.messages::-webkit-scrollbar-track{{background:transparent;}}
+.messages::-webkit-scrollbar-thumb{{background:#1e2530;border-radius:4px;}}
+
+.bubble{{
+  max-width:62%;padding:10px 14px;border-radius:18px;
+  font-size:.86rem;line-height:1.55;word-break:break-word;
+}}
+.user-bubble{{
+  align-self:flex-end;
+  background:#1c2a1e;border:1px solid #2a3f2c;
+  color:#c8d8ca;border-bottom-right-radius:4px;
+}}
+.ai-bubble{{
+  align-self:flex-start;
+  background:#0f1824;border:1px solid #1e2d40;
+  color:#e6edf3;border-bottom-left-radius:4px;
+}}
+.err-bubble{{
+  align-self:center;background:rgba(248,81,73,.1);
+  border:1px solid rgba(248,81,73,.3);color:#f85149;
+  border-radius:10px;font-size:.78rem;
+}}
+
+/* Typing dots */
+.typing{{display:flex;align-items:center;gap:5px;padding:12px 16px!important;}}
+.typing span{{
+  width:7px;height:7px;border-radius:50%;background:#f0a500;opacity:.4;
+  animation:tdot 1.1s ease-in-out infinite;
+}}
+.typing span:nth-child(2){{animation-delay:.18s;}}
+.typing span:nth-child(3){{animation-delay:.36s;}}
+@keyframes tdot{{
+  0%,80%,100%{{transform:scale(.7);opacity:.3;}}
+  40%{{transform:scale(1.1);opacity:1;}}
+}}
+
+/* ── Barra inferior ── */
+.bottom-bar{{
+  display:flex;align-items:center;justify-content:center;
+  padding:14px 24px 20px;gap:20px;flex-shrink:0;
+  border-top:1px solid #0f1419;
+}}
+.mic-icon-btn{{
+  width:58px;height:58px;border-radius:50%;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:22px;
+  background:linear-gradient(135deg,#3fb950,#2ea043);
+  box-shadow:0 0 20px rgba(63,185,80,.3);
+  color:#fff;transition:all .25s;
+}}
+.mic-icon-btn:hover{{transform:scale(1.08);}}
+.mic-icon-btn.recording{{
+  background:linear-gradient(135deg,#f85149,#c03030);
+  box-shadow:0 0 28px rgba(248,81,73,.5);
+  animation:micpulse .8s ease-in-out infinite alternate;
+}}
+.mic-icon-btn.processing{{
+  background:linear-gradient(135deg,#58a6ff,#1f6feb);
+  box-shadow:0 0 20px rgba(88,166,255,.3);
+  animation:none;cursor:default;
+}}
+@keyframes micpulse{{
+  from{{box-shadow:0 0 14px rgba(248,81,73,.3);}}
+  to  {{box-shadow:0 0 36px rgba(248,81,73,.8);}}
+}}
+.hint-text{{color:#2d3a4a;font-size:.65rem;text-align:center;}}
+</style>
+</head>
+<body>
+<div class="vm-wrap">
+
+  <!-- Fechar -->
+  <button class="close-btn" onclick="closeModeVoz()">
+    <i class="fa-solid fa-xmark"></i> Fechar
+  </button>
+
+  <!-- Avatar -->
+  <div class="avatar-section">
+    <div class="avatar-ring" id="avRing">
+      {"<img src='" + photo_src + "' alt='Tati'>" if photo_src else "<div class='emoji'>🧑‍🏫</div>"}
+    </div>
+    <div class="av-name">{PROF_NAME}</div>
+    <div class="av-status" id="avStatus">Toque no microfone para falar</div>
+  </div>
+
+  <!-- Mensagens -->
+  <div class="messages" id="messages">
+    {bubbles_html}
+  </div>
+
+  <!-- Barra inferior -->
+  <div class="bottom-bar">
+    <div>
+      <button class="mic-icon-btn" id="micBtn" onclick="toggleMic()">
+        <i class="fa-solid fa-microphone" id="micIcon"></i>
+      </button>
+      <div class="hint-text" id="hintText">Toque para gravar</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const TTS_B64    = {tts_js};
+const VIDEO_B64  = {video_js};
+const REPLY_TEXT = {reply_js};
+const USER_SAID  = {us_js};
+const VM_ERROR   = {err_js};
+const SPEECH_LANG= {sl_js};
+const PROF_NAME  = {pnm_js};
+
+// ── Scroll mensagens para baixo ───────────────────────────────────────────────
+const msgEl = document.getElementById('messages');
+function scrollBottom(){{ msgEl.scrollTop = msgEl.scrollHeight; }}
+scrollBottom();
+
+// ── Estado do avatar ──────────────────────────────────────────────────────────
+const avRing   = document.getElementById('avRing');
+const avStatus = document.getElementById('avStatus');
+const micBtn   = document.getElementById('micBtn');
+const micIcon  = document.getElementById('micIcon');
+const hintText = document.getElementById('hintText');
+
+function setAvatarState(state){{
+  avRing.classList.remove('speaking');
+  micBtn.classList.remove('recording','processing');
+  if(state==='speaking'){{
+    avRing.classList.add('speaking');
+    avStatus.textContent='🗣 Falando...';
+    micBtn.classList.add('processing');
+    micIcon.className='fa-solid fa-volume-high';
+    hintText.textContent='Aguarde...';
+  }} else if(state==='recording'){{
+    avStatus.textContent='🎙 Ouvindo...';
+    micBtn.classList.add('recording');
+    micIcon.className='fa-solid fa-stop';
+    hintText.textContent='Toque para parar';
+  }} else if(state==='processing'){{
+    avStatus.textContent='⏳ Processando...';
+    micBtn.classList.add('processing');
+    micIcon.className='fa-solid fa-spinner fa-spin';
+    hintText.textContent='Aguarde...';
+  }} else {{
+    avStatus.textContent='Toque no microfone para falar';
+    micIcon.className='fa-solid fa-microphone';
+    hintText.textContent='Toque para gravar';
+  }}
+}}
+
+// ── Tocar TTS automaticamente ─────────────────────────────────────────────────
+function playTTSAuto(b64, text){{
+  setAvatarState('speaking');
+  if(b64 && b64.length > 20){{
+    const audio = new Audio('data:audio/mpeg;base64,' + b64);
+    audio.onended = ()=>{{ setAvatarState('idle'); }};
+    audio.onerror = ()=>{{ fallbackSpeech(text); }};
+    audio.play().catch(()=>fallbackSpeech(text));
+  }} else {{
+    fallbackSpeech(text);
+  }}
+}}
+
+function fallbackSpeech(text){{
+  const u = new SpeechSynthesisUtterance((text||'').substring(0,500));
+  u.lang = SPEECH_LANG; u.rate = 0.95; u.pitch = 1.05;
+  speechSynthesis.getVoices();
+  setTimeout(()=>{{
+    const vv = speechSynthesis.getVoices();
+    const pick = vv.find(v=>v.lang===SPEECH_LANG)||vv.find(v=>v.lang.startsWith('en'));
+    if(pick) u.voice = pick;
+    u.onend = u.onerror = ()=>setAvatarState('idle');
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  }}, 100);
+}}
+
+// ── Acionar st.audio_input via parent ────────────────────────────────────────
+let isRecording = false;
+
+function triggerAudioInput(){{
+  // Clica no botão de gravar do st.audio_input que está oculto
+  const par = window.parent ? window.parent.document : document;
+  const btn = par.querySelector('[data-testid="stAudioInput"] button')
+           || par.querySelector('[data-testid="stAudioInputRecordButton"]')
+           || par.querySelector('button[title*="ecord"]')
+           || par.querySelector('button[aria-label*="ecord"]');
+  if(btn){{
+    btn.click();
+    return true;
+  }}
+  return false;
+}}
+
+function toggleMic(){{
+  if(micBtn.classList.contains('processing')) return;
+  if(!isRecording){{
+    isRecording = true;
+    setAvatarState('recording');
+    triggerAudioInput();
+  }} else {{
+    isRecording = false;
+    setAvatarState('processing');
+    triggerAudioInput(); // segundo clique para = e envia
+    hintText.textContent='Processando...';
+  }}
+}}
+
+// ── Fechar modo voz ───────────────────────────────────────────────────────────
+function closeModeVoz(){{
+  try{{ speechSynthesis.cancel(); }}catch(e){{}}
+  // Clica no botão "✕ Fechar Modo Voz" do Streamlit (está fora do iframe)
+  const par = window.parent ? window.parent.document : document;
+  const btns = Array.from(par.querySelectorAll('button'));
+  const closeBtn = btns.find(b=>b.textContent.includes('Fechar Modo Voz'));
+  if(closeBtn) closeBtn.click();
+}}
+
+// ── Auto-play quando há resposta nova ─────────────────────────────────────────
+window.addEventListener('load', ()=>{{
+  if(REPLY_TEXT && REPLY_TEXT.length > 1){{
+    playTTSAuto(TTS_B64, REPLY_TEXT);
+  }} else if(USER_SAID && USER_SAID.length > 1){{
+    setAvatarState('processing');
+  }}
+  scrollBottom();
+}});
+</script>
+</body></html>""", height=700, scrolling=False)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
