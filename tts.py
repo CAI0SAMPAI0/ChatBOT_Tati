@@ -22,7 +22,7 @@ ELEVEN_MODEL = "eleven_turbo_v2_5"
 # Domi   : AZnzlk1XvdvUeBnXmlld  (feminina, confiante)
 # Bella  : EXAVITQu4vr4xnSDxMaL  (feminina, jovem)
 # Elli   : MF3mGyEYCl7XYWbV9V6O  (feminina, emocional)
-DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel — feminina, suave
+DEFAULT_VOICE_ID = "EXAVITQu4vr4xnSDxMaL" 
 USAGE_THRESHOLD  = 0.80
 
 
