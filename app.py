@@ -1160,6 +1160,7 @@ def show_voice_mode() -> None:
     pnm_js    = json.dumps(PROF_NAME)
     sl_js     = json.dumps(speech_lang_val)
     is_dev_js = json.dumps(is_dev)
+    role_js   = json.dumps(user.get("role", "student"))
 
     components.html(f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
@@ -1257,6 +1258,7 @@ const PY_ERROR     = {err_js};
 const SPEECH_LANG  = {sl_js};
 const PROF_NAME    = {pnm_js};
 const IS_DEV       = {is_dev_js};
+const USER_ROLE    = {role_js};
 
 // ── Three.js Avatar ──────────────────────────────────────────────────────────
 const wrap = document.getElementById('avatarWrap');
@@ -1287,193 +1289,338 @@ const rimLight = new THREE.DirectionalLight(0xf0a500, 0.3);
 rimLight.position.set(0, -2, -3);
 scene.add(rimLight);
 
-// ── Materials ────────────────────────────────────────────────────────────────
-const skinMat  = new THREE.MeshToonMaterial({{color: 0xf5c5a3}});
-const darkMat  = new THREE.MeshToonMaterial({{color: 0x1a0a00}});
-const hairMat  = new THREE.MeshToonMaterial({{color: 0x3d1a00}});
-const eyeWMat  = new THREE.MeshToonMaterial({{color: 0xffffff}});
-const irisMat  = new THREE.MeshToonMaterial({{color: 0x3a2000}});
-const pupilMat = new THREE.MeshToonMaterial({{color: 0x000000}});
-const lipMat   = new THREE.MeshToonMaterial({{color: 0xc0605a}});
-const mouthMat = new THREE.MeshToonMaterial({{color: 0x1a0505}});
-const teethMat = new THREE.MeshToonMaterial({{color: 0xfaf8f5}});
-const blushMat = new THREE.MeshToonMaterial({{color: 0xf0a0a0, transparent:true, opacity:0.35}});
-const clothMat = new THREE.MeshToonMaterial({{color: 0x2a4a7f}});
-const collarMat= new THREE.MeshToonMaterial({{color: 0xffffff}});
-const neckMat  = new THREE.MeshToonMaterial({{color: 0xf0c098}});
+// ── Avatar builder ───────────────────────────────────────────────────────────
+// Builds a cartoon avatar based on role: 'professor' = female Teacher Tati
+// any other role = male student avatar
 
-// ── Head group ───────────────────────────────────────────────────────────────
-const head = new THREE.Group();
-scene.add(head);
+const isFemale = (USER_ROLE === 'professor');
 
-// Face
-const faceGeo = new THREE.SphereGeometry(1, 32, 32);
-faceGeo.scale(1, 1.12, 0.88);
-head.add(new THREE.Mesh(faceGeo, skinMat));
+function buildAvatar(female) {{
+  const g = new THREE.Group();
+  scene.add(g);
 
-// Jaw (slight chin definition)
-const jawGeo = new THREE.SphereGeometry(0.55, 16, 16);
-jawGeo.scale(1, 0.6, 0.85);
-const jaw = new THREE.Mesh(jawGeo, skinMat);
-jaw.position.set(0, -0.88, 0.1);
-head.add(jaw);
+  // ── Shared helpers ──────────────────────────────────────────────────────────
+  function mat(hex, opts={{}}) {{
+    return new THREE.MeshToonMaterial({{color: hex, ...opts}});
+  }}
 
-// Neck
-const neckGeo = new THREE.CylinderGeometry(0.28, 0.32, 0.55, 16);
-const neck = new THREE.Mesh(neckGeo, neckMat);
-neck.position.set(0, -1.52, 0);
-head.add(neck);
+  // ── Color palette ───────────────────────────────────────────────────────────
+  const skinColor   = female ? 0xf0d0b8 : 0x8b5c3a;
+  const hairColor   = female ? 0x3a2010 : 0x1a0d00;
+  const irisColor   = female ? 0x5a3a20 : 0x3a2810;
+  const lipColor    = female ? 0xc05060 : 0x8a5048;
+  const glassColor  = female ? 0x2a2a8a : 0xb0883a;
+  const shirtColor  = female ? 0xf0f0f0 : 0x101418;
+  const blushColor  = female ? 0xf0a0b0 : 0x7a3a2a;
+  const earringColor= female ? 0xb08040 : 0xd4a030;
 
-// Shoulders / body
-const shoulderGeo = new THREE.SphereGeometry(1, 16, 8);
-shoulderGeo.scale(1.6, 0.5, 0.7);
-const shoulders = new THREE.Mesh(shoulderGeo, clothMat);
-shoulders.position.set(0, -2.15, -0.1);
-head.add(shoulders);
+  const skinMat   = mat(skinColor);
+  const hairMat   = mat(hairColor);
+  const eyeWMat   = mat(0xffffff);
+  const irisMat   = mat(irisColor);
+  const pupilMat  = mat(0x0a0808);
+  const lipMat    = mat(lipColor);
+  const mouthMat  = mat(0x1a0505);
+  const teethMat  = mat(0xfaf8f5);
+  const blushMat  = mat(blushColor, {{transparent:true, opacity:0.3}});
+  const glassMat  = mat(glassColor);
+  const glassFrm  = mat(female ? 0x1a1a6a : 0x8a6828);
+  const shirtMat  = mat(shirtColor);
+  const darkMat   = mat(hairColor);
 
-// Collar
-const collarGeo = new THREE.TorusGeometry(0.32, 0.1, 8, 16);
-const collar = new THREE.Mesh(collarGeo, collarMat);
-collar.position.set(0, -1.78, 0.18);
-collar.rotation.x = 0.4;
-head.add(collar);
+  // ── HEAD ────────────────────────────────────────────────────────────────────
+  const head = new THREE.Group();
+  g.add(head);
 
-// ── Hair ─────────────────────────────────────────────────────────────────────
-const hairTop = new THREE.SphereGeometry(1.05, 32, 32);
-hairTop.scale(1, 0.7, 0.92);
-const hairTopMesh = new THREE.Mesh(hairTop, hairMat);
-hairTopMesh.position.set(0, 0.38, -0.04);
-head.add(hairTopMesh);
+  // Face shape — female rounder, male slightly squarer
+  const faceGeo = new THREE.SphereGeometry(1, 32, 32);
+  faceGeo.scale(female ? 1.0 : 1.05, female ? 1.1 : 1.08, 0.88);
+  head.add(new THREE.Mesh(faceGeo, skinMat));
 
-// Side hair
-[-1, 1].forEach(side => {{
-  const sideGeo = new THREE.SphereGeometry(0.55, 16, 16);
-  sideGeo.scale(0.55, 1.4, 0.5);
-  const sideMesh = new THREE.Mesh(sideGeo, hairMat);
-  sideMesh.position.set(side * 1.0, -0.4, -0.08);
-  head.add(sideMesh);
-}});
+  // Jaw
+  const jawGeo = new THREE.SphereGeometry(female ? 0.52 : 0.58, 16, 16);
+  jawGeo.scale(female ? 0.95 : 1.05, female ? 0.55 : 0.62, 0.85);
+  const jaw = new THREE.Mesh(jawGeo, skinMat);
+  jaw.position.set(0, -0.9, 0.08);
+  head.add(jaw);
 
-// Back hair (bun/ponytail suggestion)
-const backHair = new THREE.SphereGeometry(0.9, 16, 16);
-backHair.scale(0.95, 1.1, 0.6);
-const backMesh = new THREE.Mesh(backHair, hairMat);
-backMesh.position.set(0, -0.1, -0.82);
-head.add(backMesh);
+  // Neck
+  const neckGeo = new THREE.CylinderGeometry(
+    female ? 0.26 : 0.32, female ? 0.30 : 0.36, 0.5, 16);
+  const neck = new THREE.Mesh(neckGeo, skinMat);
+  neck.position.set(0, -1.5, 0);
+  head.add(neck);
 
-// ── Eyebrows ─────────────────────────────────────────────────────────────────
-[[-0.38, 1], [0.38, -1]].forEach(([x, flip]) => {{
-  const bGeo = new THREE.BoxGeometry(0.3, 0.045, 0.04);
-  const bMesh = new THREE.Mesh(bGeo, darkMat);
-  bMesh.position.set(x, 0.48, 0.86);
-  bMesh.rotation.z = flip * 0.08;
-  head.add(bMesh);
-}});
+  // Shoulders
+  const shGeo = new THREE.SphereGeometry(1, 16, 8);
+  shGeo.scale(female ? 1.5 : 1.7, 0.45, 0.65);
+  const shoulders = new THREE.Mesh(shGeo, shirtMat);
+  shoulders.position.set(0, -2.1, -0.1);
+  head.add(shoulders);
 
-// ── Eyes ─────────────────────────────────────────────────────────────────────
-const eyes = [];
-const eyelids = [];
-[-0.38, 0.38].forEach(x => {{
-  const eg = new THREE.Group();
-  eg.position.set(x, 0.25, 0.85);
-  head.add(eg);
+  // Collar / shirt detail
+  if (female) {{
+    // White blouse collar
+    const colGeo = new THREE.TorusGeometry(0.28, 0.09, 8, 16);
+    const col = new THREE.Mesh(colGeo, mat(0xffffff));
+    col.position.set(0, -1.72, 0.16);
+    col.rotation.x = 0.4;
+    head.add(col);
+  }} else {{
+    // Open shirt collar — two small panels
+    [[-0.18, 0.08], [0.18, -0.08]].forEach(([x, rz]) => {{
+      const panelGeo = new THREE.BoxGeometry(0.18, 0.3, 0.04);
+      const panel = new THREE.Mesh(panelGeo, mat(0x101418));
+      panel.position.set(x, -1.8, 0.25);
+      panel.rotation.z = rz;
+      head.add(panel);
+    }});
+    // Chain necklace (gold line)
+    const chainGeo = new THREE.TorusGeometry(0.3, 0.015, 6, 24);
+    const chain = new THREE.Mesh(chainGeo, mat(earringColor));
+    chain.position.set(0, -1.88, 0.1);
+    chain.rotation.x = 0.5;
+    head.add(chain);
+  }}
 
-  const white = new THREE.Mesh(new THREE.SphereGeometry(0.175, 16, 16), eyeWMat);
-  white.scale(1, 0.85, 0.6);
-  eg.add(white);
+  // ── HAIR ────────────────────────────────────────────────────────────────────
+  if (female) {{
+    // Short brown hair, slightly wavy — Teacher Tati style
+    const topGeo = new THREE.SphereGeometry(1.06, 32, 32);
+    topGeo.scale(1.0, 0.62, 0.9);
+    const topMesh = new THREE.Mesh(topGeo, hairMat);
+    topMesh.position.set(0, 0.42, -0.05);
+    head.add(topMesh);
 
-  const iris = new THREE.Mesh(new THREE.CircleGeometry(0.1, 16), irisMat);
-  iris.position.set(0, 0, 0.104);
-  eg.add(iris);
+    // Side wisps
+    [[-0.92, 0.08], [0.92, 0.08]].forEach(([x, z]) => {{
+      const sg = new THREE.SphereGeometry(0.38, 16, 16);
+      sg.scale(0.5, 1.1, 0.55);
+      const sm = new THREE.Mesh(sg, hairMat);
+      sm.position.set(x, -0.1, z);
+      head.add(sm);
+    }});
 
-  const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.055, 16), pupilMat);
-  pupil.position.set(0, 0, 0.106);
-  eg.add(pupil);
+    // Back
+    const bgeo = new THREE.SphereGeometry(0.88, 16, 16);
+    bgeo.scale(0.95, 1.05, 0.55);
+    const bm = new THREE.Mesh(bgeo, hairMat);
+    bm.position.set(0, -0.05, -0.85);
+    head.add(bm);
 
-  // Eyelid (for blinking)
-  const lidGeo = new THREE.SphereGeometry(0.185, 16, 8, 0, Math.PI*2, 0, Math.PI/2);
-  const lid = new THREE.Mesh(lidGeo, skinMat);
-  lid.position.set(0, 0.01, 0);
-  lid.rotation.x = -Math.PI;
-  lid.scale.set(1, 0.85, 0.62);
-  eg.add(lid);
-  eyelids.push(lid);
-  eyes.push(eg);
-}});
+  }} else {{
+    // Very short black hair — close-cropped
+    const topGeo = new THREE.SphereGeometry(1.04, 32, 32);
+    topGeo.scale(1.05, 0.45, 0.92);
+    const topMesh = new THREE.Mesh(topGeo, hairMat);
+    topMesh.position.set(0, 0.62, -0.04);
+    head.add(topMesh);
 
-// ── Nose ─────────────────────────────────────────────────────────────────────
-const noseGeo = new THREE.SphereGeometry(0.11, 8, 8);
-noseGeo.scale(1, 0.7, 1.1);
-const nose = new THREE.Mesh(noseGeo, skinMat);
-nose.position.set(0, -0.08, 0.93);
-head.add(nose);
+    // Temple sides — very thin
+    [-1, 1].forEach(side => {{
+      const sg = new THREE.SphereGeometry(0.3, 12, 12);
+      sg.scale(0.38, 0.9, 0.5);
+      const sm = new THREE.Mesh(sg, hairMat);
+      sm.position.set(side * 1.0, 0.1, -0.05);
+      head.add(sm);
+    }});
+  }}
 
-// ── Blush ────────────────────────────────────────────────────────────────────
-[-0.52, 0.52].forEach(x => {{
-  const bg = new THREE.CircleGeometry(0.2, 16);
-  const bm = new THREE.Mesh(bg, blushMat);
-  bm.position.set(x, 0.05, 0.87);
-  head.add(bm);
-}});
+  // ── EYEBROWS ────────────────────────────────────────────────────────────────
+  const browY = female ? 0.5 : 0.48;
+  [[-0.38, female ? 0.06 : 0.04], [0.38, female ? -0.06 : -0.04]].forEach(([x, rz]) => {{
+    const bg = new THREE.BoxGeometry(female ? 0.28 : 0.32, female ? 0.04 : 0.05, 0.04);
+    const bm = new THREE.Mesh(bg, darkMat);
+    bm.position.set(x, browY, 0.87);
+    bm.rotation.z = rz;
+    head.add(bm);
+  }});
 
-// ── Mouth group ──────────────────────────────────────────────────────────────
-const mouthGroup = new THREE.Group();
-mouthGroup.position.set(0, -0.38, 0.88);
-head.add(mouthGroup);
+  // ── EYES ────────────────────────────────────────────────────────────────────
+  const eyeGroups = [];
+  const eyelids = [];
+  [-0.37, 0.37].forEach(x => {{
+    const eg = new THREE.Group();
+    eg.position.set(x, 0.24, 0.86);
+    head.add(eg);
 
-// Upper lip
-const upperLip = new THREE.Mesh(
-  new THREE.TorusGeometry(0.18, 0.04, 8, 16, Math.PI),
-  lipMat
-);
-upperLip.rotation.x = -0.3;
-mouthGroup.add(upperLip);
+    const white = new THREE.Mesh(new THREE.SphereGeometry(0.165, 16, 16), eyeWMat);
+    white.scale(1, 0.82, 0.58);
+    eg.add(white);
 
-// Lower lip
-const lowerLip = new THREE.Mesh(
-  new THREE.TorusGeometry(0.19, 0.05, 8, 16, Math.PI),
-  lipMat
-);
-lowerLip.rotation.x = Math.PI + 0.3;
-lowerLip.position.y = -0.01;
-mouthGroup.add(lowerLip);
+    const iris = new THREE.Mesh(new THREE.CircleGeometry(0.095, 16), irisMat);
+    iris.position.set(0, 0, 0.096);
+    eg.add(iris);
 
-// Inner mouth (dark cavity — only visible when open)
-const innerMouth = new THREE.Mesh(
-  new THREE.SphereGeometry(0.14, 16, 8),
-  mouthMat
-);
-innerMouth.scale.set(1.1, 0.3, 0.7);
-innerMouth.position.set(0, -0.01, 0.02);
-innerMouth.visible = false;
-mouthGroup.add(innerMouth);
+    const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.052, 16), pupilMat);
+    pupil.position.set(0, 0, 0.098);
+    eg.add(pupil);
 
-// Upper teeth
-const upperTeeth = new THREE.Mesh(
-  new THREE.BoxGeometry(0.28, 0.06, 0.06),
-  teethMat
-);
-upperTeeth.position.set(0, 0.04, 0.06);
-upperTeeth.visible = false;
-mouthGroup.add(upperTeeth);
+    // Eye shine
+    const shine = new THREE.Mesh(new THREE.CircleGeometry(0.022, 8), mat(0xffffff));
+    shine.position.set(0.03, 0.03, 0.1);
+    eg.add(shine);
 
-// Lower teeth
-const lowerTeeth = new THREE.Mesh(
-  new THREE.BoxGeometry(0.24, 0.05, 0.05),
-  teethMat
-);
-lowerTeeth.position.set(0, -0.06, 0.06);
-lowerTeeth.visible = false;
-mouthGroup.add(lowerTeeth);
+    // Eyelid for blinking
+    const lidGeo = new THREE.SphereGeometry(0.175, 16, 8, 0, Math.PI*2, 0, Math.PI/2);
+    const lid = new THREE.Mesh(lidGeo, skinMat);
+    lid.position.set(0, 0.01, 0);
+    lid.rotation.x = -Math.PI;
+    lid.scale.set(1, 0.82, 0.6);
+    eg.add(lid);
+    eyelids.push(lid);
+    eyeGroups.push(eg);
+  }});
 
-// ── Earrings ─────────────────────────────────────────────────────────────────
-[-1.02, 1.02].forEach(x => {{
-  const earGeo = new THREE.SphereGeometry(0.07, 8, 8);
-  const earMesh = new THREE.Mesh(earGeo, new THREE.MeshToonMaterial({{color:0xf0a500}}));
-  earMesh.position.set(x, -0.3, 0);
-  head.add(earMesh);
-}});
+  // ── GLASSES ─────────────────────────────────────────────────────────────────
+  if (female) {{
+    // Cat-eye glasses — blue/purple thick frames
+    [-0.37, 0.37].forEach((x, i) => {{
+      // Frame shape — slightly angled cat-eye
+      const frameGeo = new THREE.TorusGeometry(0.22, 0.04, 8, 20);
+      frameGeo.scale(1, female ? 0.78 : 0.82, 0.3);
+      const frame = new THREE.Mesh(frameGeo, glassMat);
+      frame.position.set(x, 0.25, 0.86);
+      // Cat-eye: tilt outer corner up
+      frame.rotation.z = i === 0 ? 0.18 : -0.18;
+      head.add(frame);
+    }});
+    // Bridge
+    const bridgeGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.22, 8);
+    const bridge = new THREE.Mesh(bridgeGeo, glassMat);
+    bridge.rotation.z = Math.PI / 2;
+    bridge.position.set(0, 0.27, 0.9);
+    head.add(bridge);
+    // Temples
+    [-0.6, 0.6].forEach(x => {{
+      const tempGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.35, 8);
+      const temp = new THREE.Mesh(tempGeo, glassMat);
+      temp.rotation.z = Math.PI / 2;
+      temp.position.set(x * 0.88, 0.25, 0.7);
+      temp.rotation.y = x > 0 ? -0.5 : 0.5;
+      head.add(temp);
+    }});
+  }} else {{
+    // Thin rose-gold rectangular glasses
+    [-0.38, 0.38].forEach((x, i) => {{
+      const frameGeo = new THREE.TorusGeometry(0.19, 0.025, 6, 20);
+      frameGeo.scale(1.1, 0.72, 0.25);
+      const frame = new THREE.Mesh(frameGeo, glassFrm);
+      frame.position.set(x, 0.24, 0.88);
+      head.add(frame);
+    }});
+    // Bridge
+    const bGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.2, 6);
+    const bridge = new THREE.Mesh(bGeo, glassFrm);
+    bridge.rotation.z = Math.PI / 2;
+    bridge.position.set(0, 0.26, 0.92);
+    head.add(bridge);
+    // Temples
+    [-0.58, 0.58].forEach(x => {{
+      const tGeo = new THREE.CylinderGeometry(0.01, 0.01, 0.32, 6);
+      const temp = new THREE.Mesh(tGeo, glassFrm);
+      temp.rotation.z = Math.PI / 2;
+      temp.position.set(x * 0.86, 0.24, 0.72);
+      temp.rotation.y = x > 0 ? -0.45 : 0.45;
+      head.add(temp);
+    }});
+  }}
 
+  // ── NOSE ────────────────────────────────────────────────────────────────────
+  const noseGeo = new THREE.SphereGeometry(female ? 0.1 : 0.13, 8, 8);
+  noseGeo.scale(1, 0.7, 1.1);
+  const nose = new THREE.Mesh(noseGeo, skinMat);
+  nose.position.set(0, -0.07, 0.94);
+  head.add(nose);
+
+  // ── GOATEE (male only) ──────────────────────────────────────────────────────
+  if (!female) {{
+    // Light goatee/stubble under lip
+    const goateeGeo = new THREE.SphereGeometry(0.22, 12, 8);
+    goateeGeo.scale(0.9, 0.6, 0.5);
+    const goatee = new THREE.Mesh(goateeGeo, hairMat);
+    goatee.position.set(0, -0.62, 0.78);
+    head.add(goatee);
+    // Mustache area dots
+    const mustGeo = new THREE.SphereGeometry(0.28, 12, 8);
+    mustGeo.scale(1.1, 0.22, 0.4);
+    const must = new THREE.Mesh(mustGeo, mat(0x2a1a0a, {{transparent:true, opacity:0.4}}));
+    must.position.set(0, -0.33, 0.9);
+    head.add(must);
+  }}
+
+  // ── BLUSH ────────────────────────────────────────────────────────────────────
+  [-0.52, 0.52].forEach(x => {{
+    const bg = new THREE.CircleGeometry(female ? 0.18 : 0.14, 16);
+    const bm = new THREE.Mesh(bg, blushMat);
+    bm.position.set(x, 0.04, 0.88);
+    head.add(bm);
+  }});
+
+  // ── EARRINGS / EARS ──────────────────────────────────────────────────────────
+  [-1.0, 1.0].forEach(x => {{
+    if (female) {{
+      // Round drop earrings
+      const earGeo = new THREE.SphereGeometry(0.1, 8, 8);
+      const earMesh = new THREE.Mesh(earGeo, mat(earringColor));
+      earMesh.position.set(x, -0.35, 0);
+      head.add(earMesh);
+    }} else {{
+      // No earrings — just ear shape
+      const earGeo = new THREE.SphereGeometry(0.15, 8, 8);
+      earGeo.scale(0.4, 0.6, 0.4);
+      const earMesh = new THREE.Mesh(earGeo, skinMat);
+      earMesh.position.set(x * 1.0, 0.0, 0.0);
+      head.add(earMesh);
+    }}
+  }});
+
+  // ── MOUTH ────────────────────────────────────────────────────────────────────
+  const mouthGroup = new THREE.Group();
+  mouthGroup.position.set(0, female ? -0.36 : -0.38, 0.89);
+  head.add(mouthGroup);
+
+  const upperLip = new THREE.Mesh(
+    new THREE.TorusGeometry(female ? 0.17 : 0.19, female ? 0.038 : 0.042, 8, 16, Math.PI),
+    lipMat
+  );
+  upperLip.rotation.x = -0.3;
+  mouthGroup.add(upperLip);
+
+  const lowerLip = new THREE.Mesh(
+    new THREE.TorusGeometry(female ? 0.18 : 0.20, female ? 0.048 : 0.052, 8, 16, Math.PI),
+    lipMat
+  );
+  lowerLip.rotation.x = Math.PI + 0.3;
+  lowerLip.position.y = -0.01;
+  mouthGroup.add(lowerLip);
+
+  const innerMouth = new THREE.Mesh(
+    new THREE.SphereGeometry(0.13, 16, 8), mouthMat
+  );
+  innerMouth.scale.set(1.1, 0.28, 0.65);
+  innerMouth.position.set(0, -0.01, 0.02);
+  innerMouth.visible = false;
+  mouthGroup.add(innerMouth);
+
+  const upperTeeth = new THREE.Mesh(
+    new THREE.BoxGeometry(0.26, 0.055, 0.055), teethMat
+  );
+  upperTeeth.position.set(0, 0.035, 0.055);
+  upperTeeth.visible = false;
+  mouthGroup.add(upperTeeth);
+
+  const lowerTeeth = new THREE.Mesh(
+    new THREE.BoxGeometry(0.22, 0.045, 0.045), teethMat
+  );
+  lowerTeeth.position.set(0, -0.055, 0.055);
+  lowerTeeth.visible = false;
+  mouthGroup.add(lowerTeeth);
+
+  return {{ head, mouthGroup, lowerLip, upperLip, innerMouth, upperTeeth, lowerTeeth, eyelids }};
+}}
+
+const {{ head, mouthGroup, lowerLip, upperLip, innerMouth, upperTeeth, lowerTeeth, eyelids }} = buildAvatar(isFemale);
 // ── Animation state ──────────────────────────────────────────────────────────
 let mouthOpen   = 0;
 let mouthTarget = 0;
