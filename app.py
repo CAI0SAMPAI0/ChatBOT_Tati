@@ -1058,8 +1058,6 @@ def show_profile() -> None:
         st.markdown("### Aparência")
         col1, col2 = st.columns(2)
         with col1:
-            theme = st.selectbox(t("theme", ui_lang), ["dark", "light", "system"],
-                index=safe_index(["dark", "light", "system"], profile.get("theme", "dark")), key="pf_theme")
             lang  = st.selectbox(t("interface_lang", ui_lang), ["pt-BR", "en-US", "en-UK"],
                 index=safe_index(["pt-BR", "en-US", "en-UK"], profile.get("language", "pt-BR")), key="pf_lang")
         with col2:
@@ -1076,9 +1074,11 @@ def show_profile() -> None:
                 index=safe_index(["en-US", "en-UK", "pt-BR"], profile.get("speech_lang", "en-US")), key="pf_slang")
 
         if st.button(t("save_general", ui_lang), key="save_geral"):
-            update_profile(username, {"theme": theme, "language": lang,
+            update_profile(username, {"language": lang,
                 "accent_color": accent, "voice_lang": voice_lang, "speech_lang": speech_lang})
             u = load_students().get(username, {})
+            # Atualiza session_state para refletir cor imediatamente
+            st.session_state.user = {"username": username, **u}
             st.session_state.user = {"username": username, **u}
             st.success("✅ Configurações salvas!")
 
@@ -1789,10 +1789,24 @@ function toggleMic(){{
 // ── Fechar modo voz ───────────────────────────────────────────────────────────
 function closeModeVoz(){{
   try{{ speechSynthesis.cancel(); }}catch(e){{}}
-  // Clica no botão "✕ Fechar Modo Voz" do Streamlit (está fora do iframe)
+  stopMouthAnim();
+  // Clica no botão Streamlit com key="close_voice_inner"
   const par = window.parent ? window.parent.document : document;
-  const btns = Array.from(par.querySelectorAll('button'));
-  const closeBtn = btns.find(b=>b.textContent.includes('Fechar Modo Voz'));
+  // Tenta pelo data-testid key
+  let closeBtn = par.querySelector('[data-testid="stButton"][key="close_voice_inner"] button')
+               || par.querySelector('button[kind="secondary"]');
+  // Fallback: qualquer botão que contenha texto de fechar em qualquer idioma
+  if(!closeBtn){{
+    const btns = Array.from(par.querySelectorAll('button'));
+    closeBtn = btns.find(b=>{{
+      const txt = b.textContent.trim();
+      return txt.includes('Fechar') || txt.includes('Close') || txt.includes('close_voice');
+    }});
+  }}
+  // Último recurso: primeiro botão visível na página
+  if(!closeBtn){{
+    closeBtn = par.querySelector('button');
+  }}
   if(closeBtn) closeBtn.click();
 }}
 
