@@ -1394,7 +1394,8 @@ html,body{{
       <div class="wave"></div>
       <div class="wave"></div>
       <div class="avatar-ring">
-        {"<img src='" + photo_src + "' alt='Tati'>" if photo_src else "<div class='emoji'>🧑‍🏫</div>"}
+        <video id="tatiVideo" style="width:100%;height:100%;object-fit:cover;object-position:top;display:none;" playsinline></video>
+        {"<img id='tatiPhoto' src='" + photo_src + "' alt='Tati' style='width:100%;height:100%;object-fit:cover;object-position:top;'>" if photo_src else "<div id='tatiPhoto' class='emoji'>&#x1F9D1;&#x200D;&#x1F3EB;</div>"}
       </div>
     </div>
     <div class="av-name">{PROF_NAME}</div>
@@ -1465,10 +1466,29 @@ function setAvatarState(state){{
   }}
 }}
 
-// ── Tocar TTS automaticamente ─────────────────────────────────────────────────
+// ── Tocar TTS / Vídeo automaticamente ────────────────────────────────────────
+const tatiVideo = document.getElementById('tatiVideo');
+const tatiPhoto = document.getElementById('tatiPhoto');
+
+function showVideo(b64){{
+  tatiVideo.src = 'data:video/mp4;base64,' + b64;
+  tatiVideo.style.display = 'block';
+  if(tatiPhoto) tatiPhoto.style.display = 'none';
+  tatiVideo.onended = ()=>{{
+    tatiVideo.style.display = 'none';
+    if(tatiPhoto) tatiPhoto.style.display = '';
+    setAvatarState('idle');
+  }};
+  tatiVideo.play().catch(()=>{{ setAvatarState('idle'); }});
+}}
+
 function playTTSAuto(b64, text){{
   setAvatarState('speaking');
-  if(b64 && b64.length > 20){{
+  if(VIDEO_B64 && VIDEO_B64.length > 100){{
+    // Tem vídeo do SadTalker — usa ele (já tem áudio embutido)
+    showVideo(VIDEO_B64);
+  }} else if(b64 && b64.length > 20){{
+    // Sem vídeo — toca só o áudio TTS
     const audio = new Audio('data:audio/mpeg;base64,' + b64);
     audio.onended = ()=>{{ setAvatarState('idle'); }};
     audio.onerror = ()=>{{ fallbackSpeech(text); }};
