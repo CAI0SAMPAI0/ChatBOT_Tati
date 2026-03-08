@@ -3,3 +3,16 @@ data/conversations/caio_based/
 data/history/caio_based/
 __pycache__/
 appteste.py
+data/app.db
+data/avatars/
+data/conversations/
+data/history/
+data/generated/
+~/.cache/huggingface/
+faster_whisper_models/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.streamlit/secrets.toml
