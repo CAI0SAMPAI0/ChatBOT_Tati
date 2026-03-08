@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ══════════════════════════════════════════════════════════════════════════════
 # app.py — Teacher Tati · English Learning AI
 # Autor: Caio (programador) · Arquitetura: Streamlit + Claude + ElevenLabs TTS
@@ -1170,25 +1169,30 @@ def show_voice_mode() -> None:
        --accent:#f0a500;--accent2:#e05c2a;--text:#e6edf3;--muted:#8b949e;
        --green:#3fb950;--red:#f85149;--blue:#58a6ff;}}
 html,body{{background:var(--bg);font-family:'Sora',sans-serif;color:var(--text);height:100%;overflow:hidden;}}
-#three-canvas{{display:block;}}
 
 .vm{{display:flex;flex-direction:column;align-items:center;justify-content:center;
      height:100vh;gap:16px;padding:20px;
      background:radial-gradient(ellipse at 50% 25%,rgba(240,165,0,.07) 0%,transparent 60%);}}
 
 .avatar-wrap{{
-  position:relative;width:220px;height:220px;
+  position:relative;width:200px;height:200px;
   border-radius:50%;overflow:hidden;flex-shrink:0;
-  box-shadow:0 0 40px rgba(240,165,0,.2);
+  box-shadow:0 0 40px rgba(240,165,0,.15);
+}}
+.avatar-wrap canvas{{
+  position:absolute;top:0;left:0;width:100%;height:100%;border-radius:50%;
 }}
 
-/* Painel debug */
+/* Painel debug — visível apenas para o usuário 'programador' */
 #debug-panel{{
   position:fixed;top:10px;right:10px;
   background:rgba(10,16,24,.95);border:1px solid var(--accent);
   border-radius:10px;padding:12px 16px;font-size:.72rem;z-index:9999;
   min-width:220px;display:none;
 }}
+#debug-panel label{{color:var(--muted);display:block;margin-top:8px;}}
+#debug-panel input[type=range]{{width:100%;accent-color:var(--accent);margin-top:2px;}}
+#debug-panel .val{{color:var(--accent);font-family:monospace;}}
 #debug-toggle{{
   position:fixed;top:10px;right:10px;
   background:rgba(240,165,0,.15);border:1px solid var(--accent);
@@ -1223,15 +1227,41 @@ html,body{{background:var(--bg);font-family:'Sora',sans-serif;color:var(--text);
 @keyframes mpulse{{from{{box-shadow:0 0 14px rgba(248,81,73,.3);}}to{{box-shadow:0 0 32px rgba(248,81,73,.7);}}}}
 .hint{{font-size:.65rem;color:#2d3a4a;text-align:center;}}
 .err{{font-size:.74rem;color:var(--red);text-align:center;max-width:340px;min-height:18px;}}
-</style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-</head><body>
+</style></head><body>
 
-<button id="debug-toggle" onclick="toggleDebug()" style="display:none">⚙ Debug</button>
-<div id="debug-panel"></div>
+<button id="debug-toggle" onclick="toggleDebug()">⚙ Ajustar boca</button>
+
+<div id="debug-panel">
+  <div style="color:var(--accent);font-weight:700;margin-bottom:4px;">⚙ Posição da Boca</div>
+  <label>← → Horizontal (X): <span class="val" id="vx">0.50</span></label>
+  <input type="range" id="rx" min="0" max="1" step="0.01" value="0.50" oninput="updateParam('x',this.value)">
+  <label>↑ ↓ Vertical (Y): <span class="val" id="vy">0.54</span></label>
+  <input type="range" id="ry" min="0" max="1" step="0.01" value="0.54" oninput="updateParam('y',this.value)">
+  <label>↔ Largura (W): <span class="val" id="vw">0.08</span></label>
+  <input type="range" id="rw" min="0.02" max="0.4" step="0.01" value="0.08" oninput="updateParam('w',this.value)">
+  <label>↕ Altura max (H): <span class="val" id="vh">0.05</span></label>
+  <input type="range" id="rh" min="0.01" max="0.15" step="0.005" value="0.05" oninput="updateParam('h',this.value)">
+  <div style="margin-top:10px;padding:7px;background:rgba(240,165,0,.08);border-radius:6px;
+              font-family:monospace;font-size:.65rem;color:#aaa;line-height:1.6;">
+    Copie para o código:<br>
+    <span id="copy-vals" style="color:var(--accent);"></span>
+  </div>
+  <div style="margin-top:8px;display:flex;gap:6px;">
+    <button onclick="testMouth()" style="flex:1;padding:5px;background:rgba(240,165,0,.15);
+      border:1px solid var(--accent);border-radius:6px;color:var(--accent);cursor:pointer;font-size:.72rem;">
+      ▶ Testar
+    </button>
+    <button onclick="toggleMorphMode()" id="morphBtn" style="flex:1;padding:5px;background:rgba(88,166,255,.1);
+      border:1px solid var(--blue);border-radius:6px;color:var(--blue);cursor:pointer;font-size:.72rem;">
+      🖼 Modo: overlay
+    </button>
+  </div>
+</div>
 
 <div class="vm" id="vm">
-  <div class="avatar-wrap" id="avatarWrap"></div>
+  <div class="avatar-wrap" id="avatarWrap">
+    <canvas id="avatarCanvas" width="400" height="400"></canvas>
+  </div>
   <div class="info">
     <div class="prof-name">{PROF_NAME}</div>
     <div class="status" id="status">Clique no microfone para falar</div>
@@ -1250,6 +1280,7 @@ html,body{{background:var(--bg);font-family:'Sora',sans-serif;color:var(--text);
 </div>
 
 <script>
+// Dados vindos do Python (via session_state)
 const PY_USER_SAID = {us_js};
 const PY_REPLY     = {rep_js};
 const PY_TTS_B64   = {tts_js};
@@ -1258,307 +1289,203 @@ const SPEECH_LANG  = {sl_js};
 const PROF_NAME    = {pnm_js};
 const IS_DEV       = {is_dev_js};
 
-// ── Three.js Avatar ──────────────────────────────────────────────────────────
-const wrap = document.getElementById('avatarWrap');
-const W = 220, H = 220;
+// ── Imagens do avatar (3 estados de boca) ────────────────────────────────────
+const SRC_CLOSED = `{src_closed}`;
+const SRC_MID    = `{src_mid}`;
+const SRC_OPEN   = `{src_open}`;
+const HAS_MORPH  = (SRC_CLOSED !== SRC_MID); // true se tiver 3 imagens distintas
 
-const renderer = new THREE.WebGLRenderer({{antialias:true, alpha:true}});
-renderer.setSize(W, H);
-renderer.setPixelRatio(window.devicePixelRatio || 1);
-renderer.shadowMap.enabled = true;
-renderer.domElement.id = 'three-canvas';
-wrap.appendChild(renderer.domElement);
+function loadImg(src) {{
+  const img = new Image();
+  img.src = src;
+  return img;
+}}
+const imgClosed = loadImg(SRC_CLOSED);
+const imgMid    = loadImg(SRC_MID);
+const imgOpen   = loadImg(SRC_OPEN);
 
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, W/H, 0.1, 100);
-camera.position.set(0, 0.3, 4.2);
-camera.lookAt(0, 0.3, 0);
+// ── Parâmetros da boca (modo overlay — fallback sem 3 imagens) ───────────────
+let MOUTH = {{ x:0.50, y:0.54, w:0.08, h:0.05 }};
+let useMorphMode = HAS_MORPH;
 
-// Lighting
-const ambient = new THREE.AmbientLight(0xffeedd, 0.7);
-scene.add(ambient);
-const keyLight = new THREE.DirectionalLight(0xfff5e0, 1.2);
-keyLight.position.set(2, 4, 3);
-scene.add(keyLight);
-const fillLight = new THREE.DirectionalLight(0xe0eeff, 0.4);
-fillLight.position.set(-3, 1, 2);
-scene.add(fillLight);
-const rimLight = new THREE.DirectionalLight(0xf0a500, 0.3);
-rimLight.position.set(0, -2, -3);
-scene.add(rimLight);
+// ── Canvas ───────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('avatarCanvas');
+const ctx    = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
 
-// ── Materials ────────────────────────────────────────────────────────────────
-const skinMat  = new THREE.MeshToonMaterial({{color: 0xf5c5a3}});
-const darkMat  = new THREE.MeshToonMaterial({{color: 0x1a0a00}});
-const hairMat  = new THREE.MeshToonMaterial({{color: 0x3d1a00}});
-const eyeWMat  = new THREE.MeshToonMaterial({{color: 0xffffff}});
-const irisMat  = new THREE.MeshToonMaterial({{color: 0x3a2000}});
-const pupilMat = new THREE.MeshToonMaterial({{color: 0x000000}});
-const lipMat   = new THREE.MeshToonMaterial({{color: 0xc0605a}});
-const mouthMat = new THREE.MeshToonMaterial({{color: 0x1a0505}});
-const teethMat = new THREE.MeshToonMaterial({{color: 0xfaf8f5}});
-const blushMat = new THREE.MeshToonMaterial({{color: 0xf0a0a0, transparent:true, opacity:0.35}});
-const clothMat = new THREE.MeshToonMaterial({{color: 0x2a4a7f}});
-const collarMat= new THREE.MeshToonMaterial({{color: 0xffffff}});
-const neckMat  = new THREE.MeshToonMaterial({{color: 0xf0c098}});
+let mouthOpen   = 0;  // valor atual suavizado
+let mouthTarget = 0;  // valor alvo (0=fechado, 1=aberto)
 
-// ── Head group ───────────────────────────────────────────────────────────────
-const head = new THREE.Group();
-scene.add(head);
+// ── Estado das animações extras ──────────────────────────────────────────────
+let breathe    = 0;       // fase da respiração (0→2π em loop)
+let blinkAlpha = 0;       // opacidade do escurecimento do piscar
+let blinkTimer = null;
+let headTilt   = 0;       // rotação atual (graus, suavizada)
+let headTiltT  = 0;       // rotação alvo
 
-// Face
-const faceGeo = new THREE.SphereGeometry(1, 32, 32);
-faceGeo.scale(1, 1.12, 0.88);
-head.add(new THREE.Mesh(faceGeo, skinMat));
+// Região dos olhos (fração da imagem 0-1) — usada no piscar
+const EX1=0.25, EY1=0.28, EX2=0.75, EY2=0.48;
 
-// Jaw (slight chin definition)
-const jawGeo = new THREE.SphereGeometry(0.55, 16, 16);
-jawGeo.scale(1, 0.6, 0.85);
-const jaw = new THREE.Mesh(jawGeo, skinMat);
-jaw.position.set(0, -0.88, 0.1);
-head.add(jaw);
+// Agenda o próximo piscar aleatório entre 3-7s
+function scheduleBlink() {{
+  const delay = 3000 + Math.random() * 4000;
+  blinkTimer = setTimeout(() => {{
+    const closeDur = 80, openDur = 120;
+    let t0 = Date.now();
+    function closeAnim() {{
+      const p = Math.min((Date.now()-t0)/closeDur, 1);
+      blinkAlpha = p * 0.92;
+      if (p < 1) requestAnimationFrame(closeAnim);
+      else {{
+        let t1 = Date.now();
+        function openAnim() {{
+          const p2 = Math.min((Date.now()-t1)/openDur, 1);
+          blinkAlpha = (1-p2) * 0.92;
+          if (p2 < 1) requestAnimationFrame(openAnim);
+          else {{ blinkAlpha = 0; scheduleBlink(); }}
+        }}
+        requestAnimationFrame(openAnim);
+      }}
+    }}
+    requestAnimationFrame(closeAnim);
+  }}, delay);
+}}
+scheduleBlink();
 
-// Neck
-const neckGeo = new THREE.CylinderGeometry(0.28, 0.32, 0.55, 16);
-const neck = new THREE.Mesh(neckGeo, neckMat);
-neck.position.set(0, -1.52, 0);
-head.add(neck);
+// Loop principal de desenho — chamado por requestAnimationFrame
+function drawFrame() {{
+  ctx.clearRect(0, 0, W, H);
 
-// Shoulders / body
-const shoulderGeo = new THREE.SphereGeometry(1, 16, 8);
-shoulderGeo.scale(1.6, 0.5, 0.7);
-const shoulders = new THREE.Mesh(shoulderGeo, clothMat);
-shoulders.position.set(0, -2.15, -0.1);
-head.add(shoulders);
+  // Atualiza parâmetros de animação
+  breathe += 0.018;
+  const breatheScale = 1 + 0.008 * Math.sin(breathe);
 
-// Collar
-const collarGeo = new THREE.TorusGeometry(0.32, 0.1, 8, 16);
-const collar = new THREE.Mesh(collarGeo, collarMat);
-collar.position.set(0, -1.78, 0.18);
-collar.rotation.x = 0.4;
-head.add(collar);
+  // Inclinação: -3° ao ouvir, proporcional à boca ao falar
+  headTiltT = isRec ? -3 : (isSpeaking ? (mouthOpen - 0.3) * 6 : 0);
+  headTilt += (headTiltT - headTilt) * 0.06;
 
-// ── Hair ─────────────────────────────────────────────────────────────────────
-const hairTop = new THREE.SphereGeometry(1.05, 32, 32);
-hairTop.scale(1, 0.7, 0.92);
-const hairTopMesh = new THREE.Mesh(hairTop, hairMat);
-hairTopMesh.position.set(0, 0.38, -0.04);
-head.add(hairTopMesh);
+  // Aplica transformações: respira + inclina cabeça
+  ctx.save();
+  ctx.translate(W/2, H/2);
+  ctx.rotate(headTilt * Math.PI / 180);
+  ctx.scale(breatheScale, breatheScale);
+  ctx.translate(-W/2, -H/2);
 
-// Side hair
-[-1, 1].forEach(side => {{
-  const sideGeo = new THREE.SphereGeometry(0.55, 16, 16);
-  sideGeo.scale(0.55, 1.4, 0.5);
-  const sideMesh = new THREE.Mesh(sideGeo, hairMat);
-  sideMesh.position.set(side * 1.0, -0.4, -0.08);
-  head.add(sideMesh);
-}});
+  // Clip circular
+  ctx.beginPath();
+  ctx.arc(W/2, H/2, W/2, 0, Math.PI*2);
+  ctx.clip();
 
-// Back hair (bun/ponytail suggestion)
-const backHair = new THREE.SphereGeometry(0.9, 16, 16);
-backHair.scale(0.95, 1.1, 0.6);
-const backMesh = new THREE.Mesh(backHair, hairMat);
-backMesh.position.set(0, -0.1, -0.82);
-head.add(backMesh);
+  // Região da boca detectada por diff automático (fração 0-1 da imagem)
+  const MX1=0.328, MY1=0.468, MX2=0.873, MY2=1.000;
 
-// ── Eyebrows ─────────────────────────────────────────────────────────────────
-[[-0.38, 1], [0.38, -1]].forEach(([x, flip]) => {{
-  const bGeo = new THREE.BoxGeometry(0.3, 0.045, 0.04);
-  const bMesh = new THREE.Mesh(bGeo, darkMat);
-  bMesh.position.set(x, 0.48, 0.86);
-  bMesh.rotation.z = flip * 0.08;
-  head.add(bMesh);
-}});
+  if (useMorphMode && HAS_MORPH) {{
+    // Morph cirúrgico: base=closed, só a região da boca interpola entre closed→mid→open
+    const t  = mouthOpen;
+    const rx = MX1*W, ry = MY1*H;
+    const rw = (MX2-MX1)*W, rh = (MY2-MY1)*H;
 
-// ── Eyes ─────────────────────────────────────────────────────────────────────
-const eyes = [];
-const eyelids = [];
-[-0.38, 0.38].forEach(x => {{
-  const eg = new THREE.Group();
-  eg.position.set(x, 0.25, 0.85);
-  head.add(eg);
+    ctx.globalAlpha = 1;
+    ctx.drawImage(imgClosed, 0, 0, W, H); // base sempre fechada
 
-  const white = new THREE.Mesh(new THREE.SphereGeometry(0.175, 16, 16), eyeWMat);
-  white.scale(1, 0.85, 0.6);
-  eg.add(white);
+    if (t < 0.5) {{
+      // closed → mid
+      ctx.globalAlpha = t * 2;
+      ctx.drawImage(imgMid,
+        MX1*imgMid.naturalWidth,  MY1*imgMid.naturalHeight,
+        (MX2-MX1)*imgMid.naturalWidth, (MY2-MY1)*imgMid.naturalHeight,
+        rx, ry, rw, rh);
+    }} else {{
+      // mid → open: pinta mid primeiro, open por cima
+      ctx.globalAlpha = 1;
+      ctx.drawImage(imgMid,
+        MX1*imgMid.naturalWidth,  MY1*imgMid.naturalHeight,
+        (MX2-MX1)*imgMid.naturalWidth, (MY2-MY1)*imgMid.naturalHeight,
+        rx, ry, rw, rh);
+      ctx.globalAlpha = (t - 0.5) * 2;
+      ctx.drawImage(imgOpen,
+        MX1*imgOpen.naturalWidth,  MY1*imgOpen.naturalHeight,
+        (MX2-MX1)*imgOpen.naturalWidth, (MY2-MY1)*imgOpen.naturalHeight,
+        rx, ry, rw, rh);
+    }}
+    ctx.globalAlpha = 1;
 
-  const iris = new THREE.Mesh(new THREE.CircleGeometry(0.1, 16), irisMat);
-  iris.position.set(0, 0, 0.104);
-  eg.add(iris);
+  }} else {{
+    // Modo overlay: desenha boca vetorial sobre a imagem closed
+    ctx.drawImage(imgClosed, 0, 0, W, H);
+    ctx.restore(); ctx.save();
+    ctx.beginPath();
+    ctx.arc(W/2, H/2, W/2, 0, Math.PI*2);
+    ctx.clip();
 
-  const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.055, 16), pupilMat);
-  pupil.position.set(0, 0, 0.106);
-  eg.add(pupil);
-
-  // Eyelid (for blinking)
-  const lidGeo = new THREE.SphereGeometry(0.185, 16, 8, 0, Math.PI*2, 0, Math.PI/2);
-  const lid = new THREE.Mesh(lidGeo, skinMat);
-  lid.position.set(0, 0.01, 0);
-  lid.rotation.x = -Math.PI;
-  lid.scale.set(1, 0.85, 0.62);
-  eg.add(lid);
-  eyelids.push(lid);
-  eyes.push(eg);
-}});
-
-// ── Nose ─────────────────────────────────────────────────────────────────────
-const noseGeo = new THREE.SphereGeometry(0.11, 8, 8);
-noseGeo.scale(1, 0.7, 1.1);
-const nose = new THREE.Mesh(noseGeo, skinMat);
-nose.position.set(0, -0.08, 0.93);
-head.add(nose);
-
-// ── Blush ────────────────────────────────────────────────────────────────────
-[-0.52, 0.52].forEach(x => {{
-  const bg = new THREE.CircleGeometry(0.2, 16);
-  const bm = new THREE.Mesh(bg, blushMat);
-  bm.position.set(x, 0.05, 0.87);
-  head.add(bm);
-}});
-
-// ── Mouth group ──────────────────────────────────────────────────────────────
-const mouthGroup = new THREE.Group();
-mouthGroup.position.set(0, -0.38, 0.88);
-head.add(mouthGroup);
-
-// Upper lip
-const upperLip = new THREE.Mesh(
-  new THREE.TorusGeometry(0.18, 0.04, 8, 16, Math.PI),
-  lipMat
-);
-upperLip.rotation.x = -0.3;
-mouthGroup.add(upperLip);
-
-// Lower lip
-const lowerLip = new THREE.Mesh(
-  new THREE.TorusGeometry(0.19, 0.05, 8, 16, Math.PI),
-  lipMat
-);
-lowerLip.rotation.x = Math.PI + 0.3;
-lowerLip.position.y = -0.01;
-mouthGroup.add(lowerLip);
-
-// Inner mouth (dark cavity — only visible when open)
-const innerMouth = new THREE.Mesh(
-  new THREE.SphereGeometry(0.14, 16, 8),
-  mouthMat
-);
-innerMouth.scale.set(1.1, 0.3, 0.7);
-innerMouth.position.set(0, -0.01, 0.02);
-innerMouth.visible = false;
-mouthGroup.add(innerMouth);
-
-// Upper teeth
-const upperTeeth = new THREE.Mesh(
-  new THREE.BoxGeometry(0.28, 0.06, 0.06),
-  teethMat
-);
-upperTeeth.position.set(0, 0.04, 0.06);
-upperTeeth.visible = false;
-mouthGroup.add(upperTeeth);
-
-// Lower teeth
-const lowerTeeth = new THREE.Mesh(
-  new THREE.BoxGeometry(0.24, 0.05, 0.05),
-  teethMat
-);
-lowerTeeth.position.set(0, -0.06, 0.06);
-lowerTeeth.visible = false;
-mouthGroup.add(lowerTeeth);
-
-// ── Earrings ─────────────────────────────────────────────────────────────────
-[-1.02, 1.02].forEach(x => {{
-  const earGeo = new THREE.SphereGeometry(0.07, 8, 8);
-  const earMesh = new THREE.Mesh(earGeo, new THREE.MeshToonMaterial({{color:0xf0a500}}));
-  earMesh.position.set(x, -0.3, 0);
-  head.add(earMesh);
-}});
-
-// ── Animation state ──────────────────────────────────────────────────────────
-let mouthOpen   = 0;
-let mouthTarget = 0;
-let blinkT      = 0;
-let nextBlink   = 3 + Math.random() * 4;
-let breathe     = 0;
-let headTilt    = 0;
-let headTiltTarget = 0;
-let isRecording = false;
-let isSpeaking  = false;
-let clock = new THREE.Clock();
-
-function animateAvatar() {{
-  requestAnimationFrame(animateAvatar);
-  const dt = clock.getDelta();
-
-  breathe += dt;
-  head.position.y = Math.sin(breathe * 0.8) * 0.015;
-  const breathScale = 1 + Math.sin(breathe * 0.8) * 0.004;
-  head.scale.set(breathScale, breathScale, breathScale);
-
-  // Blink
-  blinkT += dt;
-  if (blinkT > nextBlink) {{
-    blinkT = 0;
-    nextBlink = 3 + Math.random() * 4;
-    let bt = 0;
-    const blinkAnim = setInterval(() => {{
-      bt += 0.05;
-      const v = bt < 0.5 ? bt * 2 : (1 - bt) * 2;
-      eyelids.forEach(lid => {{ lid.scale.y = 0.85 + v * 1.5; }});
-      if (bt >= 1) clearInterval(blinkAnim);
-    }}, 16);
+    if (mouthOpen > 0.015) {{
+      const mx = W * MOUTH.x, my = H * MOUTH.y;
+      const mw = W * MOUTH.w, mh = H * MOUTH.h * mouthOpen;
+      ctx.beginPath();
+      ctx.ellipse(mx, my, mw*0.82, Math.max(mh*0.85,1), 0, 0, Math.PI*2);
+      ctx.fillStyle = '#110505'; ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(mx-mw, my);
+      ctx.bezierCurveTo(mx-mw*.5, my-mh*1.5, mx+mw*.5, my-mh*1.5, mx+mw, my);
+      ctx.bezierCurveTo(mx+mw*.5, my-mh*.25, mx-mw*.5, my-mh*.25, mx-mw, my);
+      ctx.fillStyle='#a05555'; ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(mx-mw, my);
+      ctx.bezierCurveTo(mx-mw*.5, my+mh*1.7, mx+mw*.5, my+mh*1.7, mx+mw, my);
+      ctx.bezierCurveTo(mx+mw*.5, my+mh*.35, mx-mw*.5, my+mh*.35, mx-mw, my);
+      ctx.fillStyle='#b56565'; ctx.fill();
+    }}
   }}
 
-  // Head tilt
-  headTiltTarget = isRecording ? -0.04 : (isSpeaking ? mouthOpen * 0.06 : 0);
-  headTilt += (headTiltTarget - headTilt) * 0.05;
-  head.rotation.z = headTilt;
+  ctx.restore();
 
-  // Mouth open/close
-  mouthOpen += (mouthTarget - mouthOpen) * 0.12;
-
-  const open = mouthOpen;
-  lowerLip.position.y    = -open * 0.22;
-  lowerLip.rotation.x    = Math.PI + 0.3 + open * 0.4;
-  upperLip.rotation.x    = -0.3 - open * 0.15;
-  innerMouth.visible     = open > 0.08;
-  upperTeeth.visible     = open > 0.08;
-  lowerTeeth.visible     = open > 0.08;
-  if (open > 0.08) {{
-    innerMouth.scale.y   = 0.3 + open * 0.5;
-    lowerTeeth.position.y = -0.06 - open * 0.15;
-  }}
-
-  renderer.render(scene, camera);
+  // Suaviza abertura da boca (0.08 = velocidade de resposta)
+  mouthOpen += (mouthTarget - mouthOpen) * 0.08;
+  requestAnimationFrame(drawFrame);
 }}
 
-animateAvatar();
+imgClosed.onload  = () => drawFrame();
+imgClosed.onerror = () => drawFrame();
 
-// ── Audio lip sync ────────────────────────────────────────────────────────────
-let ttsAnalyser = null;
+// ── Painel de debug (apenas programador) ─────────────────────────────────────
+if (IS_DEV) document.getElementById('debug-toggle').style.display = 'block';
 
-function getTTSAmplitude() {{
-  if (!ttsAnalyser) return 0;
-  const d = new Uint8Array(ttsAnalyser.fftSize);
-  ttsAnalyser.getByteTimeDomainData(d);
-  let sum = 0;
-  for (let i = 0; i < d.length; i++) sum += Math.abs(d[i] - 128);
-  return Math.min(sum / d.length / 8, 1.0);
+function toggleDebug() {{
+  const p = document.getElementById('debug-panel');
+  p.style.display = p.style.display === 'block' ? 'none' : 'block';
+  updateCopyVals();
+  document.getElementById('morphBtn').textContent = '🖼 Modo: ' + (useMorphMode ? 'morph' : 'overlay');
+}}
+function updateParam(prop, val) {{
+  MOUTH[prop] = parseFloat(val);
+  document.getElementById('v'+prop).textContent = parseFloat(val).toFixed(2);
+  updateCopyVals();
+  mouthTarget = 0.7;
+  setTimeout(() => {{ mouthTarget = 0; }}, 700);
+}}
+function updateCopyVals() {{
+  document.getElementById('copy-vals').textContent =
+    `x:${{MOUTH.x.toFixed(2)}} y:${{MOUTH.y.toFixed(2)}} w:${{MOUTH.w.toFixed(2)}} h:${{MOUTH.h.toFixed(2)}}`;
+}}
+updateCopyVals();
+let testInterval = null;
+function testMouth() {{
+  let t=0; clearInterval(testInterval);
+  testInterval=setInterval(()=>{{ mouthTarget=0.3+0.6*Math.abs(Math.sin(t++*.4));
+    if(t>35){{clearInterval(testInterval);mouthTarget=0;}} }},80);
+}}
+function toggleMorphMode() {{
+  useMorphMode=!useMorphMode;
+  document.getElementById('morphBtn').textContent='🖼 Modo:'+(useMorphMode?'morph':'overlay');
 }}
 
-function updateMouthFromTTS() {{
-  if (!isSpeaking) {{ mouthTarget = 0; return; }}
-  mouthTarget = mouthTarget * 0.5 + getTTSAmplitude() * 0.5;
-  requestAnimationFrame(updateMouthFromTTS);
-}}
-
-// ── VAD + Recording ───────────────────────────────────────────────────────────
-const SILENCE_MS = 1500, MIN_DB = -42;
+// ── VAD (Voice Activity Detection) + gravação ─────────────────────────────────
+const SILENCE_MS=1500, MIN_DB=-42;
 let mediaRec=null,chunks=[],audioCtx=null,analyser=null,micStream=null;
-let vadActive=false,speechHit=false;
-let silTimer=null,silStart=null,curAudio=null;
+let isRec=false,isSpeaking=false,vadActive=false,speechHit=false;
+let silTimer=null,silStart=null,curAudio=null,ttsAnalyser=null;
 
-const statusEl = document.getElementById('status');
+const statusEl=document.getElementById('status');
 const tLabel=document.getElementById('tLabel'),tUser=document.getElementById('tUser');
 const tSep=document.getElementById('tSep'),tAi=document.getElementById('tAi');
 const tWait=document.getElementById('tWait');
@@ -1581,6 +1508,21 @@ function getMicRMS(){{
   analyser.getFloatTimeDomainData(d);
   let s=0; for(let i=0;i<d.length;i++) s+=d[i]*d[i];
   const r=Math.sqrt(s/d.length); return r>0?20*Math.log10(r):-100;
+}}
+
+function getTTSAmplitude(){{
+  if(!ttsAnalyser) return 0;
+  const d=new Uint8Array(ttsAnalyser.fftSize);
+  ttsAnalyser.getByteTimeDomainData(d);
+  let sum=0; for(let i=0;i<d.length;i++) sum+=Math.abs(d[i]-128);
+  return Math.min(sum/d.length/10, 1.0);
+}}
+
+function updateMouthFromTTS(){{
+  if(!isSpeaking){{mouthTarget=0;return;}}
+  const amp=getTTSAmplitude();
+  mouthTarget=mouthTarget*0.55+amp*0.45;
+  requestAnimationFrame(updateMouthFromTTS);
 }}
 
 function runVAD(){{
@@ -1610,7 +1552,7 @@ function animSil(){{
 }}
 
 async function startRec(){{
-  if(isRecording) return;
+  if(isRec) return;
   try{{micStream=await navigator.mediaDevices.getUserMedia({{audio:{{echoCancellation:true,noiseSuppression:true,sampleRate:16000}}}});}}
   catch(e){{showErr('Permissão de microfone negada.');return;}}
   audioCtx=new(window.AudioContext||window.webkitAudioContext)();
@@ -1624,7 +1566,7 @@ async function startRec(){{
   mediaRec.onstop=()=>uploadAudio(new Blob(chunks,{{type:mediaRec.mimeType||'audio/webm'}}));
   mediaRec.onerror=e=>{{showErr('Erro: '+e.error);resetToIdle();}};
   mediaRec.start(100);
-  isRecording=true;vadActive=true;speechHit=false;
+  isRec=true;vadActive=true;speechHit=false;
   micBtn.classList.add('active');micBtn.textContent='⏹';
   setStatus('Ouvindo...','s-listening');
   tWait.style.display='block';tWait.textContent='—';
@@ -1634,7 +1576,7 @@ async function startRec(){{
 }}
 
 function stopRec(){{
-  vadActive=false;isRecording=false;speechHit=false;
+  vadActive=false;isRec=false;speechHit=false;
   clearTimeout(silTimer);silStart=null;hideSil();
   if(mediaRec&&mediaRec.state!=='inactive')try{{mediaRec.stop();}}catch(e){{}}
   if(micStream)micStream.getTracks().forEach(t=>t.stop());micStream=null;
@@ -1712,21 +1654,21 @@ function fallbackTTS(text){{
   }},100);
 }}
 
+// Clique no microfone: para áudio imediatamente e alterna gravação
 micBtn.onclick=()=>{{
   if(curAudio){{curAudio.pause();curAudio=null;}}
   try{{speechSynthesis.cancel();}}catch(e){{}}
   isSpeaking=false;mouthTarget=0;ttsAnalyser=null;
-  if(isRecording) resetToIdle();
+  if(isRec) resetToIdle();
   else startRec();
 }};
 
+// Restaura estado ao carregar (resposta já disponível no session_state)
 window.addEventListener('load',()=>{{
   if(PY_ERROR&&PY_ERROR.length>1){{showErr(PY_ERROR);setStatus('Erro','');return;}}
   if(PY_REPLY&&PY_REPLY.length>1){{showTranscript(PY_USER_SAID,PY_REPLY);playTTS(PY_TTS_B64,PY_REPLY);return;}}
   if(PY_USER_SAID&&PY_USER_SAID.length>1) showTranscript(PY_USER_SAID,'');
 }});
-
-function toggleDebug(){{}}
 </script></body></html>""", height=720, scrolling=False)
 
 
