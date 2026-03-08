@@ -104,7 +104,7 @@ def authenticate(username: str, password: str) -> dict | None:
 
 
 def register_student(username, name, password, email="",
-                     level="False Beginner", focus="General Conversation"):
+                     level="Beginner", focus="General Conversation"):
     db = get_client()
     existing = db.table("users").select("username").eq("username", username).execute().data
     if existing:

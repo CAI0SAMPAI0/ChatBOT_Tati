@@ -44,6 +44,66 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# login lendo o cookie
+
+def _try_autologin_from_cookie() -> bool:
+    """
+    Tenta fazer login automático lendo o cookie pav_session do header HTTP.
+    Retorna True se o login foi restaurado com sucesso.
+
+    Requer Streamlit >= 1.31 (st.context.headers).
+    Funciona em todos os browsers, inclusive Safari e iOS.
+    """
+    if st.session_state.logged_in:
+        return True  # já logado
+
+    # Tenta ler os headers HTTP da requisição atual
+    try:
+        headers = st.context.headers
+        cookie_header = headers.get("Cookie", "") or headers.get("cookie", "")
+    except AttributeError:
+        # Streamlit < 1.31 — st.context não existe, usa fallback JS
+        return False
+
+    if not cookie_header:
+        return False
+
+    # Extrai pav_session do header Cookie
+    token = None
+    for part in cookie_header.split(";"):
+        part = part.strip()
+        if part.startswith("pav_session="):
+            import urllib.parse
+            token = urllib.parse.unquote(part.split("=", 1)[1].strip())
+            break
+
+    if not token or len(token) < 10:
+        return False
+
+    # Valida o token no banco
+    udata = validate_session(token)
+    if not udata:
+        return False
+
+    # Resolve o username
+    uname = udata.get("_resolved_username")
+    if not uname:
+        students = load_students()
+        uname = next(
+            (k for k, v in students.items() if v.get("password") == udata.get("password")),
+            None
+        )
+    if not uname:
+        return False
+
+    # Restaura a sessão
+    st.session_state.logged_in         = True
+    st.session_state.user              = {"username": uname, **udata}
+    st.session_state.page              = "dashboard" if udata.get("role") == "professor" else "chat"
+    st.session_state.conv_id           = None
+    st.session_state["_session_token"] = token
+    return True
+
 # ── Inicialização do banco de dados (SQLite) ──────────────────────────────────
 init_db()
 
@@ -440,10 +500,10 @@ def js_save_session(token: str) -> None:
         f"""<!DOCTYPE html><html><body><script>
         (function() {{
             var token = '{token}';
-            var maxAge = 60 * 60 * 24 * 30;
+            var maxAge = 60 * 60 * 24 * 365;
             try {{
                 window.parent.document.cookie = 'pav_session=' + encodeURIComponent(token)
-                    + ';max-age=' + maxAge + ';path=/;SameSite=Lax';
+                    + ';max-age=' + maxAge + ';path=/;SameSite=None;Secure';
             }} catch(e) {{}}
             try {{ window.parent.localStorage.setItem('pav_session', token); }} catch(e) {{}}
             try {{ localStorage.setItem('pav_session', token); }} catch(e) {{}}
@@ -2508,6 +2568,11 @@ def show_dashboard() -> None:
 # ROTEADOR PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Tenta auto-login via cookie HTTP antes de qualquer render
+if not st.session_state.logged_in:
+    _try_autologin_from_cookie()
+
+# Roteador principal
 if not st.session_state.logged_in:
     show_login()
 elif st.session_state.page == "profile":
