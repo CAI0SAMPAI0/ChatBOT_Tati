@@ -1752,55 +1752,87 @@ def show_chat() -> None:
                     _logout(); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── CSS do chat estilo ChatGPT ────────────────────────────────────────────
+    # ── CSS do chat ───────────────────────────────────────────────────────────
     st.markdown("""<style>
 [data-testid="stChatInput"] textarea {
-    max-height: 120px !important; min-height: 44px !important; font-size: .88rem !important;
+    max-height: 120px !important;
+    min-height: 44px !important;
+    font-size: .88rem !important;
+    padding-right: 90px !important;
 }
 [data-testid="stChatInputContainer"] { padding: 6px 10px !important; }
 .main .block-container { padding-bottom: 80px !important; }
 section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
 
-/* Mensagens estilo ChatGPT */
-.msg-row { display:flex; align-items:flex-end; gap:10px; margin:6px 0; }
-.msg-row.user-row { flex-direction:row-reverse; }
-.msg-row.bot-row  { flex-direction:row; }
+/* ── Linhas de mensagem ── */
+.msg-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin: 4px 0;
+    width: 100%;
+}
+/* Usuário: SEMPRE à direita, independente do tamanho */
+.msg-row.user-row {
+    flex-direction: row;
+    justify-content: flex-end;
+}
+/* IA: SEMPRE à esquerda */
+.msg-row.bot-row {
+    flex-direction: row;
+    justify-content: flex-start;
+}
 
+/* ── Bolhas ── */
 .msg-bubble {
-    max-width: 68%; padding: 10px 15px; border-radius: 18px;
-    font-size: .88rem; line-height: 1.6; word-break: break-word;
+    max-width: 68%;
+    min-width: 48px;
+    padding: 9px 14px;
+    border-radius: 18px;
+    font-size: .88rem;
+    line-height: 1.6;
+    word-break: break-word;
+    white-space: pre-wrap;
 }
 .msg-bubble.user {
-    background: #2d6a4f; color: #d8f3dc;
+    background: #1a3a22;
+    color: #c8e6d0;
+    border: 1px solid #2a5c36;
     border-bottom-right-radius: 4px;
+    text-align: left;
 }
 .msg-bubble.bot {
-    background: #1a1f2e; color: #e6edf3;
-    border: 1px solid #252d3d;
+    background: #131b28;
+    color: #e6edf3;
+    border: 1px solid #1e2d40;
     border-bottom-left-radius: 4px;
 }
 .msg-bubble.audio-msg { font-style: italic; opacity: .85; }
 
+/* ── Mini-avatares ── */
 .msg-av {
-    width: 30px; height: 30px; border-radius: 50%;
-    overflow: hidden; flex-shrink: 0; margin-bottom: 2px;
+    width: 30px; height: 30px;
+    border-radius: 50%; overflow: hidden;
+    flex-shrink: 0; margin-bottom: 2px;
 }
 .msg-av img { width:100%; height:100%; object-fit:cover; object-position:top; }
 .msg-av .av-emoji {
-    width:100%; height:100%; background:#1e2a3a;
-    display:flex; align-items:center; justify-content:center; font-size:14px;
+    width:100%; height:100%;
+    background:#1e2a3a;
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px;
 }
-.msg-time {
-    font-size: .6rem; color: #4a5a6a;
-    margin: 2px 4px 0; text-align: right;
-}
-.bot-row .msg-time { text-align: left; }
+
+/* ── Timestamps ── */
+.msg-time { font-size:.6rem; color:#4a5a6a; margin-top:2px; }
+.user-row .msg-time { text-align:right; }
+.bot-row  .msg-time { text-align:left; margin-left:38px; }
 
 @media (max-width: 768px) {
-    .msg-bubble { max-width: 88% !important; font-size: .82rem !important; }
+    .msg-bubble { max-width:86% !important; font-size:.82rem !important; }
 }
 @media (max-width: 480px) {
-    .msg-bubble { max-width: 94% !important; }
+    .msg-bubble { max-width:94% !important; }
 }
 </style>""", unsafe_allow_html=True)
 
@@ -1897,12 +1929,15 @@ html,body{{background:transparent;overflow:hidden;}}
         else:
             is_audio = msg.get("audio", False)
             extra    = " audio-msg" if is_audio else ""
+            uav_html = user_avatar_html(username, size=30, fallback_emoji="🎓")
             st.markdown(
                 f'<div class="msg-row user-row">'
-                f'<div>'
+                f'<div style="display:flex;flex-direction:column;align-items:flex-end;">'
                 f'<div class="msg-bubble user{extra}">{content}</div>'
                 f'<div class="msg-time">{t}</div>'
-                f'</div></div>',
+                f'</div>'
+                f'{uav_html}'
+                f'</div>',
                 unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -2004,77 +2039,150 @@ html,body{{background:transparent;overflow:hidden;}}
         st.session_state.staged_file_name = uploaded.name
         st.rerun()
 
-    # ── JS: move botão de clipe para dentro da chat bar ──────────────────────
-    components.html("""<!DOCTYPE html><html><body>
-<script>
-function pavMoveToChatBar() {
-  const parent = window.parent ? window.parent.document : document;
-  const chatInputContainer = parent.querySelector('[data-testid="stChatInput"]');
-  if (!chatInputContainer) return;
-  if (chatInputContainer.querySelector('.pav-extras')) return;
+    # ── JS: injeta clipe + microfone na chat bar ─────────────────────────────
+    components.html("""<!DOCTYPE html><html><head>
+<link rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head><body><script>
+(function() {
 
-  const extras = parent.createElement('div');
+function injectButtons() {
+  var par = window.parent ? window.parent.document : document;
+  var chatBar = par.querySelector('[data-testid="stChatInput"]');
+  if (!chatBar || chatBar.querySelector('.pav-extras')) return;
+
+  // Container posicionado dentro da chat bar
+  var extras = par.createElement('div');
   extras.className = 'pav-extras';
+  Object.assign(extras.style, {
+    position: 'absolute',
+    right: '52px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    display: 'flex',
+    gap: '4px',
+    alignItems: 'center',
+    zIndex: '9999'
+  });
 
-  const ab = parent.createElement('button');
-  ab.className = 'pav-icon-btn';
-  ab.title = 'Anexar arquivo';
-  ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
-  ab.onclick = () => {
-    const fw = parent.querySelector('[data-testid="stFileUploader"]');
+  function makeBtn(icon, title, hoverColor) {
+    var btn = par.createElement('button');
+    btn.title     = title;
+    btn.innerHTML = '<i class="fa-solid fa-' + icon + '"></i>';
+    Object.assign(btn.style, {
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      color: '#6e7681',
+      fontSize: '16px',
+      width: '30px',
+      height: '30px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: '50%',
+      transition: 'color .15s, background .15s',
+      flexShrink: '0',
+      padding: '0'
+    });
+    btn._active = false;
+    btn.onmouseover = function() {
+      if (!btn._active) {
+        btn.style.color = hoverColor;
+        btn.style.background = 'rgba(255,255,255,.07)';
+      }
+    };
+    btn.onmouseout = function() {
+      if (!btn._active) {
+        btn.style.color = '#6e7681';
+        btn.style.background = 'none';
+      }
+    };
+    return btn;
+  }
+
+  // ── Botão clipe ────────────────────────────────────────────────────────
+  var clipBtn = makeBtn('paperclip', 'Anexar arquivo', '#f0a500');
+  clipBtn.onclick = function() {
+    var fw = par.querySelector('[data-testid="stFileUploader"]');
     if (fw) {
-      const fileInput = fw.querySelector('input[type="file"]');
-      if (fileInput) fileInput.click();
+      var fi = fw.querySelector('input[type="file"]');
+      if (fi) fi.click();
     }
   };
 
-  extras.appendChild(ab);
-  const chatInner = chatInputContainer.querySelector('div');
-  if (chatInner) chatInner.style.position = 'relative';
-  chatInputContainer.appendChild(extras);
+  // ── Botão microfone ────────────────────────────────────────────────────
+  var micBtn = makeBtn('microphone', 'Gravar áudio', '#58a6ff');
 
-  const fw = parent.querySelector('[data-testid="stFileUploader"]');
+  function findNativeMic() {
+    return par.querySelector('[data-testid="stAudioInput"] button') ||
+           par.querySelector('[data-testid="stAudioInputRecordButton"]') ||
+           Array.from(par.querySelectorAll('button')).find(function(b) {
+             var lbl = (b.getAttribute('aria-label') || '').toLowerCase();
+             return lbl.includes('record') || lbl.includes('grav');
+           });
+  }
+
+  function setMicState(active) {
+    micBtn._active = active;
+    if (active) {
+      micBtn.innerHTML = '<i class="fa-solid fa-stop"></i>';
+      micBtn.style.color = '#f85149';
+      micBtn.style.background = 'rgba(248,81,73,.14)';
+    } else {
+      micBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+      micBtn.style.color = '#6e7681';
+      micBtn.style.background = 'none';
+    }
+  }
+
+  micBtn.onclick = function() {
+    var nb = findNativeMic();
+    if (!nb) { console.warn('[PAV] botão nativo de mic não encontrado'); return; }
+    nb.click();
+    setMicState(!micBtn._active);
+  };
+
+  // Sincroniza estado quando gravação termina pelo nativo
+  var obs = new MutationObserver(function() {
+    var nb = findNativeMic();
+    if (!nb) return;
+    var lbl = (nb.getAttribute('aria-label') || nb.textContent || '').toLowerCase();
+    var isRecording = lbl.includes('stop') || lbl.includes('parar');
+    if (micBtn._active && !isRecording) setMicState(false);
+  });
+  obs.observe(par.body, {
+    subtree: true, attributes: true,
+    attributeFilter: ['aria-label', 'class']
+  });
+
+  extras.appendChild(clipBtn);
+  extras.appendChild(micBtn);
+
+  chatBar.style.position = 'relative';
+  chatBar.appendChild(extras);
+
+  // Esconde file uploader nativo fora da tela
+  var fw = par.querySelector('[data-testid="stFileUploader"]');
   if (fw) {
-    fw.style.cssText = 'position:fixed!important;bottom:-999px!important;left:-9999px!important;opacity:0!important;width:1px!important;height:1px!important;pointer-events:none!important;';
-    const fi = fw.querySelector('input[type="file"]');
+    fw.style.cssText = 'position:fixed!important;top:-9999px!important;left:-9999px!important;opacity:0!important;width:1px!important;height:1px!important;pointer-events:none!important;';
+    var fi = fw.querySelector('input[type="file"]');
     if (fi) fi.style.pointerEvents = 'auto';
+  }
+
+  // Minimiza audio input nativo mas mantém o botão interno clicável
+  var ai = par.querySelector('[data-testid="stAudioInput"]');
+  if (ai) {
+    ai.style.cssText = 'position:fixed!important;bottom:-400px!important;left:0!important;opacity:0!important;pointer-events:none!important;width:1px!important;height:1px!important;';
+    var nb = ai.querySelector('button');
+    if (nb) nb.style.pointerEvents = 'auto';
   }
 }
 
-function pavFixAudioInput() {
-  const par = window.parent ? window.parent.document : document;
-  const ai  = par.querySelector('[data-testid="stAudioInput"]');
-  const ci  = par.querySelector('[data-testid="stChatInput"]');
-  if (!ai || !ci) return;
+// Tenta injetar em loop (re-injeta após reruns do Streamlit)
+setInterval(injectButtons, 800);
 
-  const rect = ci.getBoundingClientRect();
-  ai.style.cssText = `
-    position: fixed !important;
-    bottom: ${window.parent.innerHeight - rect.top + 42}px !important;
-    left: ${rect.left}px !important;
-    width: ${rect.width}px !important;
-    z-index: 99 !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    height: 52px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    box-shadow: none !important;
-  `;
-  const inners = ai.querySelectorAll('div');
-  inners.forEach(d => {
-      d.style.background = 'transparent';
-      d.style.border = 'none';
-      d.style.boxShadow = 'none';
-  });
-  const lbl = ai.querySelector('label');
-  if (lbl) lbl.style.display = 'none';
-}
-
-setInterval(pavMoveToChatBar, 1000);
-setInterval(pavFixAudioInput, 500);
+})();
 </script>
 </body></html>""", height=1)
 
