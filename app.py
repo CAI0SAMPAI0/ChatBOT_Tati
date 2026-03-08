@@ -905,6 +905,8 @@ def show_login() -> None:
     })();
     </script></body></html>""", height=60)
 
+    st.write("query_params:", dict(st.query_params))
+
     params = st.query_params
     if "_token" in params:
         token = params["_token"]
@@ -2592,6 +2594,7 @@ def show_dashboard() -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 if not st.session_state.logged_in:
+    st.write("DEBUG token na URL:", "_token" in st.query_params)
     _qp = st.query_params
     if "_token" in _qp:
         _token = _qp["_token"]
