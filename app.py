@@ -44,65 +44,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# login lendo o cookie
 
-def _try_autologin_from_cookie() -> bool:
-    """
-    Tenta fazer login automático lendo o cookie pav_session do header HTTP.
-    Retorna True se o login foi restaurado com sucesso.
-
-    Requer Streamlit >= 1.31 (st.context.headers).
-    Funciona em todos os browsers, inclusive Safari e iOS.
-    """
-    if st.session_state.logged_in:
-        return True  # já logado
-
-    # Tenta ler os headers HTTP da requisição atual
-    try:
-        headers = st.context.headers
-        cookie_header = headers.get("Cookie", "") or headers.get("cookie", "")
-    except AttributeError:
-        # Streamlit < 1.31 — st.context não existe, usa fallback JS
-        return False
-
-    if not cookie_header:
-        return False
-
-    # Extrai pav_session do header Cookie
-    token = None
-    for part in cookie_header.split(";"):
-        part = part.strip()
-        if part.startswith("pav_session="):
-            import urllib.parse
-            token = urllib.parse.unquote(part.split("=", 1)[1].strip())
-            break
-
-    if not token or len(token) < 10:
-        return False
-
-    # Valida o token no banco
-    udata = validate_session(token)
-    if not udata:
-        return False
-
-    # Resolve o username
-    uname = udata.get("_resolved_username")
-    if not uname:
-        students = load_students()
-        uname = next(
-            (k for k, v in students.items() if v.get("password") == udata.get("password")),
-            None
-        )
-    if not uname:
-        return False
-
-    # Restaura a sessão
-    st.session_state.logged_in         = True
-    st.session_state.user              = {"username": uname, **udata}
-    st.session_state.page              = "dashboard" if udata.get("role") == "professor" else "chat"
-    st.session_state.conv_id           = None
-    st.session_state["_session_token"] = token
-    return True
 
 # ── Inicialização do banco de dados (SQLite) ──────────────────────────────────
 init_db()
@@ -486,62 +428,57 @@ for k, v in _defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
+_session_token = st.session_state.get("_session_token", "")
+if _session_token and st.session_state.logged_in:
+    # Mantém o token na URL para que o reload funcione
+    if st.query_params.get("s") != _session_token:
+        st.query_params["s"] = _session_token
+
+if not st.session_state.logged_in:
+    _s = st.query_params.get("s", "")
+    if _s and len(_s) > 10:
+        _udata = validate_session(_s)
+        if _udata:
+            _uname = _udata.get("_resolved_username") or next(
+                (k for k, v in load_students().items() if v["password"] == _udata["password"]),
+                None
+            )
+            if _uname:
+                st.session_state.logged_in         = True
+                st.session_state.user              = {"username": _uname, **_udata}
+                st.session_state.page              = "dashboard" if _udata["role"] == "professor" else "chat"
+                st.session_state.conv_id           = None
+                st.session_state["_session_token"] = _s
+        else:
+            # Token inválido — limpa
+            st.query_params.pop("s", None)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SESSÃO PERSISTENTE — funções de salvar/limpar no localStorage
 # ══════════════════════════════════════════════════════════════════════════════
 
 def js_save_session(token: str) -> None:
-    """
-    Salva o token no localStorage usando iframe de height=60.
-    Height=1 é ignorado no Streamlit Cloud — 60 garante execução do JS.
-    O iframe é visualmente ocultado via CSS (overflow:hidden, opacity:0).
-    """
-    # CSS para esconder o iframe sem usar height=0/1
-    st.markdown("""<style>
-    iframe[title="st.iframe"] { height: 0 !important; }
-    div[data-testid="stCustomComponentV1"] { height: 0 !important; min-height: 0 !important; }
-    </style>""", unsafe_allow_html=True)
-
+    """Salva token no localStorage como fallback (fechar e reabrir browser)."""
     components.html(
         f"""<!DOCTYPE html><html><body><script>
         (function() {{
-            var token = '{token}';
-            var maxAge = 60 * 60 * 24 * 90; // 90 dias
-            // Cookie com SameSite=None;Secure para funcionar em iframe
-            var cookieStr = 'pav_session=' + encodeURIComponent(token)
-                + ';max-age=' + maxAge + ';path=/;SameSite=None;Secure';
-            try {{
-                window.parent.document.cookie = cookieStr;
-            }} catch(e) {{}}
-            try {{ document.cookie = cookieStr; }} catch(e) {{}}
-            // localStorage — tenta no parent e no próprio iframe
-            try {{ window.parent.localStorage.setItem('pav_session', token); }} catch(e) {{}}
-            try {{ localStorage.setItem('pav_session', token); }} catch(e) {{}}
-            // Também salva na sessionStorage como fallback
-            try {{ window.parent.sessionStorage.setItem('pav_session', token); }} catch(e) {{}}
-            try {{ sessionStorage.setItem('pav_session', token); }} catch(e) {{}}
+            var t = '{token}';
+            try {{ window.parent.localStorage.setItem('pav_session', t); }} catch(e) {{}}
+            try {{ localStorage.setItem('pav_session', t); }} catch(e) {{}}
         }})();
         </script></body></html>""",
         height=60,
     )
 
-
 def js_clear_session() -> None:
-    """Remove o token de sessão de cookie e localStorage."""
     components.html(
         """<!DOCTYPE html><html><body><script>
         (function() {
-            try {
-                window.parent.document.cookie = 'pav_session=;max-age=0;path=/;SameSite=Lax';
-            } catch(e) {}
             try { window.parent.localStorage.removeItem('pav_session'); } catch(e) {}
-            try { window.parent.localStorage.removeItem('pav_user'); } catch(e) {}
             try { localStorage.removeItem('pav_session'); } catch(e) {}
-            try { localStorage.removeItem('pav_user'); } catch(e) {}
         })();
         </script></body></html>""",
-        height=1
+        height=60,
     )
 
 # Auto-login via token movido para dentro do show_login()
@@ -859,88 +796,6 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
 
 def show_login() -> None:
     """Renderiza a tela de login com aba de registro. Cria sessão ao autenticar."""
-
-    # ── Auto-login via token salvo (cookie/localStorage) ──────────────────────
-    # Roda ANTES de qualquer render para evitar flash
-    components.html("""<!DOCTYPE html><html><body><script>
-    (function() {
-        function readToken() {
-            try {
-                var s = window.parent.sessionStorage.getItem('pav_session');
-                if (s && s.length > 10) return s;
-            } catch(e) {}
-            try {
-                var s2 = sessionStorage.getItem('pav_session');
-                if (s2 && s2.length > 10) return s2;
-            } catch(e) {}
-            try {
-                var match = window.parent.document.cookie.split(';')
-                    .map(function(c) { return c.trim(); })
-                    .find(function(c) { return c.startsWith('pav_session='); });
-                if (match) {
-                    var val = decodeURIComponent(match.split('=')[1]);
-                    if (val && val.length > 10) return val;
-                }
-            } catch(e) {}
-            try {
-                var v = window.parent.localStorage.getItem('pav_session');
-                if (v && v.length > 10) return v;
-            } catch(e) {}
-            try {
-                var v2 = localStorage.getItem('pav_session')
-                      || localStorage.getItem('pav_user') || '';
-                if (v2 && v2.length > 10) return v2;
-            } catch(e) {}
-            return '';
-        }
-        var val = readToken();
-        if (!val) return;
-        var url      = new URL(window.parent.location.href);
-        var isToken  = val.length > 20;
-        var paramKey = isToken ? '_token' : '_u';
-        if (url.searchParams.get(paramKey) !== val) {
-            url.searchParams.set(paramKey, val);
-            window.parent.location.replace(url.toString());
-        }
-    })();
-    </script></body></html>""", height=60)
-
-    st.write("query_params:", dict(st.query_params))
-
-    params = st.query_params
-    if "_token" in params:
-        token = params["_token"]
-        udata = validate_session(token)
-        if udata:
-            uname = udata.get("_resolved_username") or next(
-                (k for k, v in load_students().items() if v["password"] == udata["password"]),
-                None
-            )
-            if uname:
-                st.session_state.logged_in         = True
-                st.session_state.user              = {"username": uname, **udata}
-                st.session_state.page              = "dashboard" if udata["role"] == "professor" else "chat"
-                st.session_state.conv_id           = None
-                st.session_state["_session_token"] = token
-                st.query_params.clear()
-                st.rerun()
-        else:
-            js_clear_session()
-            st.query_params.clear()
-    elif "_u" in params:
-        uname    = params["_u"]
-        students = load_students()
-        if uname in students:
-            udata = students[uname]
-            token = create_session(uname)
-            st.session_state.logged_in         = True
-            st.session_state.user              = {"username": uname, **udata}
-            st.session_state.page              = "dashboard" if udata["role"] == "professor" else "chat"
-            st.session_state.conv_id           = None
-            st.session_state["_session_token"] = token
-            js_save_session(token)
-            st.query_params.clear()
-            st.rerun()
 
     if "_login_tab" not in st.session_state:
         st.session_state["_login_tab"] = "login"
@@ -2026,14 +1881,11 @@ def _process_and_send_file(username: str, user: dict, conv_id: str,
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _logout() -> None:
-    """
-    Encerra a sessão: apaga o token do banco SQLite e do localStorage,
-    e limpa o session_state.
-    """
     token = st.session_state.get("_session_token", "")
     if token:
-        delete_session(token)          # remove do banco SQLite
-    js_clear_session()                 # remove do localStorage do browser
+        delete_session(token)
+    js_clear_session()
+    st.query_params.pop("s", None)
     st.session_state.pop("_session_token", None)
     st.session_state.update(logged_in=False, user=None, conv_id=None)
 
@@ -2593,30 +2445,6 @@ def show_dashboard() -> None:
 # ROTEADOR PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
 
-if not st.session_state.logged_in:
-    st.write("DEBUG token na URL:", "_token" in st.query_params)
-    _qp = st.query_params
-    if "_token" in _qp:
-        _token = _qp["_token"]
-        _udata = validate_session(_token)
-        if _udata:
-            _uname = _udata.get("_resolved_username") or next(
-                (k for k, v in load_students().items() if v["password"] == _udata["password"]),
-                None
-            )
-            if _uname:
-                st.session_state.logged_in         = True
-                st.session_state.user              = {"username": _uname, **_udata}
-                st.session_state.page              = "dashboard" if _udata["role"] == "professor" else "chat"
-                st.session_state.conv_id           = None
-                st.session_state["_session_token"] = _token
-                st.query_params.clear()
-                st.rerun()
-        else:
-            # Token inválido — limpa
-            st.query_params.clear()
-
-# Roteador principal
 if not st.session_state.logged_in:
     show_login()
 elif st.session_state.page == "profile":
