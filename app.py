@@ -1357,39 +1357,24 @@ def show_profile() -> None:
                         st.error("❌ Foto muito grande. Máximo 15 MB.")
                     else:
                         suffix = Path(photo_file.name).suffix.lstrip(".")
-                        mime = "image/jpeg" if suffix in ("jpg","jpeg") else f"image/{suffix}"
-                        db = get_client()
-                        path = f"{username}/avatar"
-                        try:
-                            try:
-                                db.storage.from_(AVATAR_BUCKET).remove([path])
-                            except Exception as e:
-                                st.warning(f"remove antiga: {e}")
-                            result = db.storage.from_(AVATAR_BUCKET).upload(
-                                path, raw_photo,
-                                file_options={"content-type": mime, "upsert": "true"},
-                            )
-                            st.success(f"✅ Upload ok: {result}")
-                            st.session_state["_last_photo_saved"] = file_id
-                            _bump_avatar_version()
-                            st.session_state["_photo_msg"] = "saved"
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Erro detalhado: {e}")
-            if cur_avatar:
-                if st.button(t("remove_photo", ui_lang), key="pf_remove_photo"):
-                    ok = remove_user_avatar_db(username)
-                    remove_user_avatar(username)
-                    _bump_avatar_version()
-                    #get_user_avatar_b64.clear()
-                    st.session_state.user.get("profile", {}).pop("avatar_v", None)
-                    st.session_state.user["profile"] = {
-                        k: v for k, v in st.session_state.user.get("profile", {}).items()
-                        if k != "avatar_v"
-                    }
-                    st.session_state.pop("_last_photo_saved", None)
-                    st.session_state["_photo_msg"] = "removed"
-                    st.rerun()
+                        save_user_avatar(username, raw_photo, suffix)
+                        st.session_state["_last_photo_saved"] = file_id
+                        _bump_avatar_version()
+                        st.session_state["_photo_msg"] = "saved"
+                        st.rerun()
+                        if cur_avatar:
+                            if st.button(t("remove_photo", ui_lang), key="pf_remove_photo"):
+                                remove_user_avatar(username)
+                                _bump_avatar_version()
+                                #get_user_avatar_b64.clear()
+                                st.session_state.user.get("profile", {}).pop("avatar_v", None)
+                                st.session_state.user["profile"] = {
+                                    k: v for k, v in st.session_state.user.get("profile", {}).items()
+                                    if k != "avatar_v"
+                                }
+                                st.session_state.pop("_last_photo_saved", None)
+                                st.session_state["_photo_msg"] = "removed"
+                                st.rerun()
 
         st.markdown("---")
         st.markdown("### Informações da Conta")
