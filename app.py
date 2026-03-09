@@ -2489,21 +2489,30 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
 </body></html>""", height=52, scrolling=False)
     staged = st.session_state.get("staged_file")
     if staged:
-        fname = staged.get("name", "arquivo")
-        fkind = staged.get("kind", "file")
-        icon  = {"audio": "🎵", "text": "📄", "image": "📸"}.get(fkind, "📎")
+        # suporta lista (múltiplos) ou dict legado (único)
+        staged_list = staged if isinstance(staged, list) else [staged]
+        icons = {"audio": "🎵", "text": "📄", "image": "📸"}
+        items_html = "".join(
+            f'<span style="background:rgba(255,255,255,.06);border-radius:6px;'
+            f'padding:3px 8px;font-size:.8rem;color:#e6edf3;">'
+            f'{icons.get(f["kind"],"📎")} {f["name"]}</span>'
+            for f in staged_list
+        )
         st.markdown(f"""
 <div style="background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.25);
      border-radius:10px;padding:10px 14px;margin:6px 0;
-     display:flex;align-items:center;justify-content:space-between;gap:10px;">
-  <span style="font-size:.85rem;color:#e6edf3;">{icon} <b>{fname}</b>
-    <span style="color:#8b949e;font-size:.75rem;"> · anexado</span></span>
+     display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+    {items_html}
+    <span style="color:#8b949e;font-size:.75rem;">· {len(staged_list)} arquivo(s) anexado(s)</span>
+  </div>
   <span style="font-size:.7rem;color:#f0a500;">↩ Digite uma mensagem ou envie</span>
 </div>
 """, unsafe_allow_html=True)
         if st.button(t("remove_attachment", ui_lang), key="remove_staged"):
             st.session_state.staged_file      = None
             st.session_state.staged_file_name = None
+            st.session_state.pop("_last_files_key", None)
             st.rerun()
 
     # ── Botão de download de arquivo gerado pela IA ───────────────────────────
@@ -2531,11 +2540,14 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
 
         staged = st.session_state.get("staged_file")
         if staged:
-            # Envia arquivo + texto juntos
-            _process_and_send_file(username, user, conv_id,
-                                   staged["raw"], staged["name"], extra_text=prompt)
+            staged_list = staged if isinstance(staged, list) else [staged]
+            for i, sf in enumerate(staged_list):
+                extra = prompt if i == 0 else ""
+                _process_and_send_file(username, user, conv_id,
+                                       sf["raw"], sf["name"], extra_text=extra)
             st.session_state.staged_file      = None
             st.session_state.staged_file_name = None
+            st.session_state.pop("_last_files_key", None)
         else:
             append_message(username, conv_id, "user", prompt)
             st.session_state.speaking = True
@@ -2565,24 +2577,25 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
             st.error(txt)
 
     # ── File uploader (oculto — acionado pelo clipe na chat bar) ─────────────
-    uploaded = st.file_uploader(
+    uploaded_list = st.file_uploader(
         "📎", key="file_upload", label_visibility="collapsed",
+        accept_multiple_files=True,
         type=["mp3", "wav", "ogg", "m4a", "webm", "flac",
               "pdf", "doc", "docx", "txt", "png", "jpg", "jpeg", "webp"])
 
-    if uploaded:
-        st.session_state["_last_file"] = uploaded.name
-        raw    = uploaded.read()
-        result = extract_file(raw, uploaded.name)
-        # Staging: guarda o arquivo sem enviar ainda
-        st.session_state.staged_file = {
-            "raw":    raw,
-            "name":   uploaded.name,
-            "kind":   result["kind"],
-            "result": result,
-        }
-        st.session_state.staged_file_name = uploaded.name
-        st.rerun()
+    if uploaded_list:
+        names_key = ",".join(sorted(f.name for f in uploaded_list))
+        if names_key != st.session_state.get("_last_files_key"):
+            st.session_state["_last_files_key"] = names_key
+            staged_list = []
+            for uf in uploaded_list:
+                raw    = uf.read()
+                result = extract_file(raw, uf.name)
+                staged_list.append({"raw": raw, "name": uf.name,
+                                     "kind": result["kind"], "result": result})
+            st.session_state.staged_file      = staged_list
+            st.session_state.staged_file_name = ", ".join(f["name"] for f in staged_list)
+            st.rerun()
 
     # ── Botões mic e clipe — carregados de arquivos externos ──────────────────
     _btn_html = Path("static/pav_buttons.html")
