@@ -2618,7 +2618,7 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
           transform: translateY(-50%) !important;
           display: flex !important;
           align-items: center !important;
-          gap: 4px !important;
+          gap: 6px !important;
           z-index: 10 !important;
         }
         .pav-icon-btn {
@@ -2636,12 +2636,51 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
         .pav-icon-btn:hover { border-color: #f0a500 !important; color: #f0a500 !important; }
         .pav-icon-btn.recording { border-color: #f85149 !important; color: #f85149 !important; animation: pavpulse .7s ease-in-out infinite alternate !important; }
         @keyframes pavpulse { from{box-shadow:0 0 0 rgba(248,81,73,0);} to{box-shadow:0 0 8px rgba(248,81,73,.6);} }
+        .pav-timer {
+          font-size: 11px !important;
+          color: #8b949e !important;
+          font-family: 'JetBrains Mono', monospace !important;
+          min-width: 36px !important;
+          text-align: center !important;
+          display: none !important;
+          letter-spacing: 0.5px !important;
+        }
+        .pav-timer.visible { display: block !important; }
       `;
       par.head.appendChild(styleEl);
     }
 
     const extras = par.createElement('div');
     extras.className = 'pav-extras';
+
+    // Contador de tempo
+    const timer = par.createElement('span');
+    timer.className = 'pav-timer';
+    timer.id = 'pav-timer';
+    timer.textContent = '00:00';
+
+    let timerInterval = null;
+    let timerSeconds = 0;
+
+    function startTimer() {
+      timerSeconds = 0;
+      timer.textContent = '00:00';
+      timer.classList.add('visible');
+      timerInterval = setInterval(() => {
+        timerSeconds++;
+        const m = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+        const s = String(timerSeconds % 60).padStart(2, '0');
+        timer.textContent = m + ':' + s;
+      }, 1000);
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      timerSeconds = 0;
+      timer.textContent = '00:00';
+      timer.classList.remove('visible');
+    }
 
     // Botao microfone
     const mb = par.createElement('button');
@@ -2655,7 +2694,18 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
       const ai = par.querySelector('[data-testid="stAudioInput"]');
       if (ai) {
         const btn = ai.querySelector('button');
-        if (btn) { btn.click(); mb.classList.toggle('recording'); }
+        if (btn) {
+          btn.click();
+          if (mb.classList.contains('recording')) {
+            mb.classList.remove('recording');
+            mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+            stopTimer();
+          } else {
+            mb.classList.add('recording');
+            mb.innerHTML = '<i class="fa-solid fa-stop"></i>';
+            startTimer();
+          }
+        }
       }
     };
 
@@ -2674,6 +2724,7 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
       }
     };
 
+    extras.appendChild(timer);
     extras.appendChild(mb);
     extras.appendChild(ab);
     chatInputContainer.appendChild(extras);
