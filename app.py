@@ -562,27 +562,27 @@ if not st.session_state.logged_in:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def js_save_session(token: str) -> None:
-    """Salva token no localStorage como fallback (fechar e reabrir browser)."""
-    components.html(
-        f"""<!DOCTYPE html><html><body><script>
+    """Salva token no localStorage via st.markdown (sem iframe, sem espaço)."""
+    st.markdown(
+        f"""<script>
         (function() {{
             var t = '{token}';
             try {{ window.parent.localStorage.setItem('pav_session', t); }} catch(e) {{}}
             try {{ localStorage.setItem('pav_session', t); }} catch(e) {{}}
         }})();
-        </script></body></html>""",
-        height=60,
+        </script>""",
+        unsafe_allow_html=True,
     )
 
 def js_clear_session() -> None:
-    components.html(
-        """<!DOCTYPE html><html><body><script>
+    st.markdown(
+        """<script>
         (function() {
             try { window.parent.localStorage.removeItem('pav_session'); } catch(e) {}
             try { localStorage.removeItem('pav_session'); } catch(e) {}
         })();
-        </script></body></html>""",
-        height=60,
+        </script>""",
+        unsafe_allow_html=True,
     )
 
 # Auto-login via token movido para dentro do show_login()
@@ -910,52 +910,31 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
 def show_login() -> None:
     """Renderiza a tela de login com aba de registro. Cria sessão ao autenticar."""
 
-    # ── Auto-login via token salvo (cookie/localStorage) ──────────────────────
-    # height=0 — sem espaço visível, sem duplicação de campos no submit
-    components.html("""<!DOCTYPE html><html><head>
-<style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
-</head><body><script>
+    # ── Auto-login via token salvo (localStorage) — sem iframe ───────────────
+    st.markdown("""<script>
     (function() {
         function readToken() {
+            try { var s = window.parent.sessionStorage.getItem('pav_session'); if (s && s.length > 10) return s; } catch(e) {}
+            try { var s2 = sessionStorage.getItem('pav_session'); if (s2 && s2.length > 10) return s2; } catch(e) {}
             try {
-                var s = window.parent.sessionStorage.getItem('pav_session');
-                if (s && s.length > 10) return s;
+                var match = window.parent.document.cookie.split(';').map(function(c){return c.trim();})
+                    .find(function(c){return c.startsWith('pav_session=');});
+                if (match) { var val=decodeURIComponent(match.split('=')[1]); if(val&&val.length>10) return val; }
             } catch(e) {}
-            try {
-                var s2 = sessionStorage.getItem('pav_session');
-                if (s2 && s2.length > 10) return s2;
-            } catch(e) {}
-            try {
-                var match = window.parent.document.cookie.split(';')
-                    .map(function(c) { return c.trim(); })
-                    .find(function(c) { return c.startsWith('pav_session='); });
-                if (match) {
-                    var val = decodeURIComponent(match.split('=')[1]);
-                    if (val && val.length > 10) return val;
-                }
-            } catch(e) {}
-            try {
-                var v = window.parent.localStorage.getItem('pav_session');
-                if (v && v.length > 10) return v;
-            } catch(e) {}
-            try {
-                var v2 = localStorage.getItem('pav_session')
-                      || localStorage.getItem('pav_user') || '';
-                if (v2 && v2.length > 10) return v2;
-            } catch(e) {}
+            try { var v = window.parent.localStorage.getItem('pav_session'); if (v && v.length > 10) return v; } catch(e) {}
+            try { var v2 = localStorage.getItem('pav_session')||localStorage.getItem('pav_user')||''; if(v2&&v2.length>10) return v2; } catch(e) {}
             return '';
         }
         var val = readToken();
         if (!val) return;
-        var url      = new URL(window.parent.location.href);
-        var isToken  = val.length > 20;
-        var paramKey = isToken ? '_token' : '_u';
+        var url = new URL(window.parent.location.href);
+        var paramKey = val.length > 20 ? '_token' : '_u';
         if (url.searchParams.get(paramKey) !== val) {
             url.searchParams.set(paramKey, val);
             window.parent.location.replace(url.toString());
         }
     })();
-    </script></body></html>""", height=0)
+    </script>""", unsafe_allow_html=True)
 
     params = st.query_params
     if "_token" in params:
@@ -2121,35 +2100,27 @@ def show_chat() -> None:
 </script>""", unsafe_allow_html=True)
 
     # ── JS: para todo áudio ao trocar de conversa ou recarregar ──────────────
-    components.html("""<!DOCTYPE html><html><body><script>
+    st.markdown("""<script>
 (function() {
-  const par = window.parent;
+  var par = window.parent;
   if (!par) return;
   function stopAllAudio() {
-    par.document.querySelectorAll('audio').forEach(function(a) {
-      a.pause(); a.currentTime = 0;
-    });
-    par.document.querySelectorAll('iframe').forEach(function(iframe) {
+    par.document.querySelectorAll('audio').forEach(function(a){a.pause();a.currentTime=0;});
+    par.document.querySelectorAll('iframe').forEach(function(iframe){
       try {
-        iframe.contentDocument.querySelectorAll('audio').forEach(function(a) {
-          a.pause(); a.currentTime = 0;
-        });
-        iframe.contentDocument.querySelectorAll('#b').forEach(function(b) {
-          b.textContent = '\u25b6 Ouvir';
-        });
-        if (iframe.contentWindow.speechSynthesis) {
-          iframe.contentWindow.speechSynthesis.cancel();
-        }
+        iframe.contentDocument.querySelectorAll('audio').forEach(function(a){a.pause();a.currentTime=0;});
+        iframe.contentDocument.querySelectorAll('#b').forEach(function(b){b.textContent='\u25b6 Ouvir';});
+        if(iframe.contentWindow.speechSynthesis) iframe.contentWindow.speechSynthesis.cancel();
       } catch(e) {}
     });
-    if (par.speechSynthesis) par.speechSynthesis.cancel();
+    if(par.speechSynthesis) par.speechSynthesis.cancel();
   }
   stopAllAudio();
-  const observer = new MutationObserver(function() { stopAllAudio(); });
-  observer.observe(par.document.body, { childList: true, subtree: false });
-  window.addEventListener('beforeunload', function() { observer.disconnect(); });
+  var observer = new MutationObserver(function(){stopAllAudio();});
+  observer.observe(par.document.body,{childList:true,subtree:false});
+  window.addEventListener('beforeunload',function(){observer.disconnect();});
 })();
-</script></body></html>""", height=1)
+</script>""", unsafe_allow_html=True)
 
     # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
@@ -2540,105 +2511,60 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
         st.rerun()
 
     # ── JS: move botão de clipe para dentro da chat bar ──────────────────────
-    components.html("""<!DOCTYPE html><html><head>
-<style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
-</head><body>
-<script>
+    # ── JS: move botão de clipe e posiciona audio input ─────────────────────
+    # Usa st.markdown (sem iframe) — acessa window diretamente pois já está no contexto pai
+    st.markdown("""<script>
 (function() {
-  var done = false;
-
   function pavMoveToChatBar() {
-    const par = window.parent ? window.parent.document : document;
-    const chatInputContainer = par.querySelector('[data-testid="stChatInput"]');
+    var chatInputContainer = document.querySelector('[data-testid="stChatInput"]');
     if (!chatInputContainer) return false;
-    if (chatInputContainer.querySelector('.pav-extras')) return true; // já feito
+    if (chatInputContainer.querySelector('.pav-extras')) return true;
 
-    const extras = par.createElement('div');
+    var extras = document.createElement('div');
     extras.className = 'pav-extras';
 
-    const ab = par.createElement('button');
+    var ab = document.createElement('button');
     ab.className = 'pav-icon-btn';
     ab.title = 'Anexar arquivo';
     ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
-    ab.onclick = () => {
-      const fw = par.querySelector('[data-testid="stFileUploader"]');
-      if (fw) {
-        const fileInput = fw.querySelector('input[type="file"]');
-        if (fileInput) fileInput.click();
-      }
+    ab.onclick = function() {
+      var fw = document.querySelector('[data-testid="stFileUploader"]');
+      if (fw) { var fi = fw.querySelector('input[type="file"]'); if (fi) fi.click(); }
     };
 
     extras.appendChild(ab);
-    const chatInner = chatInputContainer.querySelector('div');
+    var chatInner = chatInputContainer.querySelector('div');
     if (chatInner) chatInner.style.position = 'relative';
     chatInputContainer.appendChild(extras);
     return true;
   }
 
   function pavFixAudioInput() {
-    const par = window.parent ? window.parent.document : document;
-    const ai  = par.querySelector('[data-testid="stAudioInput"]');
-    const ci  = par.querySelector('[data-testid="stChatInput"]');
+    var ai = document.querySelector('[data-testid="stAudioInput"]');
+    var ci = document.querySelector('[data-testid="stChatInput"]');
     if (!ai || !ci) return;
-
-    const rect = ci.getBoundingClientRect();
-    ai.style.cssText = `
-      position: fixed !important;
-      bottom: ${window.parent.innerHeight - rect.top + 42}px !important;
-      left: ${rect.left}px !important;
-      width: ${rect.width}px !important;
-      z-index: 99 !important;
-      background: transparent !important;
-      border: none !important;
-      padding: 0 !important;
-      height: 52px !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      box-shadow: none !important;
-    `;
-    const inners = ai.querySelectorAll('div');
-    inners.forEach(d => {
-      d.style.background = 'transparent';
-      d.style.border = 'none';
-      d.style.boxShadow = 'none';
-    });
-    const lbl = ai.querySelector('label');
+    var rect = ci.getBoundingClientRect();
+    ai.style.cssText = 'position:fixed!important;bottom:' + (window.innerHeight - rect.top + 42) + 'px!important;left:' + rect.left + 'px!important;width:' + rect.width + 'px!important;z-index:99!important;background:transparent!important;border:none!important;padding:0!important;height:52px!important;display:flex!important;align-items:center!important;justify-content:center!important;box-shadow:none!important;';
+    ai.querySelectorAll('div').forEach(function(d){d.style.background='transparent';d.style.border='none';d.style.boxShadow='none';});
+    var lbl = ai.querySelector('label');
     if (lbl) lbl.style.display = 'none';
   }
 
   function trySetup() {
-    const ok = pavMoveToChatBar();
+    var ok = pavMoveToChatBar();
     pavFixAudioInput();
-    if (ok) done = true;
     return ok;
   }
 
-  // Tenta imediatamente
   if (!trySetup()) {
-    // Observa o DOM do parent para agir assim que o chat input aparecer
-    try {
-      const par = window.parent ? window.parent.document : document;
-      const obs = new MutationObserver(function() {
-        if (trySetup()) obs.disconnect();
-      });
-      obs.observe(par.body, { childList: true, subtree: true });
-      // Fallback de segurança: desliga observer após 10s
-      setTimeout(() => obs.disconnect(), 10000);
-    } catch(e) {
-      // Cross-origin fallback
-      var t = setInterval(function() {
-        if (trySetup()) clearInterval(t);
-      }, 200);
-      setTimeout(function() { clearInterval(t); }, 10000);
-    }
+    var obs = new MutationObserver(function() { if (trySetup()) obs.disconnect(); });
+    obs.observe(document.body, { childList: true, subtree: true });
+    setTimeout(function() { obs.disconnect(); }, 10000);
   }
 
-  // Reconecta audio input ao resize
-  window.parent.addEventListener('resize', pavFixAudioInput);
+  window.addEventListener('resize', pavFixAudioInput);
 })();
-</script>
-</body></html>""", height=0)
+</script>""", unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
