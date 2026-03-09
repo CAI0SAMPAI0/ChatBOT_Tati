@@ -1,148 +1,137 @@
 <!DOCTYPE html>
 <html>
 <head>
-<style>html, body { margin: 0; padding: 0; overflow: hidden; height: 0; }</style>
+<style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
 </head>
 <body>
 <script>
-(function () {
-  /* Roda dentro do iframe do components.html.
-     Instala tudo no window.parent para sobreviver ao descarte do iframe. */
-
+(function(){
   var par = window.parent;
   if (!par) return;
-  var pdoc = par.document;
+  var pd = par.document;
 
-  /* Evita instalar múltiplas vezes (reruns do Streamlit recriam o iframe) */
-  if (par._pavInstalled) return;
-  par._pavInstalled = true;
-
-  /* ── Injeta CSS no parent ─────────────────────────────────────────────── */
-  if (!pdoc.getElementById('pav-style')) {
-    var link = pdoc.createElement('link');
-    link.id   = 'pav-style';
-    link.rel  = 'stylesheet';
-    /* Carrega o CSS pelo mesmo origin do app Streamlit */
-    link.href = '/static/pav_buttons.css';
-    pdoc.head.appendChild(link);
+  /* Injeta CSS no parent uma única vez */
+  if (!pd.getElementById('pav-style')) {
+    var s = pd.createElement('style');
+    s.id = 'pav-style';
+    s.textContent =
+      '[data-testid="stAudioInput"]{position:fixed!important;bottom:-9999px!important;left:-9999px!important;opacity:0!important;pointer-events:none!important;width:1px!important;height:1px!important;overflow:hidden!important;}' +
+      '[data-testid="stAudioInput"] button{pointer-events:auto!important;}' +
+      '[data-testid="stChatInput"]{position:relative!important;}' +
+      '.pav-extras{position:absolute!important;right:52px!important;top:50%!important;transform:translateY(-50%)!important;display:flex!important;align-items:center!important;gap:6px!important;z-index:10!important;}' +
+      '.pav-icon-btn{width:32px!important;height:32px!important;border-radius:50%!important;border:1px solid #30363d!important;background:transparent!important;color:#8b949e!important;font-size:13px!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;transition:all .15s!important;flex-shrink:0!important;padding:0!important;}' +
+      '.pav-icon-btn:hover{border-color:#f0a500!important;color:#f0a500!important;}' +
+      '.pav-icon-btn.recording{border-color:#f85149!important;color:#f85149!important;animation:pavpulse .7s ease-in-out infinite alternate!important;}' +
+      '@keyframes pavpulse{from{box-shadow:0 0 0 rgba(248,81,73,0);}to{box-shadow:0 0 8px rgba(248,81,73,.6);}}' +
+      '.pav-timer{font-size:11px!important;color:#8b949e!important;font-family:monospace!important;min-width:36px!important;text-align:center!important;display:none!important;letter-spacing:.5px!important;}' +
+      '.pav-timer.visible{display:block!important;}';
+    pd.head.appendChild(s);
   }
 
-  /* ── Função principal de injeção dos botões ───────────────────────────── */
-  function inject() {
-    var ci = pdoc.querySelector('[data-testid="stChatInput"]');
-    if (!ci) return false;
-    if (ci.querySelector('.pav-extras')) return true;
+  /* Só instala o intervalo uma vez — sobrevive a reruns e troca de aba
+     porque par.setInterval roda no contexto do window.parent             */
+  if (par._pavInterval) return;
 
-    /* Wrapper */
-    var extras = pdoc.createElement('div');
-    extras.className = 'pav-extras';
+  par._pavInterval = par.setInterval(function(){
+    var ci = pd.querySelector('[data-testid="stChatInput"]');
+    if (!ci || ci.querySelector('.pav-extras')) return;
+    pavInject(pd, par);
+  }, 400);
 
-    /* Timer */
-    var timer   = pdoc.createElement('span');
-    timer.className = 'pav-timer';
+  setTimeout(function(){
+    var ci = pd.querySelector('[data-testid="stChatInput"]');
+    if (ci && !ci.querySelector('.pav-extras')) pavInject(pd, par);
+  }, 0);
+})();
+
+function pavInject(pd, par) {
+  var ci = pd.querySelector('[data-testid="stChatInput"]');
+  if (!ci || ci.querySelector('.pav-extras')) return;
+
+  var extras = pd.createElement('div');
+  extras.className = 'pav-extras';
+
+  /* Timer */
+  var timer = pd.createElement('span');
+  timer.className = 'pav-timer';
+  timer.textContent = '00:00';
+  var timerIv = null, timerSec = 0;
+
+  function startTimer() {
+    timerSec = 0;
     timer.textContent = '00:00';
-    var timerIv = null, timerSec = 0;
-
-    function startTimer() {
-      timerSec = 0;
-      timer.textContent = '00:00';
-      timer.classList.add('visible');
-      timerIv = setInterval(function () {
-        timerSec++;
-        var m = String(Math.floor(timerSec / 60)).padStart(2, '0');
-        var s = String(timerSec % 60).padStart(2, '0');
-        timer.textContent = m + ':' + s;
-      }, 1000);
-    }
-    function stopTimer() {
-      clearInterval(timerIv);
-      timerIv = null; timerSec = 0;
-      timer.textContent = '00:00';
-      timer.classList.remove('visible');
-    }
-
-    /* Clica no botão oculto do stAudioInput, com retries */
-    function clickAudioBtn() {
-      var att = 0;
-      (function tryClick() {
-        var ai  = pdoc.querySelector('[data-testid="stAudioInput"]');
-        var btn = ai ? ai.querySelector('button') : null;
-        if (btn) { btn.click(); }
-        else if (att++ < 20) { setTimeout(tryClick, 100); }
-      })();
-    }
-
-    /* ── Botão microfone ────────────────────────────────────────────────── */
-    var mb = pdoc.createElement('button');
-    mb.className = 'pav-icon-btn';
-    mb.type      = 'button';
-    mb.title     = 'Gravar áudio';
-    mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-    mb.addEventListener('click', function (e) {
-      e.preventDefault(); e.stopPropagation();
-      if (mb.classList.contains('recording')) {
-        mb.classList.remove('recording');
-        mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-        stopTimer();
-        clickAudioBtn();
-      } else {
-        mb.classList.add('recording');
-        mb.innerHTML = '<i class="fa-solid fa-stop"></i>';
-        startTimer();
-        clickAudioBtn();
-      }
-    });
-
-    /* Reset automático quando o Streamlit recria o stAudioInput após rerun */
-    new MutationObserver(function () {
-      if (!mb.classList.contains('recording')) return;
-      var ai = pdoc.querySelector('[data-testid="stAudioInput"]');
-      if (!ai || !ai.querySelector('button[aria-pressed="true"]')) {
-        mb.classList.remove('recording');
-        mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-        stopTimer();
-      }
-    }).observe(pdoc.body, { childList: true, subtree: true });
-
-    /* ── Botão clipe ────────────────────────────────────────────────────── */
-    var ab = pdoc.createElement('button');
-    ab.className = 'pav-icon-btn';
-    ab.type      = 'button';
-    ab.title     = 'Anexar arquivo';
-    ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
-    ab.addEventListener('click', function (e) {
-      e.preventDefault(); e.stopPropagation();
-      var fw = pdoc.querySelector('[data-testid="stFileUploader"]');
-      if (fw) {
-        var fi = fw.querySelector('input[type="file"]');
-        if (fi) fi.click();
-      }
-    });
-
-    extras.appendChild(timer);
-    extras.appendChild(mb);
-    extras.appendChild(ab);
-    ci.appendChild(extras);
-    return true;
+    timer.classList.add('visible');
+    timerIv = par.setInterval(function(){
+      timerSec++;
+      timer.textContent =
+        String(Math.floor(timerSec / 60)).padStart(2, '0') + ':' +
+        String(timerSec % 60).padStart(2, '0');
+    }, 1000);
+  }
+  function stopTimer() {
+    par.clearInterval(timerIv);
+    timerIv = null; timerSec = 0;
+    timer.textContent = '00:00';
+    timer.classList.remove('visible');
   }
 
-  /* ── Observer permanente no parent: re-injeta após qualquer rerun ─────── */
-  new MutationObserver(function () {
-    var ci = pdoc.querySelector('[data-testid="stChatInput"]');
-    if (ci && !ci.querySelector('.pav-extras')) inject();
-  }).observe(pdoc.body, { childList: true, subtree: true });
+  function clickAudio() {
+    var att = 0;
+    (function t(){
+      var ai  = pd.querySelector('[data-testid="stAudioInput"]');
+      var btn = ai ? ai.querySelector('button') : null;
+      if (btn) { btn.click(); }
+      else if (att++ < 20) { par.setTimeout(t, 100); }
+    })();
+  }
 
-  /* ── Re-injeta ao voltar para a aba ──────────────────────────────────── */
-  pdoc.addEventListener('visibilitychange', function () {
-    if (pdoc.visibilityState === 'visible') setTimeout(inject, 50);
+  /* Botão mic */
+  var mb = pd.createElement('button');
+  mb.className = 'pav-icon-btn';
+  mb.type = 'button';
+  mb.title = 'Gravar áudio';
+  mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+  mb.addEventListener('click', function(e){
+    e.preventDefault(); e.stopPropagation();
+    if (mb.classList.contains('recording')) {
+      mb.classList.remove('recording');
+      mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+      stopTimer(); clickAudio();
+    } else {
+      mb.classList.add('recording');
+      mb.innerHTML = '<i class="fa-solid fa-stop"></i>';
+      startTimer(); clickAudio();
+    }
   });
 
-  /* ── Injeções iniciais ───────────────────────────────────────────────── */
-  inject();
-  setTimeout(inject, 300);
-  setTimeout(inject, 1000);
+  /* Reset mic quando Streamlit recria o widget após rerun */
+  new MutationObserver(function(){
+    if (!mb.classList.contains('recording')) return;
+    var ai = pd.querySelector('[data-testid="stAudioInput"]');
+    if (!ai || !ai.querySelector('button[aria-pressed="true"]')) {
+      mb.classList.remove('recording');
+      mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+      stopTimer();
+    }
+  }).observe(pd.body, { childList: true, subtree: true });
 
-})();
+  /* Botão clipe */
+  var ab = pd.createElement('button');
+  ab.className = 'pav-icon-btn';
+  ab.type = 'button';
+  ab.title = 'Anexar arquivo';
+  ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
+  ab.addEventListener('click', function(e){
+    e.preventDefault(); e.stopPropagation();
+    var fw = pd.querySelector('[data-testid="stFileUploader"]');
+    if (fw) { var fi = fw.querySelector('input[type="file"]'); if (fi) fi.click(); }
+  });
+
+  extras.appendChild(timer);
+  extras.appendChild(mb);
+  extras.appendChild(ab);
+  ci.appendChild(extras);
+}
 </script>
 </body>
 </html>
