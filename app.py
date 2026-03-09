@@ -2621,7 +2621,7 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     const rect = ci.getBoundingClientRect();
     ai.style.cssText = `
       position: fixed !important;
-      bottom: ${window.parent.innerHeight - rect.top + 6}px !important;
+      bottom: ${window.parent.innerHeight - rect.bottom + 6}px !important;
       left: ${rect.left}px !important;
       width: ${rect.width}px !important;
       z-index: 99 !important;
