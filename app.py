@@ -622,8 +622,8 @@ def send_to_claude(username: str, user: dict, conv_id: str,
    )
 
 
-    # Monta histórico da conversa para a API
-    msgs     = cached_load_conversation(username, conv_id)
+    # Monta histórico da conversa para a API — sempre fresco, sem cache
+    msgs     = load_conversation(username, conv_id)
     api_msgs = [
         {"role": "user" if m["role"] == "user" else "assistant", "content": m["content"]}
         for m in msgs
@@ -2070,6 +2070,24 @@ def show_chat() -> None:
     profile  = user.get("profile", {})
     ui_lang  = profile.get("language", "pt-BR")
     conv_id  = get_or_create_conv(username)
+
+    # ── Processa mensagem pendente (enviada no render anterior) ───────────────
+    # Fluxo: user digita → append + rerun (mostra msg + spinner) →
+    #        neste render: chama Claude → rerun final com resposta
+    _pending = st.session_state.pop("_pending_prompt", None)
+    if _pending:
+        try:
+            send_to_claude(username, user, conv_id, _pending)
+        except Exception as e:
+            st.session_state["_chat_error"] = str(e)
+        st.session_state.speaking = False
+        st.rerun()
+
+    # Exibe erro capturado (se houver) e limpa
+    _chat_err = st.session_state.pop("_chat_error", None)
+    if _chat_err:
+        st.error(f"❌ Erro ao chamar a IA: {_chat_err}")
+
     messages = cached_load_conversation(username, conv_id)
     speaking = st.session_state.speaking
 
@@ -2463,18 +2481,23 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
 
         staged = st.session_state.get("staged_file")
         if staged:
-            # Envia arquivo + texto juntos
-            _process_and_send_file(username, user, conv_id,
-                                   staged["raw"], staged["name"], extra_text=prompt)
+            append_message(username, conv_id, "user", prompt)
+            cached_load_conversation.clear()
+            st.session_state.speaking = True
             st.session_state.staged_file      = None
             st.session_state.staged_file_name = None
+            try:
+                _process_and_send_file(username, user, conv_id,
+                                       staged["raw"], staged["name"], extra_text=prompt)
+            except Exception as e:
+                st.session_state["_chat_error"] = str(e)
+            st.session_state.speaking = False
         else:
             append_message(username, conv_id, "user", prompt)
-            st.session_state.speaking = True
-            try:   send_to_claude(username, user, conv_id, prompt)
-            except Exception as e: st.error(f"❌ {e}")
-            st.session_state.speaking = False
-
+            cached_load_conversation.clear()
+            # Rerun imediato mostra a mensagem do user + indicador de digitando
+            st.session_state.speaking    = True
+            st.session_state["_pending_prompt"] = prompt
         st.rerun()
 
     # ── Gravador de áudio nativo (st.audio_input) ─────────────────────────────
@@ -2487,10 +2510,10 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
         if txt and not txt.startswith("❌") and not txt.startswith("⚠️"):
             if not API_KEY: st.error("Configure ANTHROPIC_API_KEY"); st.stop()
             append_message(username, conv_id, "user", txt, audio=True)
-            st.session_state.speaking = True
-            try:   send_to_claude(username, user, conv_id, txt)
-            except Exception as e: st.error(f"❌ {e}")
-            st.session_state.speaking = False
+            cached_load_conversation.clear()
+            st.session_state.speaking             = True
+            st.session_state["_pending_prompt"]   = txt
+            st.session_state["_pending_is_audio"] = True
             st.session_state.audio_key += 1
             st.rerun()
         elif txt:
