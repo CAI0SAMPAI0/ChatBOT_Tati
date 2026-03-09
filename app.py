@@ -368,13 +368,14 @@ def user_avatar_html(username: str, size: int = 36, **_) -> str:
 def avatar_html(size: int = 52, speaking: bool = False) -> str:
     """Avatar da professora com anel de 'speaking' animado."""
     cls   = "speaking" if speaking else ""
-    photo = PHOTO_B64  # usa cache — evita re-leitura e flash
+    photo = PHOTO_B64
     if photo:
         return (
             f'<div class="avatar-wrap {cls}" style="width:{size}px;height:{size}px;'
-            f'overflow:hidden;border-radius:50%;">'
+            f'overflow:hidden;border-radius:50%;opacity:0;transition:opacity .3s ease;">'
             f'<img src="{photo}" class="avatar-img" style="width:100%;height:100%;'
-            f'object-fit:cover;object-position:top;display:block;"/>'
+            f'object-fit:cover;object-position:top;display:block;" '
+            f'onload="this.parentElement.style.opacity=\'1\'"/>'
             f'<div class="avatar-ring"></div></div>'
         )
     return (
@@ -415,7 +416,7 @@ section[data-testid="stMain"] > div {
 }
 /* Evita flash de imagem desestilizada */
 img { max-width: 100%; }
-.avatar-wrap img, .avatar-ring img { display: block; }
+.avatar-wrap img, .avatar-ring img { display: block; will-change: opacity; }
 /* Esconde conteúdo do st.markdown durante re-render */
 [data-testid="stMarkdownContainer"] img {
     opacity: 1;
