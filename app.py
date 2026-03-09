@@ -2598,29 +2598,47 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     if (!chatInputContainer) return false;
     if (chatInputContainer.querySelector('.pav-extras')) return true;
 
-    // Esconde o st.audio_input nativo completamente
-    const styleEl = par.createElement('style');
-    styleEl.textContent = `
-      [data-testid="stAudioInput"] {
-        position: fixed !important; bottom: -9999px !important;
-        left: -9999px !important; opacity: 0 !important;
-        pointer-events: none !important; width: 1px !important;
-        height: 1px !important; overflow: hidden !important;
-      }
-      [data-testid="stAudioInput"] button { pointer-events: auto !important; }
-      .pav-extras { display:flex; align-items:center; gap:4px; padding-right:4px; }
-      .pav-icon-btn {
-        width:34px; height:34px; border-radius:50%;
-        border:1px solid #30363d; background:transparent;
-        color:#8b949e; font-size:14px; cursor:pointer;
-        display:flex; align-items:center; justify-content:center;
-        transition:all .15s; flex-shrink:0;
-      }
-      .pav-icon-btn:hover { border-color:#f0a500; color:#f0a500; }
-      .pav-icon-btn.recording { border-color:#f85149; color:#f85149; animation:pavpulse .7s ease-in-out infinite alternate; }
-      @keyframes pavpulse { from{box-shadow:0 0 0 rgba(248,81,73,0);} to{box-shadow:0 0 8px rgba(248,81,73,.6);} }
-    `;
-    par.head.appendChild(styleEl);
+    // Injeta estilos no parent
+    if (!par.getElementById('pav-style')) {
+      const styleEl = par.createElement('style');
+      styleEl.id = 'pav-style';
+      styleEl.textContent = `
+        [data-testid="stAudioInput"] {
+          position: fixed !important; bottom: -9999px !important;
+          left: -9999px !important; opacity: 0 !important;
+          pointer-events: none !important; width: 1px !important;
+          height: 1px !important; overflow: hidden !important;
+        }
+        [data-testid="stAudioInput"] button { pointer-events: auto !important; }
+        [data-testid="stChatInput"] { position: relative !important; }
+        .pav-extras {
+          position: absolute !important;
+          right: 52px !important;
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+          display: flex !important;
+          align-items: center !important;
+          gap: 4px !important;
+          z-index: 10 !important;
+        }
+        .pav-icon-btn {
+          width: 32px !important; height: 32px !important;
+          border-radius: 50% !important;
+          border: 1px solid #30363d !important;
+          background: transparent !important;
+          color: #8b949e !important;
+          font-size: 13px !important;
+          cursor: pointer !important;
+          display: flex !important; align-items: center !important; justify-content: center !important;
+          transition: all .15s !important; flex-shrink: 0 !important;
+          padding: 0 !important;
+        }
+        .pav-icon-btn:hover { border-color: #f0a500 !important; color: #f0a500 !important; }
+        .pav-icon-btn.recording { border-color: #f85149 !important; color: #f85149 !important; animation: pavpulse .7s ease-in-out infinite alternate !important; }
+        @keyframes pavpulse { from{box-shadow:0 0 0 rgba(248,81,73,0);} to{box-shadow:0 0 8px rgba(248,81,73,.6);} }
+      `;
+      par.head.appendChild(styleEl);
+    }
 
     const extras = par.createElement('div');
     extras.className = 'pav-extras';
@@ -2630,8 +2648,10 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     mb.className = 'pav-icon-btn';
     mb.id = 'pav-mic-btn';
     mb.title = 'Gravar audio';
+    mb.type = 'button';
     mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-    mb.onclick = () => {
+    mb.onclick = (e) => {
+      e.preventDefault(); e.stopPropagation();
       const ai = par.querySelector('[data-testid="stAudioInput"]');
       if (ai) {
         const btn = ai.querySelector('button');
@@ -2643,8 +2663,10 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     const ab = par.createElement('button');
     ab.className = 'pav-icon-btn';
     ab.title = 'Anexar arquivo';
+    ab.type = 'button';
     ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
-    ab.onclick = () => {
+    ab.onclick = (e) => {
+      e.preventDefault(); e.stopPropagation();
       const fw = par.querySelector('[data-testid="stFileUploader"]');
       if (fw) {
         const fileInput = fw.querySelector('input[type="file"]');
@@ -2654,20 +2676,12 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
 
     extras.appendChild(mb);
     extras.appendChild(ab);
-
-    // Insere ANTES do botao de enviar
-    const sendBtn = chatInputContainer.querySelector('[data-testid="stChatInputSubmitButton"]')
-                 || chatInputContainer.querySelector('button:last-of-type');
-    if (sendBtn) {
-      chatInputContainer.insertBefore(extras, sendBtn);
-    } else {
-      chatInputContainer.appendChild(extras);
-    }
+    chatInputContainer.appendChild(extras);
     return true;
   }
 
   function pavFixAudioInput() {
-    // Audio input oculto via CSS acima - nada a reposicionar
+    // Audio input oculto via CSS - nada a reposicionar
   }
 
   function trySetup() {
