@@ -1270,15 +1270,43 @@ def show_profile() -> None:
 </style>""", unsafe_allow_html=True)
 
     _ac = profile.get("accent_color", "#f0a500")
-    st.markdown(f"""<script>
+    _ub = profile.get("user_bubble_color", "#2d6a4f")
+    _ab = profile.get("ai_bubble_color", "#1a1f2e")
+    components.html(f"""<!DOCTYPE html><html><head>
+<style>html,body{{margin:0;padding:0;overflow:hidden;}}</style>
+</head><body><script>
 (function(){{
-  function hexToRgb(h){{h=h.replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];var n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255].join(',');}}
-  var ac="{_ac}",rgb=hexToRgb(ac),r=document.documentElement;
+  function hexToRgb(h){{
+    h=h.replace('#','');
+    if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var n=parseInt(h,16);
+    return [(n>>16)&255,(n>>8)&255,n&255].join(',');
+  }}
+  function luminance(h){{
+    h=h.replace('#','');
+    if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var n=parseInt(h,16);
+    var r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+    return 0.299*r + 0.587*g + 0.114*b;
+  }}
+  var ac="{_ac}", ub="{_ub}", ab="{_ab}";
+  var rgb=hexToRgb(ac);
+  var r=window.parent.document.documentElement;
   r.style.setProperty('--accent-full',ac);
+  r.style.setProperty('--accent-70','rgba('+rgb+',.7)');
+  r.style.setProperty('--accent-40','rgba('+rgb+',.4)');
+  r.style.setProperty('--accent-30','rgba('+rgb+',.3)');
+  r.style.setProperty('--accent-15','rgba('+rgb+',.15)');
   r.style.setProperty('--bubble-bg','rgba('+rgb+',.12)');
   r.style.setProperty('--bubble-border','rgba('+rgb+',.3)');
+  r.style.setProperty('--bubble-text','#e6edf3');
+  r.style.setProperty('--user-bubble-bg', ub);
+  r.style.setProperty('--user-bubble-text', luminance(ub)>128 ? '#111' : '#e6edf3');
+  r.style.setProperty('--ai-bubble-bg', ab);
+  r.style.setProperty('--ai-bubble-text', luminance(ab)>128 ? '#111' : '#e6edf3');
+  r.style.setProperty('--ai-bubble-border', 'rgba('+hexToRgb(ab)+', .6)');
 }})();
-</script>""", unsafe_allow_html=True)
+</script></body></html>""", height=1)
 
     st.markdown("## ⚙️ Configurações do Perfil")
     st.markdown("---")
@@ -2164,7 +2192,9 @@ def show_chat() -> None:
     _ac = profile.get("accent_color", "#f0a500")
     _ub = profile.get("user_bubble_color", "#2d6a4f")
     _ab = profile.get("ai_bubble_color", "#1a1f2e")
-    st.markdown(f"""<script>
+    components.html(f"""<!DOCTYPE html><html><head>
+<style>html,body{{margin:0;padding:0;overflow:hidden;}}</style>
+</head><body><script>
 (function(){{
   function hexToRgb(h){{
     h=h.replace('#','');
@@ -2181,7 +2211,7 @@ def show_chat() -> None:
   }}
   var ac="{_ac}", ub="{_ub}", ab="{_ab}";
   var rgb=hexToRgb(ac);
-  var r=document.documentElement;
+  var r=window.parent.document.documentElement;
   r.style.setProperty('--accent-full',ac);
   r.style.setProperty('--accent-70','rgba('+rgb+',.7)');
   r.style.setProperty('--accent-40','rgba('+rgb+',.4)');
@@ -2196,7 +2226,7 @@ def show_chat() -> None:
   r.style.setProperty('--ai-bubble-text', luminance(ab)>128 ? '#111' : '#e6edf3');
   r.style.setProperty('--ai-bubble-border', 'rgba('+hexToRgb(ab)+', .6)');
 }})();
-</script>""", unsafe_allow_html=True)
+</script></body></html>""", height=1)
 
     # ── JS: para todo áudio ao trocar de conversa ou recarregar ──────────────
     components.html("""<!DOCTYPE html><html><body><script>
