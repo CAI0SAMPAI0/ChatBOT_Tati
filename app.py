@@ -310,7 +310,6 @@ def get_avatar_frames() -> dict:
     }
 
 # ── Avatares individuais dos alunos ───────────────────────────────────────────
-@st.cache_data(ttl=300, show_spinner=False)
 def get_user_avatar_b64(username: str) -> str | None:
     """Busca foto do usuário direto do banco, sem cache."""
     result = get_user_avatar_db(username)
@@ -320,7 +319,7 @@ def get_user_avatar_b64(username: str) -> str | None:
     return f"data:{mime};base64,{base64.b64encode(raw).decode()}"
 
 # alias usado internamente
-_get_avatar = get_user_avatar_b64
+_get_avatar = lambda u: get_user_avatar_b64(u, _bust=st.session_state.get("_avatar_v", 0))
 
 def _avatar_circle_html(b64: str | None, size: int, border: str = "#f0a500") -> str:
     """Retorna HTML de avatar circular — foto, sem_foto.png ou ícone FA."""
@@ -351,16 +350,20 @@ def save_user_avatar(username: str, raw: bytes, suffix: str) -> None:
     suffix = suffix.lower().lstrip(".")
     mime   = "image/jpeg" if suffix in ("jpg", "jpeg") else f"image/{suffix}"
     save_user_avatar_db(username, raw, mime)
-    get_user_avatar_b64.clear()
+    _bump_avatar_version()
 
 def remove_user_avatar(username: str) -> None:
     """Remove a foto de perfil do Supabase Storage."""
     remove_user_avatar_db(username)
-    get_user_avatar_b64.clear()
+    _bump_avatar_version()
+
+def _bump_avatar_version() -> None:
+    """Incrementa o contador de versão do avatar para forçar re-fetch."""
+    st.session_state["_avatar_v"] = st.session_state.get("_avatar_v", 0) + 1
 
 def user_avatar_html(username: str, size: int = 36, **_) -> str:
     """Retorna HTML de avatar circular do usuário."""
-    return _avatar_circle_html(get_user_avatar_b64(username), size)
+    return _avatar_circle_html(get_user_avatar_b64(username, _bust=st.session_state.get("_avatar_v", 0)), size)
 
 def avatar_html(size: int = 52, speaking: bool = False) -> str:
     """Avatar da professora com anel de 'speaking' animado."""
@@ -1333,7 +1336,7 @@ def show_profile() -> None:
         if msg == "saved":   st.success("✅ Foto salva!")
         elif msg == "removed": st.success("Foto removida.")
 
-        cur_avatar = get_user_avatar_b64(username)
+        cur_avatar = get_user_avatar_b64(username, _bust=st.session_state.get("_avatar_v", 0))
         MAX_BYTES  = 15 * 1024 * 1024
 
         col_av, col_btns = st.columns([1, 3])
