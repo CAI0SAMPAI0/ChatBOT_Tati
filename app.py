@@ -310,7 +310,7 @@ def get_avatar_frames() -> dict:
     }
 
 # ── Avatares individuais dos alunos ───────────────────────────────────────────
-def get_user_avatar_b64(username: str) -> str | None:
+def get_user_avatar_b64(username: str, _bust: int = 0) -> str | None:
     """Busca foto do usuário direto do banco, sem cache."""
     result = get_user_avatar_db(username)
     if not result:
