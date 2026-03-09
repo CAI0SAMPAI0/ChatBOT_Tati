@@ -351,10 +351,12 @@ def save_user_avatar(username: str, raw: bytes, suffix: str) -> None:
     suffix = suffix.lower().lstrip(".")
     mime   = "image/jpeg" if suffix in ("jpg", "jpeg") else f"image/{suffix}"
     save_user_avatar_db(username, raw, mime)
+    get_user_avatar_b64.clear()
 
 def remove_user_avatar(username: str) -> None:
     """Remove a foto de perfil do Supabase Storage."""
     remove_user_avatar_db(username)
+    get_user_avatar_b64.clear()
 
 def user_avatar_html(username: str, size: int = 36, **_) -> str:
     """Retorna HTML de avatar circular do usuário."""
@@ -1359,6 +1361,7 @@ def show_profile() -> None:
             if cur_avatar:
                 if st.button(t("remove_photo", ui_lang), key="pf_remove_photo"):
                     remove_user_avatar(username)
+                    get_user_avatar_b64.clear()
                     st.session_state.user.get("profile", {}).pop("avatar_v", None)
                     st.session_state.user["profile"] = {
                         k: v for k, v in st.session_state.user.get("profile", {}).items()
