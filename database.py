@@ -375,11 +375,9 @@ def append_message(username, conv_id, role, content,
 AVATAR_BUCKET = "avatars"
 
 def save_user_avatar_db(username: str, raw: bytes, mime: str) -> bool:
-    """Salva foto de perfil no Supabase Storage. Retorna True se ok."""
     db   = get_client()
     path = f"{username}/avatar"
     try:
-        # Remove versão anterior
         try:
             db.storage.from_(AVATAR_BUCKET).remove([path])
         except Exception as e:
@@ -389,7 +387,7 @@ def save_user_avatar_db(username: str, raw: bytes, mime: str) -> bool:
             path, raw,
             file_options={"content-type": mime, "upsert": "true"},
         )
-        print(f"[avatar upload ok] path={path} mime={mime} size={len(raw)} result={result}")
+        print(f"[avatar upload ok] {result}")
         return True
     except Exception as e:
         print(f"[avatar upload ERROR] {e}")

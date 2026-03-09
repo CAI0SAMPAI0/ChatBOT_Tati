@@ -17,7 +17,7 @@ from database import (
     append_message, get_all_students_stats, delete_conversation,
     update_profile, update_password,
     create_session, validate_session, delete_session,
-    save_user_avatar_db, get_user_avatar_db, remove_user_avatar_db # sessões persistentes
+    save_user_avatar_db, get_user_avatar_db, remove_user_avatar_db, get_client # sessões persistentes
 )
 from transcriber import transcribe_bytes
 from tts import text_to_speech, tts_available
@@ -1357,16 +1357,25 @@ def show_profile() -> None:
                         st.error("❌ Foto muito grande. Máximo 15 MB.")
                     else:
                         suffix = Path(photo_file.name).suffix.lstrip(".")
-                        ok = save_user_avatar_db(username, raw_photo, 
-                            "image/jpeg" if suffix in ("jpg","jpeg") else f"image/{suffix}")
-                        if ok:
+                        mime = "image/jpeg" if suffix in ("jpg","jpeg") else f"image/{suffix}"
+                        db = get_client()
+                        path = f"{username}/avatar"
+                        try:
+                            try:
+                                db.storage.from_(AVATAR_BUCKET).remove([path])
+                            except Exception as e:
+                                st.warning(f"remove antiga: {e}")
+                            result = db.storage.from_(AVATAR_BUCKET).upload(
+                                path, raw_photo,
+                                file_options={"content-type": mime, "upsert": "true"},
+                            )
+                            st.success(f"✅ Upload ok: {result}")
                             st.session_state["_last_photo_saved"] = file_id
                             _bump_avatar_version()
                             st.session_state["_photo_msg"] = "saved"
-                            st.success(f"✅ Upload ok! {len(raw_photo)} bytes")
                             st.rerun()
-                        else:
-                            st.error("❌ Falha no upload — veja os logs do Streamlit Cloud")
+                        except Exception as e:
+                            st.error(f"❌ Erro detalhado: {e}")
             if cur_avatar:
                 if st.button(t("remove_photo", ui_lang), key="pf_remove_photo"):
                     ok = remove_user_avatar_db(username)
