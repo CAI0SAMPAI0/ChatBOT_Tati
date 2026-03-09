@@ -379,20 +379,21 @@ def save_user_avatar_db(username: str, raw: bytes, mime: str) -> bool:
     db   = get_client()
     path = f"{username}/avatar"
     try:
-        # Tenta remover versão anterior (ignora erro se não existir)
+        # Remove versão anterior
         try:
             db.storage.from_(AVATAR_BUCKET).remove([path])
-        except Exception:
-            pass
-        db.storage.from_(AVATAR_BUCKET).upload(
+        except Exception as e:
+            print(f"[avatar remove old] {e}")
+
+        result = db.storage.from_(AVATAR_BUCKET).upload(
             path, raw,
             file_options={"content-type": mime, "upsert": "true"},
         )
+        print(f"[avatar upload ok] path={path} mime={mime} size={len(raw)} result={result}")
         return True
     except Exception as e:
-        print(f"[avatar upload error] {e}")
+        print(f"[avatar upload ERROR] {e}")
         return False
-
 
 def get_user_avatar_db(username: str) -> tuple[bytes, str] | None:
     """Retorna (bytes, mime) da foto do usuário ou None."""

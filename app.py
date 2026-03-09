@@ -1357,13 +1357,21 @@ def show_profile() -> None:
                         st.error("❌ Foto muito grande. Máximo 15 MB.")
                     else:
                         suffix = Path(photo_file.name).suffix.lstrip(".")
-                        save_user_avatar(username, raw_photo, suffix)
-                        st.session_state["_last_photo_saved"] = file_id
-                        st.session_state["_photo_msg"] = "saved"
-                        st.rerun()
+                        ok = save_user_avatar_db(username, raw_photo, 
+                            "image/jpeg" if suffix in ("jpg","jpeg") else f"image/{suffix}")
+                        if ok:
+                            st.session_state["_last_photo_saved"] = file_id
+                            _bump_avatar_version()
+                            st.session_state["_photo_msg"] = "saved"
+                            st.success(f"✅ Upload ok! {len(raw_photo)} bytes")
+                            st.rerun()
+                        else:
+                            st.error("❌ Falha no upload — veja os logs do Streamlit Cloud")
             if cur_avatar:
                 if st.button(t("remove_photo", ui_lang), key="pf_remove_photo"):
+                    ok = remove_user_avatar_db(username)
                     remove_user_avatar(username)
+                    _bump_avatar_version()
                     #get_user_avatar_b64.clear()
                     st.session_state.user.get("profile", {}).pop("avatar_v", None)
                     st.session_state.user["profile"] = {
