@@ -370,12 +370,12 @@ def avatar_html(size: int = 52, speaking: bool = False) -> str:
     cls   = "speaking" if speaking else ""
     photo = PHOTO_B64
     if photo:
+        # background-image no div: sem <img>, sem JS, sem flash
         return (
-            f'<div class="avatar-wrap {cls}" style="width:{size}px;height:{size}px;'
-            f'overflow:hidden;border-radius:50%;opacity:0;transition:opacity .3s ease;">'
-            f'<img src="{photo}" class="avatar-img" style="width:100%;height:100%;'
-            f'object-fit:cover;object-position:top;display:block;" '
-            f'onload="this.parentElement.style.opacity=\'1\'"/>'
+            f'<div class="avatar-wrap {cls}" style="'
+            f'width:{size}px;height:{size}px;border-radius:50%;flex-shrink:0;'
+            f'background:url({photo}) center top/cover no-repeat;'
+            f'position:relative;overflow:hidden;">'
             f'<div class="avatar-ring"></div></div>'
         )
     return (
@@ -1953,8 +1953,12 @@ function setAvatarState(state){{
 const avImg = document.getElementById('avImg');
 let _avAnimFrame = null;
 
-// Inicializa avatar com imagem base
+// Inicializa avatar com imagem base — revela só após carregar
 (function initAvatar(){{
+  var ring = document.getElementById('avatarRing');
+  ring.style.opacity = '0';
+  ring.style.transition = 'opacity .3s ease';
+  avImg.onload = function() {{ ring.style.opacity = '1'; }};
   if(AV_BASE) avImg.src = AV_BASE;
   else if({photo_js}) avImg.src = {photo_js};
 }})();
