@@ -2590,7 +2590,6 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
 </head><body>
 <script>
 (function() {
-  var done = false;
 
   function pavMoveToChatBar() {
     const par = window.parent ? window.parent.document : document;
@@ -2689,25 +2688,53 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     mb.title = 'Gravar audio';
     mb.type = 'button';
     mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-    mb.onclick = (e) => {
-      e.preventDefault(); e.stopPropagation();
-      const ai = par.querySelector('[data-testid="stAudioInput"]');
-      if (ai) {
-        const btn = ai.querySelector('button');
+
+    function clickAudioBtn(callback) {
+      // Tenta até 20x em 2s — o widget pode demorar para reaparecer após rerun
+      let attempts = 0;
+      function tryClick() {
+        const ai = par.querySelector('[data-testid="stAudioInput"]');
+        const btn = ai ? ai.querySelector('button') : null;
         if (btn) {
           btn.click();
-          if (mb.classList.contains('recording')) {
-            mb.classList.remove('recording');
-            mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-            stopTimer();
-          } else {
-            mb.classList.add('recording');
-            mb.innerHTML = '<i class="fa-solid fa-stop"></i>';
-            startTimer();
-          }
+          if (callback) callback();
+        } else if (attempts++ < 20) {
+          setTimeout(tryClick, 100);
         }
       }
+      tryClick();
+    }
+
+    mb.onclick = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (mb.classList.contains('recording')) {
+        // Para gravação
+        mb.classList.remove('recording');
+        mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+        stopTimer();
+        clickAudioBtn(null);
+      } else {
+        // Inicia gravação
+        mb.classList.add('recording');
+        mb.innerHTML = '<i class="fa-solid fa-stop"></i>';
+        startTimer();
+        clickAudioBtn(null);
+      }
     };
+
+    // Observer permanente: reseta estado do mic quando o stAudioInput é recriado
+    const micObs = new MutationObserver(() => {
+      const ai = par.querySelector('[data-testid="stAudioInput"]');
+      if (ai) {
+        // Widget recriado = gravação encerrada pelo Streamlit
+        if (mb.classList.contains('recording')) {
+          mb.classList.remove('recording');
+          mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+          stopTimer();
+        }
+      }
+    });
+    micObs.observe(par.body, { childList: true, subtree: true });
 
     // Botao clipe
     const ab = par.createElement('button');
@@ -2736,34 +2763,33 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
   }
 
   function trySetup() {
-    const ok = pavMoveToChatBar();
+    pavMoveToChatBar();
     pavFixAudioInput();
-    if (ok) done = true;
-    return ok;
   }
 
-  // Tenta imediatamente
-  if (!trySetup()) {
-    // Observa o DOM do parent para agir assim que o chat input aparecer
-    try {
-      const par = window.parent ? window.parent.document : document;
-      const obs = new MutationObserver(function() {
-        if (trySetup()) obs.disconnect();
-      });
-      obs.observe(par.body, { childList: true, subtree: true });
-      // Fallback de segurança: desliga observer após 10s
-      setTimeout(() => obs.disconnect(), 10000);
-    } catch(e) {
-      // Cross-origin fallback
-      var t = setInterval(function() {
-        if (trySetup()) clearInterval(t);
-      }, 200);
-      setTimeout(function() { clearInterval(t); }, 10000);
-    }
+  const par = window.parent ? window.parent.document : document;
+
+  // Observer permanente: re-injeta os botões sempre que o Streamlit re-renderizar
+  try {
+    const obs = new MutationObserver(function() {
+      const ci = par.querySelector('[data-testid="stChatInput"]');
+      if (ci && !ci.querySelector('.pav-extras')) {
+        pavMoveToChatBar();
+      }
+    });
+    obs.observe(par.body, { childList: true, subtree: true });
+  } catch(e) {
+    // Fallback cross-origin: polling contínuo
+    setInterval(function() {
+      const ci = par.querySelector('[data-testid="stChatInput"]');
+      if (ci && !ci.querySelector('.pav-extras')) {
+        pavMoveToChatBar();
+      }
+    }, 300);
   }
 
-  // Reconecta audio input ao resize
-  window.parent.addEventListener('resize', pavFixAudioInput);
+  // Injeção inicial
+  trySetup();
 })();
 </script>
 </body></html>""", height=1)
