@@ -103,7 +103,7 @@ init_db()
 
 # ── Variáveis de ambiente ─────────────────────────────────────────────────────
 API_KEY    = os.getenv("ANTHROPIC_API_KEY", "")
-PHOTO_PATH = os.getenv("PROFESSOR_PHOTO", "assets/professor.jpg")
+PHOTO_PATH = os.getenv("PROFESSOR_PHOTO", "assets/tati.png")
 PROF_NAME  = os.getenv("PROFESSOR_NAME",  "Professor Avatar")
 
 # ── Contador de áudio — força re-render do widget nativo ─────────────────────
@@ -387,7 +387,7 @@ def avatar_html(size: int = 52, speaking: bool = False) -> str:
 # CONFIGURAÇÃO STREAMLIT
 # ══════════════════════════════════════════════════════════════════════════════
 
-st.set_page_config(page_title=f"{PROF_NAME} · English", page_icon="🎓", layout="wide")
+st.set_page_config(page_title=f"{PROF_NAME} · English", page_icon=str(Path(PHOTO_PATH)) if Path(PHOTO_PATH).exists() else "🎓", layout="wide")
 
 def load_css(path: str) -> None:
     p = Path(path)
@@ -650,11 +650,17 @@ def send_to_claude(username: str, user: dict, conv_id: str,
 
 
     # Monta histórico da conversa para a API
-    msgs     = cached_load_conversation(username, conv_id)
+    # Carrega direto do banco (sem cache) para garantir que a mensagem recém salva apareça
+    msgs     = load_conversation(username, conv_id)
     api_msgs = [
         {"role": "user" if m["role"] == "user" else "assistant", "content": m["content"]}
         for m in msgs
     ]
+
+    # Se a última mensagem do histórico não for do usuário com o texto atual,
+    # adiciona explicitamente para evitar erro por cache desatualizado
+    if not api_msgs or api_msgs[-1]["role"] != "user" or api_msgs[-1]["content"] != text:
+        api_msgs.append({"role": "user", "content": text})
 
     # Adiciona imagem à última mensagem do usuário, se houver
     if image_b64 and image_media_type and api_msgs and api_msgs[-1]["role"] == "user":
@@ -2258,18 +2264,23 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
 
 /* Mensagens estilo ChatGPT */
 .msg-row { display:flex; align-items:flex-end; gap:10px; margin:6px 0; }
-.msg-row.user-row { flex-direction:row-reverse; }
+.msg-row.user-row { flex-direction:row-reverse; justify-content:flex-start; }
 .msg-row.bot-row  { flex-direction:row; }
+.msg-row.user-row > div { display:flex; flex-direction:column; align-items:flex-end; }
+.msg-row.bot-row > div  { display:flex; flex-direction:column; align-items:flex-start; }
 
 .msg-bubble {
-    max-width: 68%; padding: 10px 15px; border-radius: 18px;
+    padding: 10px 15px; border-radius: 18px;
     font-size: .88rem; line-height: 1.6; word-break: break-word;
+    white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .msg-bubble.user {
+    max-width: 75%;
     background: #2d6a4f; color: #d8f3dc;
     border-bottom-right-radius: 4px;
 }
 .msg-bubble.bot {
+    max-width: 75%;
     background: #1a1f2e; color: #e6edf3;
     border: 1px solid #252d3d;
     border-bottom-left-radius: 4px;
