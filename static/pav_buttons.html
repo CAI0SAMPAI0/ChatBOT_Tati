@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>html, body { margin: 0; padding: 0; overflow: hidden; height: 0; }</style>
+</head>
+<body>
+<script>
+(function () {
+  /* Roda dentro do iframe do components.html.
+     Instala tudo no window.parent para sobreviver ao descarte do iframe. */
+
+  var par = window.parent;
+  if (!par) return;
+  var pdoc = par.document;
+
+  /* Evita instalar múltiplas vezes (reruns do Streamlit recriam o iframe) */
+  if (par._pavInstalled) return;
+  par._pavInstalled = true;
+
+  /* ── Injeta CSS no parent ─────────────────────────────────────────────── */
+  if (!pdoc.getElementById('pav-style')) {
+    var link = pdoc.createElement('link');
+    link.id   = 'pav-style';
+    link.rel  = 'stylesheet';
+    /* Carrega o CSS pelo mesmo origin do app Streamlit */
+    link.href = '/static/pav_buttons.css';
+    pdoc.head.appendChild(link);
+  }
+
+  /* ── Função principal de injeção dos botões ───────────────────────────── */
+  function inject() {
+    var ci = pdoc.querySelector('[data-testid="stChatInput"]');
+    if (!ci) return false;
+    if (ci.querySelector('.pav-extras')) return true;
+
+    /* Wrapper */
+    var extras = pdoc.createElement('div');
+    extras.className = 'pav-extras';
+
+    /* Timer */
+    var timer   = pdoc.createElement('span');
+    timer.className = 'pav-timer';
+    timer.textContent = '00:00';
+    var timerIv = null, timerSec = 0;
+
+    function startTimer() {
+      timerSec = 0;
+      timer.textContent = '00:00';
+      timer.classList.add('visible');
+      timerIv = setInterval(function () {
+        timerSec++;
+        var m = String(Math.floor(timerSec / 60)).padStart(2, '0');
+        var s = String(timerSec % 60).padStart(2, '0');
+        timer.textContent = m + ':' + s;
+      }, 1000);
+    }
+    function stopTimer() {
+      clearInterval(timerIv);
+      timerIv = null; timerSec = 0;
+      timer.textContent = '00:00';
+      timer.classList.remove('visible');
+    }
+
+    /* Clica no botão oculto do stAudioInput, com retries */
+    function clickAudioBtn() {
+      var att = 0;
+      (function tryClick() {
+        var ai  = pdoc.querySelector('[data-testid="stAudioInput"]');
+        var btn = ai ? ai.querySelector('button') : null;
+        if (btn) { btn.click(); }
+        else if (att++ < 20) { setTimeout(tryClick, 100); }
+      })();
+    }
+
+    /* ── Botão microfone ────────────────────────────────────────────────── */
+    var mb = pdoc.createElement('button');
+    mb.className = 'pav-icon-btn';
+    mb.type      = 'button';
+    mb.title     = 'Gravar áudio';
+    mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+    mb.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (mb.classList.contains('recording')) {
+        mb.classList.remove('recording');
+        mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+        stopTimer();
+        clickAudioBtn();
+      } else {
+        mb.classList.add('recording');
+        mb.innerHTML = '<i class="fa-solid fa-stop"></i>';
+        startTimer();
+        clickAudioBtn();
+      }
+    });
+
+    /* Reset automático quando o Streamlit recria o stAudioInput após rerun */
+    new MutationObserver(function () {
+      if (!mb.classList.contains('recording')) return;
+      var ai = pdoc.querySelector('[data-testid="stAudioInput"]');
+      if (!ai || !ai.querySelector('button[aria-pressed="true"]')) {
+        mb.classList.remove('recording');
+        mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+        stopTimer();
+      }
+    }).observe(pdoc.body, { childList: true, subtree: true });
+
+    /* ── Botão clipe ────────────────────────────────────────────────────── */
+    var ab = pdoc.createElement('button');
+    ab.className = 'pav-icon-btn';
+    ab.type      = 'button';
+    ab.title     = 'Anexar arquivo';
+    ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
+    ab.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      var fw = pdoc.querySelector('[data-testid="stFileUploader"]');
+      if (fw) {
+        var fi = fw.querySelector('input[type="file"]');
+        if (fi) fi.click();
+      }
+    });
+
+    extras.appendChild(timer);
+    extras.appendChild(mb);
+    extras.appendChild(ab);
+    ci.appendChild(extras);
+    return true;
+  }
+
+  /* ── Observer permanente no parent: re-injeta após qualquer rerun ─────── */
+  new MutationObserver(function () {
+    var ci = pdoc.querySelector('[data-testid="stChatInput"]');
+    if (ci && !ci.querySelector('.pav-extras')) inject();
+  }).observe(pdoc.body, { childList: true, subtree: true });
+
+  /* ── Re-injeta ao voltar para a aba ──────────────────────────────────── */
+  pdoc.addEventListener('visibilitychange', function () {
+    if (pdoc.visibilityState === 'visible') setTimeout(inject, 50);
+  });
+
+  /* ── Injeções iniciais ───────────────────────────────────────────────── */
+  inject();
+  setTimeout(inject, 300);
+  setTimeout(inject, 1000);
+
+})();
+</script>
+</body>
+</html>
