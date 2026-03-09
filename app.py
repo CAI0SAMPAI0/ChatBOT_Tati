@@ -17,7 +17,7 @@ from database import (
     append_message, get_all_students_stats, delete_conversation,
     update_profile, update_password,
     create_session, validate_session, delete_session,
-    save_user_avatar_db, get_user_avatar_db, remove_user_avatar_db, get_client # sessões persistentes
+    save_user_avatar_db, get_user_avatar_db, remove_user_avatar_db, get_client, AVATAR_BUCKET   # sessões persistentes
 )
 from transcriber import transcribe_bytes
 from tts import text_to_speech, tts_available
