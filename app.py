@@ -1364,7 +1364,7 @@ def show_profile() -> None:
             if cur_avatar:
                 if st.button(t("remove_photo", ui_lang), key="pf_remove_photo"):
                     remove_user_avatar(username)
-                    get_user_avatar_b64.clear()
+                    #get_user_avatar_b64.clear()
                     st.session_state.user.get("profile", {}).pop("avatar_v", None)
                     st.session_state.user["profile"] = {
                         k: v for k, v in st.session_state.user.get("profile", {}).items()
