@@ -7,10 +7,12 @@
 <script>
 (function(){
   var par = window.parent;
-  if (!par || !par.document) return;
+  if (!par || !par.document) { console.log('[PAV] sem parent'); return; }
   var pd = par.document;
 
-  /* CSS — injeta só uma vez */
+  console.log('[PAV] iframe iniciado, par ok');
+
+  /* CSS */
   if (!pd.getElementById('pav-style')) {
     var s = pd.createElement('style');
     s.id = 'pav-style';
@@ -26,25 +28,21 @@
       '.pav-timer{font-size:11px!important;color:#8b949e!important;font-family:monospace!important;min-width:36px!important;text-align:center!important;display:none!important;letter-spacing:.5px!important;}' +
       '.pav-timer.visible{display:block!important;}';
     pd.head.appendChild(s);
+    console.log('[PAV] CSS injetado');
   }
 
-  /* Remove botões antigos (rerun recria o iframe mas pode deixar DOM sujo) */
   pd.querySelectorAll('.pav-extras').forEach(function(el){ el.remove(); });
-
-  /* Cancela polling anterior */
   if (par._pavIv) { par.clearInterval(par._pavIv); par._pavIv = null; }
 
   function inject() {
-    /* Remove duplicatas antes de injetar */
     pd.querySelectorAll('.pav-extras').forEach(function(el){ el.remove(); });
-
     var ci = pd.querySelector('[data-testid="stChatInput"]');
-    if (!ci) return;
+    if (!ci) { console.log('[PAV] inject: stChatInput não encontrado'); return; }
+    console.log('[PAV] inject: criando botões');
 
     var extras = pd.createElement('div');
     extras.className = 'pav-extras';
 
-    /* Timer */
     var timer = pd.createElement('span');
     timer.className = 'pav-timer';
     timer.textContent = '00:00';
@@ -66,16 +64,17 @@
       (function t(){
         var ai=pd.querySelector('[data-testid="stAudioInput"]');
         var btn=ai?ai.querySelector('button'):null;
+        console.log('[PAV] clickAudio attempt',att,'btn=',btn);
         if(btn){btn.click();}else if(att++<20){par.setTimeout(t,100);}
       })();
     }
 
-    /* Mic */
     var mb = pd.createElement('button');
     mb.className='pav-icon-btn'; mb.type='button'; mb.title='Gravar áudio';
     mb.innerHTML='<i class="fa-solid fa-microphone"></i>';
     mb.addEventListener('click',function(e){
       e.preventDefault(); e.stopPropagation();
+      console.log('[PAV] mic clicado, recording=', mb.classList.contains('recording'));
       if(mb.classList.contains('recording')){
         mb.classList.remove('recording');
         mb.innerHTML='<i class="fa-solid fa-microphone"></i>';
@@ -87,7 +86,6 @@
       }
     });
 
-    /* Reset mic quando Streamlit recria o widget */
     new MutationObserver(function(){
       if(!mb.classList.contains('recording'))return;
       var ai=pd.querySelector('[data-testid="stAudioInput"]');
@@ -98,26 +96,30 @@
       }
     }).observe(pd.body,{childList:true,subtree:true});
 
-    /* Clipe */
     var ab = pd.createElement('button');
     ab.className='pav-icon-btn'; ab.type='button'; ab.title='Anexar arquivo';
     ab.innerHTML='<i class="fa-solid fa-paperclip"></i>';
     ab.addEventListener('click',function(e){
       e.preventDefault(); e.stopPropagation();
+      console.log('[PAV] clipe clicado');
       var fw=pd.querySelector('[data-testid="stFileUploader"]');
-      if(fw){var fi=fw.querySelector('input[type="file"]');if(fi)fi.click();}
+      console.log('[PAV] stFileUploader=', fw);
+      if(fw){var fi=fw.querySelector('input[type="file"]');console.log('[PAV] input=',fi);if(fi)fi.click();}
     });
 
     extras.appendChild(timer);
     extras.appendChild(mb);
     extras.appendChild(ab);
     ci.appendChild(extras);
+    console.log('[PAV] botões inseridos em', ci);
   }
 
-  /* Polling no parent a cada 400ms — sobrevive a troca de aba */
   par._pavIv = par.setInterval(function(){
     var ci=pd.querySelector('[data-testid="stChatInput"]');
-    if(ci && !ci.querySelector('.pav-extras')) inject();
+    if(ci && !ci.querySelector('.pav-extras')){
+      console.log('[PAV] polling: reinjetando botões');
+      inject();
+    }
   }, 400);
 
   inject();
