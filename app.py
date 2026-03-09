@@ -562,28 +562,28 @@ if not st.session_state.logged_in:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def js_save_session(token: str) -> None:
-    """Salva token no localStorage via st.markdown (sem iframe, sem espaço)."""
-    st.markdown(
-        f"""<script>
-        (function() {{
-            var t = '{token}';
-            try {{ window.parent.localStorage.setItem('pav_session', t); }} catch(e) {{}}
-            try {{ localStorage.setItem('pav_session', t); }} catch(e) {{}}
-        }})();
-        </script>""",
-        unsafe_allow_html=True,
-    )
+    """Salva token no localStorage (components.html — executa JS corretamente)."""
+    components.html(
+        f"""<!DOCTYPE html><html><head>
+<style>html,body{{margin:0;padding:0;overflow:hidden;height:0;}}</style>
+</head><body><script>
+(function(){{
+    var t='{token}';
+    try{{window.parent.localStorage.setItem('pav_session',t);}}catch(e){{}}
+    try{{localStorage.setItem('pav_session',t);}}catch(e){{}}
+}})();
+</script></body></html>""", height=0)
 
 def js_clear_session() -> None:
-    st.markdown(
-        """<script>
-        (function() {
-            try { window.parent.localStorage.removeItem('pav_session'); } catch(e) {}
-            try { localStorage.removeItem('pav_session'); } catch(e) {}
-        })();
-        </script>""",
-        unsafe_allow_html=True,
-    )
+    components.html(
+        """<!DOCTYPE html><html><head>
+<style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
+</head><body><script>
+(function(){
+    try{window.parent.localStorage.removeItem('pav_session');}catch(e){}
+    try{localStorage.removeItem('pav_session');}catch(e){}
+})();
+</script></body></html>""", height=0)
 
 # Auto-login via token movido para dentro do show_login()
 
@@ -911,8 +911,9 @@ def show_login() -> None:
     """Renderiza a tela de login com aba de registro. Cria sessão ao autenticar."""
 
     # ── Auto-login via token salvo (localStorage) — sem iframe ───────────────
-    st.markdown("""<script>
-    (function() {
+    components.html("""<!DOCTYPE html><html><head>
+<style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
+</head><body><script>    (function() {
         function readToken() {
             try { var s = window.parent.sessionStorage.getItem('pav_session'); if (s && s.length > 10) return s; } catch(e) {}
             try { var s2 = sessionStorage.getItem('pav_session'); if (s2 && s2.length > 10) return s2; } catch(e) {}
@@ -934,7 +935,7 @@ def show_login() -> None:
             window.parent.location.replace(url.toString());
         }
     })();
-    </script>""", unsafe_allow_html=True)
+    </script></body></html>""", height=0)
 
     params = st.query_params
     if "_token" in params:
@@ -2100,8 +2101,9 @@ def show_chat() -> None:
 </script>""", unsafe_allow_html=True)
 
     # ── JS: para todo áudio ao trocar de conversa ou recarregar ──────────────
-    st.markdown("""<script>
-(function() {
+    components.html("""<!DOCTYPE html><html><head>
+<style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
+</head><body><script>(function() {
   var par = window.parent;
   if (!par) return;
   function stopAllAudio() {
@@ -2120,7 +2122,7 @@ def show_chat() -> None:
   observer.observe(par.document.body,{childList:true,subtree:false});
   window.addEventListener('beforeunload',function(){observer.disconnect();});
 })();
-</script>""", unsafe_allow_html=True)
+</script></body></html>""", height=0)
 
     # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
@@ -2544,73 +2546,70 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     # ── JS: move botão de clipe para dentro da chat bar ──────────────────────
     # ── JS: move botão de clipe e posiciona audio input ─────────────────────
     # Usa st.markdown (sem iframe) — acessa window diretamente pois já está no contexto pai
-    st.markdown("""<script>
+    components.html("""<!DOCTYPE html><html><head>
+<style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
+</head><body><script>
 (function() {
+  var par = window.parent ? window.parent.document : document;
   var timerInterval = null;
   var timerSecs = 0;
 
   function fmt(s) {
-    var m = Math.floor(s/60);
-    var ss = s % 60;
-    return (m < 10 ? '0' : '') + m + ':' + (ss < 10 ? '0' : '') + ss;
+    var m = Math.floor(s/60), ss = s % 60;
+    return (m<10?'0':'')+m+':'+(ss<10?'0':'')+ss;
   }
 
   function getRealMicBtn() {
-    var ai = document.querySelector('[data-testid="stAudioInput"]');
+    var ai = par.querySelector('[data-testid="stAudioInput"]');
     if (!ai) return null;
     return ai.querySelector('button') || ai.querySelector('[data-testid="stAudioInputRecordButton"]');
   }
 
-  function pavMoveToChatBar() {
-    var ci = document.querySelector('[data-testid="stChatInputContainer"]');
+  function setup() {
+    // Container externo que envolve o stChatInput — é o que tem position:relative
+    var ci = par.querySelector('[data-testid="stChatInputContainer"]');
     if (!ci) return false;
-    if (ci.querySelector('.pav-mic-wrap')) {
-      // já existe — apenas garante botão de clipe
-      ensureClipBtn(ci);
-      return true;
-    }
+    if (ci.querySelector('.pav-mic-wrap')) { ensureClipBtn(ci); return true; }
 
-    // Wrapper do mic (lado esquerdo)
-    var wrap = document.createElement('div');
+    /* ── Microfone + timer (lado esquerdo) ── */
+    var wrap = par.createElement('div');
     wrap.className = 'pav-mic-wrap';
+    wrap.style.cssText = 'position:absolute;left:10px;top:50%;transform:translateY(-50%);'
+      + 'display:flex;align-items:center;gap:5px;z-index:10;';
 
-    var micBtn = document.createElement('button');
+    var micBtn = par.createElement('button');
     micBtn.className = 'pav-mic-btn';
-    micBtn.title = 'Gravar áudio';
-    micBtn.innerHTML = '&#127908;';  // 🎙
     micBtn.type = 'button';
+    micBtn.title = 'Gravar áudio';
+    micBtn.innerHTML = '\uD83C\uDF99'; // 🎙
+    micBtn.style.cssText = 'background:none;border:none;cursor:pointer;padding:4px;'
+      + 'color:#8b949e;font-size:18px;line-height:1;transition:color .2s;';
 
-    var timer = document.createElement('span');
+    var timer = par.createElement('span');
     timer.className = 'pav-mic-timer';
     timer.textContent = '00:00';
+    timer.style.cssText = 'font-size:.72rem;color:#4a5a6a;font-family:monospace;min-width:36px;';
+
+    micBtn.onmouseenter = function(){ if(!micBtn.classList.contains('recording')) micBtn.style.color='#e05c2a'; };
+    micBtn.onmouseleave = function(){ if(!micBtn.classList.contains('recording')) micBtn.style.color='#8b949e'; };
 
     micBtn.onclick = function(e) {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       var realBtn = getRealMicBtn();
-      if (realBtn) {
-        realBtn.click();
-        // Toggle visual
-        if (micBtn.classList.contains('recording')) {
-          // Parar
-          micBtn.classList.remove('recording');
-          micBtn.innerHTML = '&#127908;';
-          clearInterval(timerInterval);
-          timerInterval = null;
-          timerSecs = 0;
-          timer.textContent = '00:00';
-          timer.style.color = '#4a5a6a';
-        } else {
-          // Iniciar
-          micBtn.classList.add('recording');
-          micBtn.innerHTML = '&#9899;';  // ⏺
-          timerSecs = 0;
-          timer.style.color = '#e05c2a';
-          timerInterval = setInterval(function() {
-            timerSecs++;
-            timer.textContent = fmt(timerSecs);
-          }, 1000);
-        }
+      if (!realBtn) return;
+      realBtn.click();
+      if (micBtn.classList.contains('recording')) {
+        micBtn.classList.remove('recording');
+        micBtn.innerHTML = '\uD83C\uDF99';
+        micBtn.style.color = '#8b949e';
+        clearInterval(timerInterval); timerInterval = null; timerSecs = 0;
+        timer.textContent = '00:00'; timer.style.color = '#4a5a6a';
+      } else {
+        micBtn.classList.add('recording');
+        micBtn.innerHTML = '\u23FA'; // ⏺
+        micBtn.style.color = '#e05c2a';
+        timerSecs = 0; timer.style.color = '#e05c2a';
+        timerInterval = setInterval(function(){ timerSecs++; timer.textContent = fmt(timerSecs); }, 1000);
       }
     };
 
@@ -2619,39 +2618,37 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     ci.style.position = 'relative';
     ci.insertBefore(wrap, ci.firstChild);
 
+    /* ── Ajusta padding do textarea ── */
+    var ta = ci.querySelector('textarea');
+    if (ta) ta.style.paddingLeft = '80px';
+
     ensureClipBtn(ci);
     return true;
   }
 
   function ensureClipBtn(ci) {
     if (ci.querySelector('.pav-extras')) return;
-    var extras = document.createElement('div');
+    var extras = par.createElement('div');
     extras.className = 'pav-extras';
-    var ab = document.createElement('button');
-    ab.className = 'pav-icon-btn';
-    ab.title = 'Anexar arquivo';
-    ab.type = 'button';
+    var ab = par.createElement('button');
+    ab.className = 'pav-icon-btn'; ab.type = 'button'; ab.title = 'Anexar arquivo';
     ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
     ab.onclick = function(e) {
       e.preventDefault();
-      var fw = document.querySelector('[data-testid="stFileUploader"]');
+      var fw = par.querySelector('[data-testid="stFileUploader"]');
       if (fw) { var fi = fw.querySelector('input[type="file"]'); if (fi) fi.click(); }
     };
     extras.appendChild(ab);
     ci.appendChild(extras);
   }
 
-  function trySetup() {
-    return pavMoveToChatBar();
-  }
-
-  if (!trySetup()) {
-    var obs = new MutationObserver(function() { if (trySetup()) obs.disconnect(); });
-    obs.observe(document.body, { childList: true, subtree: true });
-    setTimeout(function() { obs.disconnect(); }, 10000);
+  if (!setup()) {
+    var obs = new MutationObserver(function(){ if (setup()) obs.disconnect(); });
+    obs.observe(par.body, { childList: true, subtree: true });
+    setTimeout(function(){ obs.disconnect(); }, 15000);
   }
 })();
-</script>""", unsafe_allow_html=True)
+</script></body></html>""", height=0)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
