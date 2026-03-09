@@ -440,6 +440,20 @@ div[data-testid="stButton"] button {
 [data-testid="stFileUploader"] input[type="file"] {
     pointer-events: auto !important;
 }
+/* Esconde audio input nativo imediatamente — o JS cria botão mic falso na chat bar */
+[data-testid="stAudioInput"] {
+    position: fixed !important;
+    bottom: -9999px !important;
+    left: -9999px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+}
+[data-testid="stAudioInput"] button {
+    pointer-events: auto !important;
+}
 @media (max-width: 1024px) {
     .main .block-container { padding-left: 12px !important; padding-right: 12px !important; }
 }
@@ -2282,8 +2296,10 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
 
 .msg-bubble {
     padding: 10px 15px; border-radius: 18px;
-    font-size: .88rem; line-height: 1.6; word-break: normal;
-    white-space: pre-wrap; overflow-wrap: pre-wrap;
+    font-size: .88rem; line-height: 1.6;
+    word-break: normal;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
 }
 .msg-bubble.user {
     max-width: 75%;
@@ -2580,11 +2596,50 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     const par = window.parent ? window.parent.document : document;
     const chatInputContainer = par.querySelector('[data-testid="stChatInput"]');
     if (!chatInputContainer) return false;
-    if (chatInputContainer.querySelector('.pav-extras')) return true; // já feito
+    if (chatInputContainer.querySelector('.pav-extras')) return true;
+
+    // Esconde o st.audio_input nativo completamente
+    const styleEl = par.createElement('style');
+    styleEl.textContent = `
+      [data-testid="stAudioInput"] {
+        position: fixed !important; bottom: -9999px !important;
+        left: -9999px !important; opacity: 0 !important;
+        pointer-events: none !important; width: 1px !important;
+        height: 1px !important; overflow: hidden !important;
+      }
+      [data-testid="stAudioInput"] button { pointer-events: auto !important; }
+      .pav-extras { display:flex; align-items:center; gap:4px; padding-right:4px; }
+      .pav-icon-btn {
+        width:34px; height:34px; border-radius:50%;
+        border:1px solid #30363d; background:transparent;
+        color:#8b949e; font-size:14px; cursor:pointer;
+        display:flex; align-items:center; justify-content:center;
+        transition:all .15s; flex-shrink:0;
+      }
+      .pav-icon-btn:hover { border-color:#f0a500; color:#f0a500; }
+      .pav-icon-btn.recording { border-color:#f85149; color:#f85149; animation:pavpulse .7s ease-in-out infinite alternate; }
+      @keyframes pavpulse { from{box-shadow:0 0 0 rgba(248,81,73,0);} to{box-shadow:0 0 8px rgba(248,81,73,.6);} }
+    `;
+    par.head.appendChild(styleEl);
 
     const extras = par.createElement('div');
     extras.className = 'pav-extras';
 
+    // Botao microfone
+    const mb = par.createElement('button');
+    mb.className = 'pav-icon-btn';
+    mb.id = 'pav-mic-btn';
+    mb.title = 'Gravar audio';
+    mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+    mb.onclick = () => {
+      const ai = par.querySelector('[data-testid="stAudioInput"]');
+      if (ai) {
+        const btn = ai.querySelector('button');
+        if (btn) { btn.click(); mb.classList.toggle('recording'); }
+      }
+    };
+
+    // Botao clipe
     const ab = par.createElement('button');
     ab.className = 'pav-icon-btn';
     ab.title = 'Anexar arquivo';
@@ -2597,51 +2652,22 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
       }
     };
 
+    extras.appendChild(mb);
     extras.appendChild(ab);
-    const submitBtn = chatInputContainer.querySelector('button[kind="primaryFormSubmit"], button[data-testid="stChatInputSubmitButton"], button:last-of-type');
-    if (submitBtn) {
-        chatInputContainer.insertBefore(extras, submitBtn);
+
+    // Insere ANTES do botao de enviar
+    const sendBtn = chatInputContainer.querySelector('[data-testid="stChatInputSubmitButton"]')
+                 || chatInputContainer.querySelector('button:last-of-type');
+    if (sendBtn) {
+      chatInputContainer.insertBefore(extras, sendBtn);
     } else {
-        chatInputContainer.appendChild(extras);
+      chatInputContainer.appendChild(extras);
     }
-    return true;
-    }
-    const chatInner = chatInputContainer.querySelector('div');
-    if (chatInner) chatInner.style.position = 'relative';
-    chatInputContainer.appendChild(extras);
     return true;
   }
 
   function pavFixAudioInput() {
-    const par = window.parent ? window.parent.document : document;
-    const ai  = par.querySelector('[data-testid="stAudioInput"]');
-    const ci  = par.querySelector('[data-testid="stChatInput"]');
-    if (!ai || !ci) return;
-
-    const rect = ci.getBoundingClientRect();
-    ai.style.cssText = `
-      position: fixed !important;
-      bottom: ${window.parent.innerHeight - rect.bottom + 6}px !important;
-      right: 60px !important;
-      width: 48px !important;
-      z-index: 99 !important;
-      background: transparent !important;
-      border: none !important;
-      padding: 0 !important;
-      height: 52px !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      box-shadow: none !important;
-    `;
-    const inners = ai.querySelectorAll('div');
-    inners.forEach(d => {
-      d.style.background = 'transparent';
-      d.style.border = 'none';
-      d.style.boxShadow = 'none';
-    });
-    const lbl = ai.querySelector('label');
-    if (lbl) lbl.style.display = 'none';
+    // Audio input oculto via CSS acima - nada a reposicionar
   }
 
   function trySetup() {
