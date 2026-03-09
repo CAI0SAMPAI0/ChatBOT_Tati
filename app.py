@@ -312,39 +312,53 @@ def get_avatar_frames() -> dict:
 # ── Avatares individuais dos alunos ───────────────────────────────────────────
 @st.cache_data(ttl=300, show_spinner=False)
 def get_user_avatar_b64(username: str) -> str | None:
-    """Retorna a foto de perfil do usuário como data-URI, usando Supabase Storage."""
+    """Busca foto do usuário direto do banco, sem cache."""
     result = get_user_avatar_db(username)
     if not result:
         return None
     raw, mime = result
     return f"data:{mime};base64,{base64.b64encode(raw).decode()}"
 
-def save_user_avatar(username: str, raw: bytes, suffix: str) -> str:
-    """Salva a foto de perfil no Supabase Storage e retorna o data-URI."""
+# alias usado internamente
+_get_avatar = get_user_avatar_b64
+
+def _avatar_circle_html(b64: str | None, size: int, border: str = "#f0a500") -> str:
+    """Retorna HTML de avatar circular — foto, sem_foto.png ou ícone FA."""
+    if not b64:
+        for _p in [Path("assets/sem_foto.png"), Path(__file__).parent / "assets" / "sem_foto.png"]:
+            if _p.exists():
+                b64 = f"data:image/png;base64,{base64.b64encode(_p.read_bytes()).decode()}"
+                break
+    if b64:
+        return (
+            f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
+            f'background:url({b64}) center/cover no-repeat;'
+            f'border:2px solid {border};flex-shrink:0;"></div>'
+        )
+    icon_px = int(size * 0.50)
+    return (
+        f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
+        f'background:linear-gradient(135deg,#1e2a3a,#2a3a50);'
+        f'display:flex;align-items:center;justify-content:center;'
+        f'border:2px solid #1e2a3a;flex-shrink:0;">'
+        f'<i class="fa-duotone fa-solid fa-user-graduate" '
+        f'style="font-size:{icon_px}px;--fa-primary-color:#f0a500;--fa-secondary-color:#c87800;--fa-secondary-opacity:0.6;"></i>'
+        f'</div>'
+    )
+
+def save_user_avatar(username: str, raw: bytes, suffix: str) -> None:
+    """Salva a foto de perfil no Supabase Storage."""
     suffix = suffix.lower().lstrip(".")
     mime   = "image/jpeg" if suffix in ("jpg", "jpeg") else f"image/{suffix}"
     save_user_avatar_db(username, raw, mime)
-    return f"data:{mime};base64,{base64.b64encode(raw).decode()}"
 
 def remove_user_avatar(username: str) -> None:
     """Remove a foto de perfil do Supabase Storage."""
     remove_user_avatar_db(username)
 
-def user_avatar_html(username: str, size: int = 36, fallback_emoji: str = "🎓") -> str:
-    """Retorna HTML de avatar circular do usuário (foto ou emoji fallback)."""
-    b64 = get_user_avatar_b64(username)
-    if b64:
-        return (
-            f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
-            f'background:url({b64}) center/cover;border:1.5px solid #f0a500;'
-            f'flex-shrink:0;"></div>'
-        )
-    return (
-        f'<div style="width:{size}px;height:{size}px;border-radius:50%;'
-        f'background:linear-gradient(135deg,#1e2a3a,#2a3a50);'
-        f'display:flex;align-items:center;justify-content:center;'
-        f'font-size:{int(size*.5)}px;flex-shrink:0;">{fallback_emoji}</div>'
-    )
+def user_avatar_html(username: str, size: int = 36, **_) -> str:
+    """Retorna HTML de avatar circular do usuário."""
+    return _avatar_circle_html(get_user_avatar_b64(username), size)
 
 def avatar_html(size: int = 52, speaking: bool = False) -> str:
     """Avatar da professora com anel de 'speaking' animado."""
@@ -556,27 +570,41 @@ if not st.session_state.logged_in:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def js_save_session(token: str) -> None:
-    """Salva token no localStorage como fallback (fechar e reabrir browser)."""
+    """Salva token no localStorage E cookie (30 dias) para persistência total."""
     components.html(
-        f"""<!DOCTYPE html><html><body><script>
+        f"""<!DOCTYPE html><html><head>
+<style>html,body{{margin:0;padding:0;overflow:hidden;}}</style>
+</head><body><script>
         (function() {{
             var t = '{token}';
             try {{ window.parent.localStorage.setItem('pav_session', t); }} catch(e) {{}}
             try {{ localStorage.setItem('pav_session', t); }} catch(e) {{}}
+            try {{
+                var exp = new Date(Date.now()+2592000000).toUTCString();
+                window.parent.document.cookie = 'pav_session='+encodeURIComponent(t)+';expires='+exp+';path=/;SameSite=Lax';
+            }} catch(e) {{}}
+            try {{
+                var exp2 = new Date(Date.now()+2592000000).toUTCString();
+                document.cookie = 'pav_session='+encodeURIComponent(t)+';expires='+exp2+';path=/;SameSite=Lax';
+            }} catch(e) {{}}
         }})();
         </script></body></html>""",
-        height=60,
+        height=1,
     )
 
 def js_clear_session() -> None:
     components.html(
-        """<!DOCTYPE html><html><body><script>
+        """<!DOCTYPE html><html><head>
+<style>html,body{margin:0;padding:0;overflow:hidden;}</style>
+</head><body><script>
         (function() {
             try { window.parent.localStorage.removeItem('pav_session'); } catch(e) {}
             try { localStorage.removeItem('pav_session'); } catch(e) {}
+            try { window.parent.document.cookie='pav_session=;expires=Thu,01 Jan 1970 00:00:00 GMT;path=/'; } catch(e) {}
+            try { document.cookie='pav_session=;expires=Thu,01 Jan 1970 00:00:00 GMT;path=/'; } catch(e) {}
         })();
         </script></body></html>""",
-        height=60,
+        height=1,
     )
 
 # Auto-login via token movido para dentro do show_login()
@@ -907,17 +935,17 @@ def show_login() -> None:
     # ── Auto-login via token salvo (cookie/localStorage) ──────────────────────
     # height=0 — sem espaço visível, sem duplicação de campos no submit
     components.html("""<!DOCTYPE html><html><head>
-<style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
+<style>html,body{margin:0;padding:0;overflow:hidden;}</style>
 </head><body><script>
     (function() {
         function readToken() {
             try {
-                var s = window.parent.sessionStorage.getItem('pav_session');
-                if (s && s.length > 10) return s;
+                var v = window.parent.localStorage.getItem('pav_session');
+                if (v && v.length > 10) return v;
             } catch(e) {}
             try {
-                var s2 = sessionStorage.getItem('pav_session');
-                if (s2 && s2.length > 10) return s2;
+                var v2 = localStorage.getItem('pav_session');
+                if (v2 && v2.length > 10) return v2;
             } catch(e) {}
             try {
                 var match = window.parent.document.cookie.split(';')
@@ -929,13 +957,13 @@ def show_login() -> None:
                 }
             } catch(e) {}
             try {
-                var v = window.parent.localStorage.getItem('pav_session');
-                if (v && v.length > 10) return v;
-            } catch(e) {}
-            try {
-                var v2 = localStorage.getItem('pav_session')
-                      || localStorage.getItem('pav_user') || '';
-                if (v2 && v2.length > 10) return v2;
+                var match2 = document.cookie.split(';')
+                    .map(function(c) { return c.trim(); })
+                    .find(function(c) { return c.startsWith('pav_session='); });
+                if (match2) {
+                    var val2 = decodeURIComponent(match2.split('=')[1]);
+                    if (val2 && val2.length > 10) return val2;
+                }
             } catch(e) {}
             return '';
         }
@@ -949,7 +977,7 @@ def show_login() -> None:
             window.parent.location.replace(url.toString());
         }
     })();
-    </script></body></html>""", height=0)
+    </script></body></html>""", height=1)
 
     params = st.query_params
     if "_token" in params:
@@ -1298,31 +1326,26 @@ def show_profile() -> None:
     # ── Aba Conta ─────────────────────────────────────────────────────────────
     with tab_conta:
         st.markdown("### 📸 Foto de Perfil")
+
+        msg = st.session_state.pop("_photo_msg", None)
+        if msg == "saved":   st.success("✅ Foto salva!")
+        elif msg == "removed": st.success("Foto removida.")
+
         cur_avatar = get_user_avatar_b64(username)
         MAX_BYTES  = 15 * 1024 * 1024
 
         col_av, col_btns = st.columns([1, 3])
         with col_av:
-            if cur_avatar:
-                st.markdown(
-                    f'<div style="width:88px;height:88px;border-radius:50%;'
-                    f'background:url({cur_avatar}) center/cover;'
-                    f'border:2.5px solid #f0a500;'
-                    f'box-shadow:0 0 0 4px rgba(240,165,0,.15);"></div>',
-                    unsafe_allow_html=True)
-            else:
-                st.markdown(
-                    '<div style="width:88px;height:88px;border-radius:50%;'
-                    'background:linear-gradient(135deg,#1e2a3a,#2a3a50);'
-                    'display:flex;align-items:center;justify-content:center;'
-                    'font-size:36px;border:2px solid #30363d;">🎓</div>',
-                    unsafe_allow_html=True)
+            st.markdown(
+                _avatar_circle_html(cur_avatar, size=88) +
+                '<div style="height:8px"></div>',
+                unsafe_allow_html=True)
         with col_btns:
             photo_file = st.file_uploader(
                 "Alterar foto — JPG, PNG ou WEBP (máx 15 MB)",
                 type=["jpg", "jpeg", "png", "webp"], key="pf_photo_upload")
             if photo_file:
-                file_id = f"{photo_file.name}_{photo_file.size}"
+                file_id = f"{photo_file.name}::{photo_file.size}"
                 if st.session_state.get("_last_photo_saved") != file_id:
                     raw_photo = photo_file.read()
                     if len(raw_photo) > MAX_BYTES:
@@ -1330,16 +1353,20 @@ def show_profile() -> None:
                     else:
                         suffix = Path(photo_file.name).suffix.lstrip(".")
                         save_user_avatar(username, raw_photo, suffix)
-                        get_user_avatar_b64.clear()  # invalida cache
                         st.session_state["_last_photo_saved"] = file_id
-                        st.success("✅ Foto salva!")
+                        st.session_state["_photo_msg"] = "saved"
                         st.rerun()
             if cur_avatar:
                 if st.button(t("remove_photo", ui_lang), key="pf_remove_photo"):
                     remove_user_avatar(username)
-                    get_user_avatar_b64.clear()  # invalida cache
+                    st.session_state.user.get("profile", {}).pop("avatar_v", None)
+                    st.session_state.user["profile"] = {
+                        k: v for k, v in st.session_state.user.get("profile", {}).items()
+                        if k != "avatar_v"
+                    }
                     st.session_state.pop("_last_photo_saved", None)
-                    st.success("Foto removida."); st.rerun()
+                    st.session_state["_photo_msg"] = "removed"
+                    st.rerun()
 
         st.markdown("---")
         st.markdown("### Informações da Conta")
@@ -2610,7 +2637,7 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
   window.parent.addEventListener('resize', pavFixAudioInput);
 })();
 </script>
-</body></html>""", height=0)
+</body></html>""", height=1)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2694,9 +2721,15 @@ def show_dashboard() -> None:
 
 if not st.session_state.logged_in:
     show_login()
-elif st.session_state.page == "profile":
-    show_profile()
-elif st.session_state.page == "dashboard":
-    show_dashboard()
 else:
-    show_chat()
+    # Re-salva token a cada render para garantir persistência
+    _tok = st.session_state.get("_session_token", "")
+    if _tok:
+        js_save_session(_tok)
+
+    if st.session_state.page == "profile":
+        show_profile()
+    elif st.session_state.page == "dashboard":
+        show_dashboard()
+    else:
+        show_chat()
