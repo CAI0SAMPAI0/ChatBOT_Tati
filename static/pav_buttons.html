@@ -7,10 +7,10 @@
 <script>
 (function(){
   var par = window.parent;
-  if (!par) return;
+  if (!par || !par.document) return;
   var pd = par.document;
 
-  /* Injeta CSS no parent uma única vez */
+  /* CSS — injeta só uma vez */
   if (!pd.getElementById('pav-style')) {
     var s = pd.createElement('style');
     s.id = 'pav-style';
@@ -28,110 +28,100 @@
     pd.head.appendChild(s);
   }
 
-  /* Só instala o intervalo uma vez — sobrevive a reruns e troca de aba
-     porque par.setInterval roda no contexto do window.parent             */
-  if (par._pavInterval) return;
+  /* Remove botões antigos (rerun recria o iframe mas pode deixar DOM sujo) */
+  pd.querySelectorAll('.pav-extras').forEach(function(el){ el.remove(); });
 
-  par._pavInterval = par.setInterval(function(){
+  /* Cancela polling anterior */
+  if (par._pavIv) { par.clearInterval(par._pavIv); par._pavIv = null; }
+
+  function inject() {
+    /* Remove duplicatas antes de injetar */
+    pd.querySelectorAll('.pav-extras').forEach(function(el){ el.remove(); });
+
     var ci = pd.querySelector('[data-testid="stChatInput"]');
-    if (!ci || ci.querySelector('.pav-extras')) return;
-    pavInject(pd, par);
+    if (!ci) return;
+
+    var extras = pd.createElement('div');
+    extras.className = 'pav-extras';
+
+    /* Timer */
+    var timer = pd.createElement('span');
+    timer.className = 'pav-timer';
+    timer.textContent = '00:00';
+    var tIv = null, tSec = 0;
+
+    function startTimer() {
+      tSec = 0; timer.textContent = '00:00'; timer.classList.add('visible');
+      tIv = par.setInterval(function(){
+        tSec++;
+        timer.textContent = String(Math.floor(tSec/60)).padStart(2,'0')+':'+String(tSec%60).padStart(2,'0');
+      }, 1000);
+    }
+    function stopTimer() {
+      par.clearInterval(tIv); tIv=null; tSec=0;
+      timer.textContent='00:00'; timer.classList.remove('visible');
+    }
+    function clickAudio() {
+      var att=0;
+      (function t(){
+        var ai=pd.querySelector('[data-testid="stAudioInput"]');
+        var btn=ai?ai.querySelector('button'):null;
+        if(btn){btn.click();}else if(att++<20){par.setTimeout(t,100);}
+      })();
+    }
+
+    /* Mic */
+    var mb = pd.createElement('button');
+    mb.className='pav-icon-btn'; mb.type='button'; mb.title='Gravar áudio';
+    mb.innerHTML='<i class="fa-solid fa-microphone"></i>';
+    mb.addEventListener('click',function(e){
+      e.preventDefault(); e.stopPropagation();
+      if(mb.classList.contains('recording')){
+        mb.classList.remove('recording');
+        mb.innerHTML='<i class="fa-solid fa-microphone"></i>';
+        stopTimer(); clickAudio();
+      } else {
+        mb.classList.add('recording');
+        mb.innerHTML='<i class="fa-solid fa-stop"></i>';
+        startTimer(); clickAudio();
+      }
+    });
+
+    /* Reset mic quando Streamlit recria o widget */
+    new MutationObserver(function(){
+      if(!mb.classList.contains('recording'))return;
+      var ai=pd.querySelector('[data-testid="stAudioInput"]');
+      if(!ai||!ai.querySelector('button[aria-pressed="true"]')){
+        mb.classList.remove('recording');
+        mb.innerHTML='<i class="fa-solid fa-microphone"></i>';
+        stopTimer();
+      }
+    }).observe(pd.body,{childList:true,subtree:true});
+
+    /* Clipe */
+    var ab = pd.createElement('button');
+    ab.className='pav-icon-btn'; ab.type='button'; ab.title='Anexar arquivo';
+    ab.innerHTML='<i class="fa-solid fa-paperclip"></i>';
+    ab.addEventListener('click',function(e){
+      e.preventDefault(); e.stopPropagation();
+      var fw=pd.querySelector('[data-testid="stFileUploader"]');
+      if(fw){var fi=fw.querySelector('input[type="file"]');if(fi)fi.click();}
+    });
+
+    extras.appendChild(timer);
+    extras.appendChild(mb);
+    extras.appendChild(ab);
+    ci.appendChild(extras);
+  }
+
+  /* Polling no parent a cada 400ms — sobrevive a troca de aba */
+  par._pavIv = par.setInterval(function(){
+    var ci=pd.querySelector('[data-testid="stChatInput"]');
+    if(ci && !ci.querySelector('.pav-extras')) inject();
   }, 400);
 
-  setTimeout(function(){
-    var ci = pd.querySelector('[data-testid="stChatInput"]');
-    if (ci && !ci.querySelector('.pav-extras')) pavInject(pd, par);
-  }, 0);
+  inject();
 })();
-
-function pavInject(pd, par) {
-  var ci = pd.querySelector('[data-testid="stChatInput"]');
-  if (!ci || ci.querySelector('.pav-extras')) return;
-
-  var extras = pd.createElement('div');
-  extras.className = 'pav-extras';
-
-  /* Timer */
-  var timer = pd.createElement('span');
-  timer.className = 'pav-timer';
-  timer.textContent = '00:00';
-  var timerIv = null, timerSec = 0;
-
-  function startTimer() {
-    timerSec = 0;
-    timer.textContent = '00:00';
-    timer.classList.add('visible');
-    timerIv = par.setInterval(function(){
-      timerSec++;
-      timer.textContent =
-        String(Math.floor(timerSec / 60)).padStart(2, '0') + ':' +
-        String(timerSec % 60).padStart(2, '0');
-    }, 1000);
-  }
-  function stopTimer() {
-    par.clearInterval(timerIv);
-    timerIv = null; timerSec = 0;
-    timer.textContent = '00:00';
-    timer.classList.remove('visible');
-  }
-
-  function clickAudio() {
-    var att = 0;
-    (function t(){
-      var ai  = pd.querySelector('[data-testid="stAudioInput"]');
-      var btn = ai ? ai.querySelector('button') : null;
-      if (btn) { btn.click(); }
-      else if (att++ < 20) { par.setTimeout(t, 100); }
-    })();
-  }
-
-  /* Botão mic */
-  var mb = pd.createElement('button');
-  mb.className = 'pav-icon-btn';
-  mb.type = 'button';
-  mb.title = 'Gravar áudio';
-  mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-  mb.addEventListener('click', function(e){
-    e.preventDefault(); e.stopPropagation();
-    if (mb.classList.contains('recording')) {
-      mb.classList.remove('recording');
-      mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-      stopTimer(); clickAudio();
-    } else {
-      mb.classList.add('recording');
-      mb.innerHTML = '<i class="fa-solid fa-stop"></i>';
-      startTimer(); clickAudio();
-    }
-  });
-
-  /* Reset mic quando Streamlit recria o widget após rerun */
-  new MutationObserver(function(){
-    if (!mb.classList.contains('recording')) return;
-    var ai = pd.querySelector('[data-testid="stAudioInput"]');
-    if (!ai || !ai.querySelector('button[aria-pressed="true"]')) {
-      mb.classList.remove('recording');
-      mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-      stopTimer();
-    }
-  }).observe(pd.body, { childList: true, subtree: true });
-
-  /* Botão clipe */
-  var ab = pd.createElement('button');
-  ab.className = 'pav-icon-btn';
-  ab.type = 'button';
-  ab.title = 'Anexar arquivo';
-  ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
-  ab.addEventListener('click', function(e){
-    e.preventDefault(); e.stopPropagation();
-    var fw = pd.querySelector('[data-testid="stFileUploader"]');
-    if (fw) { var fi = fw.querySelector('input[type="file"]'); if (fi) fi.click(); }
-  });
-
-  extras.appendChild(timer);
-  extras.appendChild(mb);
-  extras.appendChild(ab);
-  ci.appendChild(extras);
-}
 </script>
 </body>
 </html>
