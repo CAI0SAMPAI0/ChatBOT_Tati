@@ -2210,10 +2210,41 @@ def show_chat() -> None:
     st.markdown("""<style>
 [data-testid="stChatInput"] textarea {
     max-height: 120px !important; min-height: 44px !important; font-size: .88rem !important;
+    padding-left: 80px !important;
 }
-[data-testid="stChatInputContainer"] { padding: 6px 10px !important; }
+[data-testid="stChatInputContainer"] { padding: 6px 10px !important; position: relative !important; }
 .main .block-container { padding-bottom: 80px !important; }
 section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
+
+/* stAudioInput nativo — sumido, movido via JS para dentro da chat bar */
+[data-testid="stAudioInput"] {
+    position: fixed !important; bottom: -999px !important;
+    left: -9999px !important; opacity: 0 !important;
+    pointer-events: none !important; width: 1px !important; height: 1px !important;
+}
+[data-testid="stAudioInput"] button { pointer-events: auto !important; }
+
+/* Wrapper do mic dentro da chat bar */
+.pav-mic-wrap {
+    position: absolute !important; left: 10px !important;
+    top: 50% !important; transform: translateY(-50%) !important;
+    display: flex !important; align-items: center !important;
+    gap: 5px !important; z-index: 10 !important;
+}
+.pav-mic-btn {
+    background: none !important; border: none !important; cursor: pointer !important;
+    padding: 4px !important; color: #8b949e !important; font-size: 18px !important;
+    display: flex !important; align-items: center !important;
+    transition: color .2s !important; line-height: 1 !important;
+}
+.pav-mic-btn:hover { color: #e05c2a !important; }
+.pav-mic-btn.recording { color: #e05c2a !important; animation: mic-pulse 1s infinite !important; }
+@keyframes mic-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.pav-mic-timer {
+    font-size: .72rem !important; color: #4a5a6a !important;
+    font-family: monospace !important; min-width: 36px !important;
+    pointer-events: none !important; user-select: none !important;
+}
 
 /* Mensagens estilo ChatGPT */
 .msg-row { display:flex; align-items:flex-end; gap:10px; margin:6px 0; }
@@ -2515,45 +2546,103 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     # Usa st.markdown (sem iframe) — acessa window diretamente pois já está no contexto pai
     st.markdown("""<script>
 (function() {
+  var timerInterval = null;
+  var timerSecs = 0;
+
+  function fmt(s) {
+    var m = Math.floor(s/60);
+    var ss = s % 60;
+    return (m < 10 ? '0' : '') + m + ':' + (ss < 10 ? '0' : '') + ss;
+  }
+
+  function getRealMicBtn() {
+    var ai = document.querySelector('[data-testid="stAudioInput"]');
+    if (!ai) return null;
+    return ai.querySelector('button') || ai.querySelector('[data-testid="stAudioInputRecordButton"]');
+  }
+
   function pavMoveToChatBar() {
-    var chatInputContainer = document.querySelector('[data-testid="stChatInput"]');
-    if (!chatInputContainer) return false;
-    if (chatInputContainer.querySelector('.pav-extras')) return true;
+    var ci = document.querySelector('[data-testid="stChatInputContainer"]');
+    if (!ci) return false;
+    if (ci.querySelector('.pav-mic-wrap')) {
+      // já existe — apenas garante botão de clipe
+      ensureClipBtn(ci);
+      return true;
+    }
 
-    var extras = document.createElement('div');
-    extras.className = 'pav-extras';
+    // Wrapper do mic (lado esquerdo)
+    var wrap = document.createElement('div');
+    wrap.className = 'pav-mic-wrap';
 
-    var ab = document.createElement('button');
-    ab.className = 'pav-icon-btn';
-    ab.title = 'Anexar arquivo';
-    ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
-    ab.onclick = function() {
-      var fw = document.querySelector('[data-testid="stFileUploader"]');
-      if (fw) { var fi = fw.querySelector('input[type="file"]'); if (fi) fi.click(); }
+    var micBtn = document.createElement('button');
+    micBtn.className = 'pav-mic-btn';
+    micBtn.title = 'Gravar áudio';
+    micBtn.innerHTML = '&#127908;';  // 🎙
+    micBtn.type = 'button';
+
+    var timer = document.createElement('span');
+    timer.className = 'pav-mic-timer';
+    timer.textContent = '00:00';
+
+    micBtn.onclick = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var realBtn = getRealMicBtn();
+      if (realBtn) {
+        realBtn.click();
+        // Toggle visual
+        if (micBtn.classList.contains('recording')) {
+          // Parar
+          micBtn.classList.remove('recording');
+          micBtn.innerHTML = '&#127908;';
+          clearInterval(timerInterval);
+          timerInterval = null;
+          timerSecs = 0;
+          timer.textContent = '00:00';
+          timer.style.color = '#4a5a6a';
+        } else {
+          // Iniciar
+          micBtn.classList.add('recording');
+          micBtn.innerHTML = '&#9899;';  // ⏺
+          timerSecs = 0;
+          timer.style.color = '#e05c2a';
+          timerInterval = setInterval(function() {
+            timerSecs++;
+            timer.textContent = fmt(timerSecs);
+          }, 1000);
+        }
+      }
     };
 
-    extras.appendChild(ab);
-    var chatInner = chatInputContainer.querySelector('div');
-    if (chatInner) chatInner.style.position = 'relative';
-    chatInputContainer.appendChild(extras);
+    wrap.appendChild(micBtn);
+    wrap.appendChild(timer);
+    ci.style.position = 'relative';
+    ci.insertBefore(wrap, ci.firstChild);
+
+    ensureClipBtn(ci);
     return true;
   }
 
-  function pavFixAudioInput() {
-    var ai = document.querySelector('[data-testid="stAudioInput"]');
-    var ci = document.querySelector('[data-testid="stChatInput"]');
-    if (!ai || !ci) return;
-    var rect = ci.getBoundingClientRect();
-    ai.style.cssText = 'position:fixed!important;bottom:' + (window.innerHeight - rect.top + 42) + 'px!important;left:' + rect.left + 'px!important;width:' + rect.width + 'px!important;z-index:99!important;background:transparent!important;border:none!important;padding:0!important;height:52px!important;display:flex!important;align-items:center!important;justify-content:center!important;box-shadow:none!important;';
-    ai.querySelectorAll('div').forEach(function(d){d.style.background='transparent';d.style.border='none';d.style.boxShadow='none';});
-    var lbl = ai.querySelector('label');
-    if (lbl) lbl.style.display = 'none';
+  function ensureClipBtn(ci) {
+    if (ci.querySelector('.pav-extras')) return;
+    var extras = document.createElement('div');
+    extras.className = 'pav-extras';
+    var ab = document.createElement('button');
+    ab.className = 'pav-icon-btn';
+    ab.title = 'Anexar arquivo';
+    ab.type = 'button';
+    ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
+    ab.onclick = function(e) {
+      e.preventDefault();
+      var fw = document.querySelector('[data-testid="stFileUploader"]');
+      if (fw) { var fi = fw.querySelector('input[type="file"]'); if (fi) fi.click(); }
+    };
+    extras.appendChild(ab);
+    ci.appendChild(extras);
   }
 
   function trySetup() {
-    var ok = pavMoveToChatBar();
-    pavFixAudioInput();
-    return ok;
+    return pavMoveToChatBar();
   }
 
   if (!trySetup()) {
@@ -2561,8 +2650,6 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     obs.observe(document.body, { childList: true, subtree: true });
     setTimeout(function() { obs.disconnect(); }, 10000);
   }
-
-  window.addEventListener('resize', pavFixAudioInput);
 })();
 </script>""", unsafe_allow_html=True)
 
