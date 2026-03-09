@@ -302,11 +302,11 @@ def get_avatar_frames() -> dict:
                 return f"data:image/png;base64,{base64.b64encode(p.read_bytes()).decode()}"
         return ""
     return {
-        "base":   _load([_base/"assets"/"avatar_tati_normal.png",      "assets/avatar_tati_normal.png"]),
-        "closed": _load([_base/"assets"/"avatar_tati_closed.png",      "assets/avatar_tati_closed.png"]),
-        "mid":    _load([_base/"assets"/"avatar_tati_meio.png",        "assets/avatar_tati_meio.png"]),
-        "open":   _load([_base/"assets"/"avatar_tati_bem_aberta.png",  "assets/avatar_tati_bem_aberta.png",
-                         _base/"assets"/"avatar_tati_aberta.png",      "assets/avatar_tati_aberta.png"]),
+        "base":   _load([_base/"assets"/"avatar_normal.png",      "assets/avatar_normal.png"]),
+        "closed": _load([_base/"assets"/"avatar_closed.png",      "assets/avatar_closed.png"]),
+        "mid":    _load([_base/"assets"/"avatar_mid.png",        "assets/avatar_mid.png"]),
+        "open":   _load([_base/"assets"/"avatar_bem_aberto.png",  "assets/avatar_bem_aberto.png",
+                         _base/"assets"/"avatar_open.png",      "assets/avatar_open.png"]),
     }
 
 # ── Avatares individuais dos alunos ───────────────────────────────────────────
