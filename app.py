@@ -2282,8 +2282,8 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
 
 .msg-bubble {
     padding: 10px 15px; border-radius: 18px;
-    font-size: .88rem; line-height: 1.6; word-break: break-word;
-    white-space: pre-wrap; overflow-wrap: anywhere;
+    font-size: .88rem; line-height: 1.6; word-break: normal;
+    white-space: pre-wrap; overflow-wrap: pre-wrap;
 }
 .msg-bubble.user {
     max-width: 75%;
