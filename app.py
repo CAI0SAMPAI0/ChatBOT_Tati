@@ -399,6 +399,16 @@ load_css("styles/style.css")
 
 # ── CSS responsivo global ──────────────────────────────────────────────────────
 st.markdown("""<style>
+/* Remove overlay de escurecimento durante rerun */
+[data-testid="stAppViewBlockContainer"] { opacity: 1 !important; }
+div[data-stale="true"] { opacity: 1 !important; transition: none !important; }
+div[data-stale="false"] { opacity: 1 !important; transition: none !important; }
+/* Esconde spinner/loading global do Streamlit */
+.stSpinner, [data-testid="stSpinner"],
+div[class*="StatusWidget"], div[class*="stStatusWidget"] { display: none !important; }
+/* Remove o fade/dim que o Streamlit aplica durante rerun */
+.stApp > div { opacity: 1 !important; }
+iframe[title="streamlit_loading"] { display: none !important; }
 section[data-testid="stMain"] > div {
     transition: all .25s ease;
     max-width: 100% !important;
@@ -1292,8 +1302,16 @@ def show_profile() -> None:
             lang  = st.selectbox(t("interface_lang", ui_lang), ["pt-BR", "en-US", "en-UK"],
                 index=safe_index(["pt-BR", "en-US", "en-UK"], profile.get("language", "pt-BR")), key="pf_lang")
         with col2:
-            accent = st.color_picker("Cor de destaque",
+            accent = st.color_picker("Cor de destaque (anel / botões)",
                 value=profile.get("accent_color", "#f0a500"), key="pf_accent")
+
+        col5, col6 = st.columns(2)
+        with col5:
+            user_bubble_color = st.color_picker("Balão do usuário",
+                value=profile.get("user_bubble_color", "#2d6a4f"), key="pf_user_bubble")
+        with col6:
+            ai_bubble_color = st.color_picker("Balão da IA",
+                value=profile.get("ai_bubble_color", "#1a1f2e"), key="pf_ai_bubble")
 
         st.markdown("### Voz")
         col3, col4 = st.columns(2)
@@ -1311,7 +1329,10 @@ def show_profile() -> None:
 
         if st.button(t("save_general", ui_lang), key="save_geral"):
             update_profile(username, {"language": lang,
-                "accent_color": accent, "voice_lang": voice_lang, "speech_lang": speech_lang})
+                "accent_color": accent,
+                "user_bubble_color": user_bubble_color,
+                "ai_bubble_color": ai_bubble_color,
+                "voice_lang": voice_lang, "speech_lang": speech_lang})
             u = load_students().get(username, {})
             # Atualiza session_state para refletir cor imediatamente
             st.session_state.user = {"username": username, **u}
@@ -2139,8 +2160,10 @@ def show_chat() -> None:
         show_voice_mode()
         return
 
-    # ── Injeta cor de destaque do usuário no Streamlit principal ────────────
+    # ── Injeta cor de destaque do usuário no Streamlit principal ────────
     _ac = profile.get("accent_color", "#f0a500")
+    _ub = profile.get("user_bubble_color", "#2d6a4f")
+    _ab = profile.get("ai_bubble_color", "#1a1f2e")
     st.markdown(f"""<script>
 (function(){{
   function hexToRgb(h){{
@@ -2149,7 +2172,14 @@ def show_chat() -> None:
     var n=parseInt(h,16);
     return [(n>>16)&255,(n>>8)&255,n&255].join(',');
   }}
-  var ac="{_ac}";
+  function luminance(h){{
+    h=h.replace('#','');
+    if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var n=parseInt(h,16);
+    var r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+    return 0.299*r + 0.587*g + 0.114*b;
+  }}
+  var ac="{_ac}", ub="{_ub}", ab="{_ab}";
   var rgb=hexToRgb(ac);
   var r=document.documentElement;
   r.style.setProperty('--accent-full',ac);
@@ -2160,6 +2190,11 @@ def show_chat() -> None:
   r.style.setProperty('--bubble-bg','rgba('+rgb+',.12)');
   r.style.setProperty('--bubble-border','rgba('+rgb+',.3)');
   r.style.setProperty('--bubble-text','#e6edf3');
+  r.style.setProperty('--user-bubble-bg', ub);
+  r.style.setProperty('--user-bubble-text', luminance(ub)>128 ? '#111' : '#e6edf3');
+  r.style.setProperty('--ai-bubble-bg', ab);
+  r.style.setProperty('--ai-bubble-text', luminance(ab)>128 ? '#111' : '#e6edf3');
+  r.style.setProperty('--ai-bubble-border', 'rgba('+hexToRgb(ab)+', .6)');
 }})();
 </script>""", unsafe_allow_html=True)
 
@@ -2303,13 +2338,15 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
 }
 .msg-bubble.user {
     max-width: 75%;
-    background: #2d6a4f; color: #d8f3dc;
+    background: var(--user-bubble-bg, #2d6a4f);
+    color: var(--user-bubble-text, #d8f3dc);
     border-bottom-right-radius: 4px;
 }
 .msg-bubble.bot {
     max-width: 75%;
-    background: #1a1f2e; color: #e6edf3;
-    border: 1px solid #252d3d;
+    background: var(--ai-bubble-bg, #1a1f2e);
+    color: var(--ai-bubble-text, #e6edf3);
+    border: 1px solid var(--ai-bubble-border, #252d3d);
     border-bottom-left-radius: 4px;
 }
 .msg-bubble.audio-msg { font-style: italic; opacity: .85; }
