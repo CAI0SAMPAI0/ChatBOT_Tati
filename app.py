@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ══════════════════════════════════════════════════════════════════════════════
-# app.py — Teacher Tati · English Learning AI
+# app.py -- Teacher Tati · English Learning AI
 # Autor: Caio (programador) · Arquitetura: Streamlit + Claude + ElevenLabs TTS
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -16,7 +16,7 @@ import streamlit.components.v1 as components
 import anthropic
 from datetime import datetime
 
-# ── Imports do banco e serviços ───────────────────────────────────────────────
+# -- Imports do banco e serviços -----------------------------------------------
 from database import (
     init_db, authenticate, register_student, load_students,
     new_conversation, list_conversations, load_conversation,
@@ -29,7 +29,7 @@ from transcriber import transcribe_bytes
 from tts import text_to_speech, tts_available
 from file_reader import extract_file
 
-# ── Wav2Lip (avatar realista — opcional, requer Colab rodando) ────────────────
+# -- Wav2Lip (avatar realista -- opcional, requer Colab rodando) ----------------
 try:
     from wav2lip_avatar import generate_talking_video, wav2lip_available
     _WAV2LIP_LOADED = True
@@ -38,7 +38,7 @@ except ImportError:
     def wav2lip_available(): return False
     def generate_talking_video(_): return None
 
-# ── Font Awesome (ícones de anexo, etc.) ─────────────────────────────────────
+# -- Font Awesome (ícones de anexo, etc.) -------------------------------------
 st.markdown(
     '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">',
     unsafe_allow_html=True
@@ -62,7 +62,7 @@ def _try_autologin_from_cookie() -> bool:
         headers = st.context.headers
         cookie_header = headers.get("Cookie", "") or headers.get("cookie", "")
     except AttributeError:
-        # Streamlit < 1.31 — st.context não existe, usa fallback JS
+        # Streamlit < 1.31 -- st.context não existe, usa fallback JS
         return False
 
     if not cookie_header:
@@ -104,15 +104,15 @@ def _try_autologin_from_cookie() -> bool:
     st.session_state["_session_token"] = token
     return True
 
-# ── Inicialização do banco de dados (SQLite) ──────────────────────────────────
+# -- Inicialização do banco de dados (SQLite) ----------------------------------
 init_db()
 
-# ── Variáveis de ambiente ─────────────────────────────────────────────────────
+# -- Variáveis de ambiente -----------------------------------------------------
 API_KEY    = os.getenv("ANTHROPIC_API_KEY", "")
 PHOTO_PATH = os.getenv("PROFESSOR_PHOTO", "assets/professor.jpg")
 PROF_NAME  = os.getenv("PROFESSOR_NAME",  "Professor Avatar")
 
-# ── Contador de áudio — força re-render do widget nativo ─────────────────────
+# -- Contador de áudio -- força re-render do widget nativo ---------------------
 if "audio_key" not in st.session_state:
     st.session_state.audio_key = 0
 
@@ -161,7 +161,7 @@ _STRINGS = {
         "ai_role":            "Papel da IA",
         "new_password":       "Nova senha",
         "confirm_password":   "Confirmar senha",
-        "speaking":           "🗣 Falando...",
+        "speaking":           "&#128483; Falando...",
         "listening":          "🎙 Ouvindo...",
         "processing":         "⏳ Processando...",
         "tap_to_speak":       "Toque no microfone para falar",
@@ -207,7 +207,7 @@ _STRINGS = {
         "ai_role":            "AI role",
         "new_password":       "New password",
         "confirm_password":   "Confirm password",
-        "speaking":           "🗣 Speaking...",
+        "speaking":           "&#128483; Speaking...",
         "listening":          "🎙 Listening...",
         "processing":         "⏳ Processing...",
         "tap_to_speak":       "Tap the mic to speak",
@@ -253,7 +253,7 @@ _STRINGS = {
         "ai_role":            "AI role",
         "new_password":       "New password",
         "confirm_password":   "Confirm password",
-        "speaking":           "🗣 Speaking...",
+        "speaking":           "&#128483; Speaking...",
         "listening":          "🎙 Listening...",
         "processing":         "⏳ Processing...",
         "tap_to_speak":       "Tap the mic to speak",
@@ -283,7 +283,7 @@ def get_photo_b64() -> str | None:
 
 PHOTO_B64 = get_photo_b64()
 
-# ── Cache da foto mini da Tati (evita re-leitura de disco a cada render) ──────
+# -- Cache da foto mini da Tati (evita re-leitura de disco a cada render) ------
 @st.cache_data(show_spinner=False)
 def get_tati_mini_b64() -> str:
     """Lê a foto da Tati uma única vez e reutiliza em todo o app."""
@@ -296,7 +296,7 @@ def get_tati_mini_b64() -> str:
             return f"data:image/{_mime};base64,{base64.b64encode(_p.read_bytes()).decode()}"
     return get_photo_b64() or ""
 
-# ── Cache dos 4 frames do avatar animado do modo voz ─────────────────────────
+# -- Cache dos 4 frames do avatar animado do modo voz -------------------------
 @st.cache_data(show_spinner=False)
 def get_avatar_frames() -> dict:
     """Carrega os frames do avatar animado uma única vez."""
@@ -315,7 +315,7 @@ def get_avatar_frames() -> dict:
                          _base/"assets"/"avatar_tati_aberta.png",      "assets/avatar_tati_aberta.png"]),
     }
 
-# ── Avatares individuais dos alunos ───────────────────────────────────────────
+# -- Avatares individuais dos alunos -------------------------------------------
 @st.cache_data(ttl=300, show_spinner=False)
 def get_user_avatar_b64(username: str) -> str | None:
     """Retorna a foto de perfil do usuário como data-URI, usando Supabase Storage."""
@@ -355,7 +355,7 @@ def user_avatar_html(username: str, size: int = 36, fallback_emoji: str = "🎓"
 def avatar_html(size: int = 52, speaking: bool = False) -> str:
     """Avatar da professora com anel de 'speaking' animado."""
     cls   = "speaking" if speaking else ""
-    photo = PHOTO_B64  # usa cache — evita re-leitura e flash
+    photo = PHOTO_B64  # usa cache -- evita re-leitura e flash
     if photo:
         return (
             f'<div class="avatar-wrap {cls}" style="width:{size}px;height:{size}px;'
@@ -366,7 +366,7 @@ def avatar_html(size: int = 52, speaking: bool = False) -> str:
         )
     return (
         f'<div class="avatar-circle {cls}" '
-        f'style="width:{size}px;height:{size}px;font-size:{int(size*.48)}px">🧑‍🏫</div>'
+        f'style="width:{size}px;height:{size}px;font-size:{int(size*.48)}px">&#129489;&#8205;&#127979;</div>'
     )
 
 
@@ -384,7 +384,7 @@ def load_css(path: str) -> None:
 
 load_css("styles/style.css")
 
-# ── CSS responsivo global ──────────────────────────────────────────────────────
+# -- CSS responsivo global ------------------------------------------------------
 st.markdown("""<style>
 section[data-testid="stMain"] > div {
     transition: all .25s ease;
@@ -413,7 +413,7 @@ div[data-testid="stButton"] button {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-/* Esconde file uploader nativo imediatamente — o JS depois move o clipe */
+/* Esconde file uploader nativo imediatamente -- o JS depois move o clipe */
 [data-testid="stFileUploader"] {
     position: fixed !important;
     bottom: -999px !important;
@@ -449,7 +449,7 @@ div[data-testid="stButton"] button {
 # PROMPT DO SISTEMA
 # ══════════════════════════════════════════════════════════════════════════════
 
-SYSTEM_PROMPT = f"""You are a digital avatar of an English teacher called {PROF_NAME} — warm, witty, very intelligent and encouraging. You help adults speak English with more confidence, over 25 years of experience, Advanced English Hunter College NY, and passionate about teaching.
+SYSTEM_PROMPT = f"""You are a digital avatar of an English teacher called {PROF_NAME} -- warm, witty, very intelligent and encouraging. You help adults speak English with more confidence, over 25 years of experience, Advanced English Hunter College NY, and passionate about teaching.
 Students: teenagers (Beginner/Pre-Intermediate) and adults focused on Business/News.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -469,7 +469,7 @@ BEGINNER / PRE-INTERMEDIATE:
 
 INTERMEDIATE:
   • Respond primarily in English. Use Portuguese ONLY to clarify a specific word
-    or resolve a genuine comprehension block — keep it brief.
+    or resolve a genuine comprehension block -- keep it brief.
   • If the student writes in Portuguese, acknowledge briefly in English and invite
     them to try saying the same thing in English:
     "I understood! Now, how would you say that in English? 😊"
@@ -478,7 +478,7 @@ INTERMEDIATE:
 ADVANCED / BUSINESS ENGLISH:
   • Respond exclusively in English.
   • If the student writes in Portuguese, reply in English and say something like:
-    "Let's keep it in English — you've got this! 💪"
+    "Let's keep it in English -- you've got this! 💪"
   • You may add a brief Portuguese gloss ONLY for highly technical or idiomatic
     terms where the meaning is genuinely ambiguous.
 
@@ -515,7 +515,7 @@ ACTIVITY GENERATION:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SESSION STATE — valores padrão na primeira execução
+# SESSION STATE -- valores padrão na primeira execução
 # ══════════════════════════════════════════════════════════════════════════════
 
 _defaults = {
@@ -554,15 +554,15 @@ if not st.session_state.logged_in:
                 st.session_state.conv_id           = None
                 st.session_state["_session_token"] = _s
         else:
-            # Token inválido — limpa
+            # Token inválido -- limpa
             st.query_params.pop("s", None)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SESSÃO PERSISTENTE — funções de salvar/limpar no localStorage
+# SESSÃO PERSISTENTE -- funções de salvar/limpar no localStorage
 # ══════════════════════════════════════════════════════════════════════════════
 
 def js_save_session(token: str) -> None:
-    """Salva token no localStorage (components.html — executa JS corretamente)."""
+    """Salva token no localStorage (components.html -- executa JS corretamente)."""
     components.html(
         f"""<!DOCTYPE html><html><head>
 <style>html,body{{margin:0;padding:0;overflow:hidden;height:0;}}</style>
@@ -601,7 +601,7 @@ def get_or_create_conv(username: str) -> str:
 
 @st.cache_data(ttl=10, show_spinner=False)
 def cached_load_conversation(username: str, conv_id: str) -> list:
-    """Cache de 10s do histórico — evita re-leitura do banco a cada render."""
+    """Cache de 10s do histórico -- evita re-leitura do banco a cada render."""
     return load_conversation(username, conv_id)
 
 
@@ -615,14 +615,14 @@ def send_to_claude(username: str, user: dict, conv_id: str,
     client  = anthropic.Anthropic(api_key=API_KEY)
     #context = f"\n\nStudent: Name={user['name']}, Level={user['level']}, Focus={user['focus']}."
     context = (
-       f"\n\nStudent profile — Name: {user['name']} | "
+       f"\n\nStudent profile -- Name: {user['name']} | "
        f"Level: {user['level']} | Focus: {user['focus']} | "
        f"Native language: Brazilian Portuguese.\n"
        f"Apply the bilingual policy for level '{user['level']}' as instructed."
    )
 
 
-    # Monta histórico da conversa para a API — sempre fresco, sem cache
+    # Monta histórico da conversa para a API -- sempre fresco, sem cache
     msgs     = load_conversation(username, conv_id)
     api_msgs = [
         {"role": "user" if m["role"] == "user" else "assistant", "content": m["content"]}
@@ -792,7 +792,7 @@ def _generate_docx(title: str, content: str, out_path: Path) -> None:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PLAYER DE ÁUDIO TTS — mini player inline nos balões da IA
+# PLAYER DE ÁUDIO TTS -- mini player inline nos balões da IA
 # ══════════════════════════════════════════════════════════════════════════════
 
 def render_audio_player(tts_b64: str, msg_time: str, player_id: str) -> str:
@@ -817,7 +817,7 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
 </style></head><body>
 <div class="player">
   <span class="tl">{msg_time}</span>
-  <button class="pb" id="b">▶ Ouvir</button>
+  <button class="pb" id="b">&#9654; Ouvir</button>
   <div class="pw" id="pw"><div class="pf" id="pf"></div></div>
   <div class="sw" id="sw">
     <span style="font-size:.6rem;color:#8b949e;">vel:</span>
@@ -859,14 +859,14 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
   b.onclick=function(){{
     unlockAudio();
     if(!audio.paused){{
-      audio.pause(); b.textContent='▶ Ouvir';
+      audio.pause(); b.textContent='&#9654; Ouvir';
     }}else{{
       var p=audio.play();
       if(p!==undefined){{
         p.then(function(){{b.textContent='⏸ Pausar';}})
          .catch(function(err){{
            console.warn('play() bloqueado:', err);
-           b.textContent='▶ Ouvir';
+           b.textContent='&#9654; Ouvir';
            setTimeout(function(){{
              audio.play()
                .then(function(){{b.textContent='⏸ Pausar';}})
@@ -877,7 +877,7 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
     }}
   }};
 
-  audio.onended=function(){{b.textContent='▶ Ouvir';pf.style.width='0%';}};
+  audio.onended=function(){{b.textContent='&#9654; Ouvir';pf.style.width='0%';}};
   audio.ontimeupdate=function(){{
     if(audio.duration)pf.style.width=(audio.currentTime/audio.duration*100)+'%';
   }};
@@ -910,7 +910,7 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
 def show_login() -> None:
     """Renderiza a tela de login com aba de registro. Cria sessão ao autenticar."""
 
-    # ── Auto-login via token salvo (localStorage) — sem iframe ───────────────
+    # -- Auto-login via token salvo (localStorage) -- sem iframe ---------------
     components.html("""<!DOCTYPE html><html><head>
 <style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
 </head><body><script>    (function() {
@@ -975,7 +975,7 @@ def show_login() -> None:
     if "_login_tab" not in st.session_state:
         st.session_state["_login_tab"] = "login"
 
-    # ── CSS exclusivo da página de login ──────────────────────────────────────
+    # -- CSS exclusivo da página de login --------------------------------------
     st.markdown("""<style>
 [data-testid="stSidebar"]    { display:none!important; }
 [data-testid="stHeader"]     { display:none!important; }
@@ -1021,7 +1021,7 @@ div[data-testid="stButton"] button {
 small[data-testid="InputInstructions"] { display:none!important; }
 </style>""", unsafe_allow_html=True)
 
-    # ── Header visual animado ─────────────────────────────────────────────────
+    # -- Header visual animado -------------------------------------------------
     avatar_src = PHOTO_B64 if PHOTO_B64 else ""
     components.html(f"""<!DOCTYPE html><html><head>
 <meta charset="UTF-8">
@@ -1066,7 +1066,7 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
 <div class="bg"><div class="orb1"></div><div class="orb2"></div><div class="grid"></div></div>
 <div class="wrap">
   <div class="card">
-    {"<img class='avatar-img' src='" + avatar_src + "'/>" if avatar_src else "<div class='avatar-emoji'>🧑‍🏫</div>"}
+    {"<img class='avatar-img' src='" + avatar_src + "'/>" if avatar_src else "<div class='avatar-emoji'>&#129489;&#8205;&#127979;</div>"}
     <h2>{PROF_NAME}</h2>
     <p>Your personal English practice companion</p>
     <div class="line"></div>
@@ -1074,7 +1074,7 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
 </div>
 </body></html>""", height=320, scrolling=False)
 
-    # ── Formulários centralizados ─────────────────────────────────────────────
+    # -- Formulários centralizados ---------------------------------------------
     _, col, _ = st.columns([1, 2.2, 1])
     with col:
         c1, c2 = st.columns(2)
@@ -1089,7 +1089,7 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
 
         st.markdown("<div style='height:2px'></div>", unsafe_allow_html=True)
 
-        # ── Feedback de operações anteriores ──────────────────────────────────
+        # -- Feedback de operações anteriores ----------------------------------
         login_err = st.session_state.pop("_login_err", "")
         reg_err   = st.session_state.pop("_reg_err",   "")
         reg_ok    = st.session_state.pop("_reg_ok",    False)
@@ -1098,7 +1098,7 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
         if reg_err:   st.error(f"❌ {reg_err}")
         if reg_ok:    st.success(f"✅ Conta criada! Bem-vindo(a), {reg_name}! Faça login.")
 
-        # ── Aba LOGIN ─────────────────────────────────────────────────────────
+        # -- Aba LOGIN ---------------------------------------------------------
         if st.session_state["_login_tab"] == "login":
             with st.form("form_login", clear_on_submit=True):
                 u = st.text_input(t("username"), placeholder="seu.usuario", key="li_u")
@@ -1126,7 +1126,7 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
                             st.session_state["_login_err"] = "Usuário ou senha incorretos."
                             st.rerun()
 
-        # ── Aba REGISTRO ──────────────────────────────────────────────────────
+        # -- Aba REGISTRO ------------------------------------------------------
         else:
             with st.form("form_reg", clear_on_submit=False):
                 rn = st.text_input(t("full_name"), placeholder="João Silva",     key="r_n")
@@ -1205,7 +1205,7 @@ def show_profile() -> None:
 
     tab_geral, tab_pers, tab_conta = st.tabs(["🎨 Geral", "🧠 Personalização", "👤 Conta"])
 
-    # ── Aba Geral ─────────────────────────────────────────────────────────────
+    # -- Aba Geral -------------------------------------------------------------
     with tab_geral:
         st.markdown("### Aparência")
         col1, col2 = st.columns(2)
@@ -1238,7 +1238,7 @@ def show_profile() -> None:
             st.session_state.user = {"username": username, **u}
             st.success("✅ Settings saved!")
 
-    # ── Aba Personalização ────────────────────────────────────────────────────
+    # -- Aba Personalização ----------------------------------------------------
     with tab_pers:
         st.markdown("### Sobre Você")
         col1, col2 = st.columns(2)
@@ -1280,7 +1280,7 @@ def show_profile() -> None:
             st.session_state.user = {"username": username, **u}
             st.success("✅ Perfil salvo!")
 
-    # ── Aba Conta ─────────────────────────────────────────────────────────────
+    # -- Aba Conta -------------------------------------------------------------
     with tab_conta:
         st.markdown("### 📸 Foto de Perfil")
         cur_avatar = get_user_avatar_b64(username)
@@ -1304,7 +1304,7 @@ def show_profile() -> None:
                     unsafe_allow_html=True)
         with col_btns:
             photo_file = st.file_uploader(
-                "Alterar foto — JPG, PNG ou WEBP (máx 15 MB)",
+                "Alterar foto -- JPG, PNG ou WEBP (máx 15 MB)",
                 type=["jpg", "jpeg", "png", "webp"], key="pf_photo_upload")
             if photo_file:
                 file_id = f"{photo_file.name}_{photo_file.size}"
@@ -1368,7 +1368,7 @@ def show_profile() -> None:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MODO CONVERSA — avatar animado com microfone contínuo (VAD)
+# MODO CONVERSA -- avatar animado com microfone contínuo (VAD)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
@@ -1427,7 +1427,7 @@ def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
 
 def show_voice_mode() -> None:
     """
-    Modo voz imersivo — estilo ChatGPT Voz.
+    Modo voz imersivo -- estilo ChatGPT Voz.
     Avatar centralizado, histórico de mensagens em bolhas, microfone como ícone FA.
     """
     user     = st.session_state.user
@@ -1440,7 +1440,7 @@ def show_voice_mode() -> None:
 
     conv_id = get_or_create_conv(username)
 
-    # Botão fechar — invisível no Streamlit, acionado pelo JS do iframe
+    # Botão fechar -- invisível no Streamlit, acionado pelo JS do iframe
     if st.button(t("close_voice", ui_lang), key="close_voice_inner"):
         st.session_state.voice_mode = False
         for k in ["_vm_history", "_vm_reply", "_vm_tts_b64", "_vm_user_said",
@@ -1448,7 +1448,7 @@ def show_voice_mode() -> None:
             st.session_state.pop(k, None)
         st.rerun()
     st.markdown("""<style>
-/* Esconde TODOS os botões Streamlit no modo voz — só usamos o do iframe */
+/* Esconde TODOS os botões Streamlit no modo voz -- só usamos o do iframe */
 [data-testid="stMain"] button { display: none !important; }
 [data-testid="stSidebar"]{display:none!important;}
 [data-testid="stHeader"]{display:none!important;}
@@ -1456,7 +1456,7 @@ def show_voice_mode() -> None:
 footer{display:none!important;}
 .main .block-container{padding:0!important;max-width:100%!important;}
 section[data-testid="stMain"]>div{padding:0!important;}
-/* Oculta o st.audio_input — só usamos ele via JS invisível */
+/* Oculta o st.audio_input -- só usamos ele via JS invisível */
 [data-testid="stAudioInput"]{
     position:fixed!important;bottom:-200px!important;
     left:-200px!important;opacity:0!important;
@@ -1464,7 +1464,7 @@ section[data-testid="stMain"]>div{padding:0!important;}
 }
 </style>""", unsafe_allow_html=True)
 
-    # ── Processa áudio quando chega ───────────────────────────────────────────
+    # -- Processa áudio quando chega -------------------------------------------
     if "_vm_audio_key" not in st.session_state:
         st.session_state["_vm_audio_key"] = 0
 
@@ -1480,7 +1480,7 @@ section[data-testid="stMain"]>div{padding:0!important;}
         st.session_state["_vm_audio_key"] += 1
         st.rerun()
 
-    # ── Dados do estado ───────────────────────────────────────────────────────
+    # -- Dados do estado -------------------------------------------------------
     user_said = st.session_state.get("_vm_user_said", "")
     reply     = st.session_state.get("_vm_reply",     "")
     tts_b64   = st.session_state.get("_vm_tts_b64",   "")
@@ -1488,10 +1488,10 @@ section[data-testid="stMain"]>div{padding:0!important;}
     vm_error  = st.session_state.get("_vm_error",     "")
     history   = st.session_state.get("_vm_history",   [])
 
-    # Foto da professora e frames do avatar — via cache (sem re-leitura de disco)
+    # Foto da professora e frames do avatar -- via cache (sem re-leitura de disco)
     photo_src = get_tati_mini_b64()
 
-    # ── Avatar animado — 4 estados de boca (cache) ───────────────────────────
+    # -- Avatar animado -- 4 estados de boca (cache) ---------------------------
     _frames   = get_avatar_frames()
     av_base   = _frames["base"]
     av_closed = _frames["closed"]
@@ -1560,14 +1560,14 @@ html,body{{
   display:flex;flex-direction:column;
 }}
 
-/* ── Layout principal ── */
+/* -- Layout principal -- */
 .vm-wrap{{
   display:flex;flex-direction:column;
   height:100vh;position:relative;
   background:radial-gradient(ellipse at 50% 0%,rgba(240,165,0,.06) 0%,transparent 60%);
 }}
 
-/* ── Botão fechar ── */
+/* -- Botao fechar -- */
 .close-btn{{
   position:absolute;top:14px;left:16px;z-index:100;
   background:rgba(255,255,255,.06);border:1px solid #2a3545;
@@ -1577,7 +1577,7 @@ html,body{{
 }}
 .close-btn:hover{{background:rgba(255,255,255,.12);color:#e6edf3;}}
 
-/* ── Avatar central ── */
+/* -- Avatar central -- */
 .avatar-section{{
   display:flex;flex-direction:column;align-items:center;
   padding-top:36px;gap:8px;flex-shrink:0;
@@ -1623,7 +1623,7 @@ html,body{{
 .av-name{{color:#e6edf3;font-weight:700;font-size:.95rem;}}
 .av-status{{color:#8b949e;font-size:.72rem;min-height:18px;letter-spacing:.3px;}}
 
-/* ── Área de mensagens ── */
+/* -- Area de mensagens -- */
 .messages{{
   flex:1;overflow-y:auto;padding:16px 20px 12px;
   display:flex;flex-direction:column;gap:10px;
@@ -1666,7 +1666,7 @@ html,body{{
   40%{{transform:scale(1.1);opacity:1;}}
 }}
 
-/* ── Barra inferior ── */
+/* -- Barra inferior -- */
 .bottom-bar{{
   display:flex;align-items:center;justify-content:center;
   padding:14px 24px 20px;gap:20px;flex-shrink:0;
@@ -1714,7 +1714,7 @@ html,body{{
       </div>
     </div>
     <div class="av-name">{PROF_NAME}</div>
-    <div class="av-status" id="avStatus">{"🗣 Falando..." if is_speaking else "Toque no microfone para falar"}</div>
+    <div class="av-status" id="avStatus">{"&#128483; Falando..." if is_speaking else "Toque no microfone para falar"}</div>
   </div>
 
   <!-- Mensagens -->
@@ -1777,15 +1777,15 @@ const STR_CLOSE     = {js_close};
   r.style.setProperty('--bubble-text',   '#e6edf3');
 }})();
 
-// Traduz botão fechar
+// Traduz botao fechar
 document.querySelector('.close-btn').textContent = STR_CLOSE;
 
-// ── Scroll mensagens para baixo ───────────────────────────────────────────────
+// -- Scroll mensagens para baixo -----------------------------------------------
 const msgEl = document.getElementById('messages');
 function scrollBottom(){{ msgEl.scrollTop = msgEl.scrollHeight; }}
 scrollBottom();
 
-// ── Estado do avatar ──────────────────────────────────────────────────────────
+// -- Estado do avatar ----------------------------------------------------------
 const avOuter  = document.querySelector('.avatar-outer');
 const avStatus = document.getElementById('avStatus');
 const micBtn   = document.getElementById('micBtn');
@@ -1818,7 +1818,7 @@ function setAvatarState(state){{
   }}
 }}
 
-// ── Avatar animado — sincroniza boca com volume do áudio ─────────────────────
+// -- Avatar animado -- sincroniza boca com volume do audio ---------------------
 const avImg = document.getElementById('avImg');
 let _avAnimFrame = null;
 
@@ -1865,7 +1865,7 @@ function startMouthAnim(audioEl){{
   loop();
 }}
 
-// ── Tocar TTS automaticamente ─────────────────────────────────────────────────
+// -- Tocar TTS automaticamente -------------------------------------------------
 function playTTSAuto(b64, text){{
   setAvatarState('speaking');
   if(b64 && b64.length > 20){{
@@ -1893,11 +1893,11 @@ function fallbackSpeech(text){{
   }}, 100);
 }}
 
-// ── Acionar st.audio_input via parent ────────────────────────────────────────
+// -- Acionar st.audio_input via parent ----------------------------------------
 let isRecording = false;
 
 function triggerAudioInput(){{
-  // Clica no botão de gravar do st.audio_input que está oculto
+  // Clica no botao de gravar do st.audio_input que esta oculto
   const par = window.parent ? window.parent.document : document;
   const btn = par.querySelector('[data-testid="stAudioInput"] button')
            || par.querySelector('[data-testid="stAudioInputRecordButton"]')
@@ -1924,16 +1924,16 @@ function toggleMic(){{
   }}
 }}
 
-// ── Fechar modo voz ───────────────────────────────────────────────────────────
+// -- Fechar modo voz -----------------------------------------------------------
 function closeModeVoz(){{
   try{{ speechSynthesis.cancel(); }}catch(e){{}}
   stopMouthAnim();
-  // Clica no botão Streamlit com key="close_voice_inner"
+  // Clica no botao Streamlit com key="close_voice_inner"
   const par = window.parent ? window.parent.document : document;
   // Tenta pelo data-testid key
   let closeBtn = par.querySelector('[data-testid="stButton"][key="close_voice_inner"] button')
                || par.querySelector('button[kind="secondary"]');
-  // Fallback: qualquer botão que contenha texto de fechar em qualquer idioma
+  // Fallback: qualquer botao que contenha texto de fechar em qualquer idioma
   if(!closeBtn){{
     const btns = Array.from(par.querySelectorAll('button'));
     closeBtn = btns.find(b=>{{
@@ -1941,14 +1941,14 @@ function closeModeVoz(){{
       return txt.includes('Fechar') || txt.includes('Close') || txt.includes('close_voice');
     }});
   }}
-  // Último recurso: primeiro botão visível na página
+  // Ultimo recurso: primeiro botao visivel na pagina
   if(!closeBtn){{
     closeBtn = par.querySelector('button');
   }}
   if(closeBtn) closeBtn.click();
 }}
 
-// ── Auto-play quando há resposta nova ─────────────────────────────────────────
+// -- Auto-play quando ha resposta nova -----------------------------------------
 window.addEventListener('load', ()=>{{
   if(REPLY_TEXT && REPLY_TEXT.length > 1){{
     playTTSAuto(TTS_B64, REPLY_TEXT);
@@ -1962,7 +1962,7 @@ window.addEventListener('load', ()=>{{
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# HELPERS DO CHAT — processamento de arquivos
+# HELPERS DO CHAT -- processamento de arquivos
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _process_and_send_file(username: str, user: dict, conv_id: str,
@@ -1995,10 +1995,10 @@ def _process_and_send_file(username: str, user: dict, conv_id: str,
         if extracted.startswith("❌"):  st.error(extracted);  return False
         if not extracted:               st.warning(f"Sem texto em '{filename}'."); return False
         preview      = extracted[:200].replace('\n', ' ')
-        user_display = f"📄 [{label}: '{filename}'] — {preview}{'…' if len(extracted)>200 else ''}"
+        user_display = f"📄 [{label}: '{filename}'] -- {preview}{'…' if len(extracted)>200 else ''}"
         if extra_text: user_display = f"{extra_text}\n\n{user_display}"
         claude_msg   = (f"📄 [{label}: '{filename}']\n\n{extracted}\n\n"
-                        "Please help me understand this content — explain vocabulary, grammar, and key ideas.")
+                        "Please help me understand this content -- explain vocabulary, grammar, and key ideas.")
         if extra_text: claude_msg = f"{extra_text}\n\n{claude_msg}"
         append_message(username, conv_id, "user", user_display)
         st.session_state.speaking = True
@@ -2027,7 +2027,7 @@ def _process_and_send_file(username: str, user: dict, conv_id: str,
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CHAT — tela principal de conversa
+# CHAT -- tela principal de conversa
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _logout() -> None:
@@ -2044,14 +2044,14 @@ def _logout() -> None:
 
 
 def show_chat() -> None:
-    """Tela principal do chat — sidebar com histórico + área de mensagens."""
+    """Tela principal do chat -- sidebar com histórico + área de mensagens."""
     user     = st.session_state.user
     username = user["username"]
     profile  = user.get("profile", {})
     ui_lang  = profile.get("language", "pt-BR")
     conv_id  = get_or_create_conv(username)
 
-    # ── Processa mensagem pendente (enviada no render anterior) ───────────────
+    # -- Processa mensagem pendente (enviada no render anterior) ---------------
     # Fluxo: user digita → append + rerun (mostra msg + spinner) →
     #        neste render: chama Claude → rerun final com resposta
     _pending = st.session_state.pop("_pending_prompt", None)
@@ -2076,7 +2076,7 @@ def show_chat() -> None:
         show_voice_mode()
         return
 
-    # ── Injeta cor de destaque do usuário no Streamlit principal ────────────
+    # -- Injeta cor de destaque do usuário no Streamlit principal ------------
     _ac = profile.get("accent_color", "#f0a500")
     st.markdown(f"""<script>
 (function(){{
@@ -2100,7 +2100,7 @@ def show_chat() -> None:
 }})();
 </script>""", unsafe_allow_html=True)
 
-    # ── JS: para todo áudio ao trocar de conversa ou recarregar ──────────────
+    # -- JS: para todo áudio ao trocar de conversa ou recarregar --------------
     components.html("""<!DOCTYPE html><html><head>
 <style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
 </head><body><script>(function() {
@@ -2124,7 +2124,7 @@ def show_chat() -> None:
 })();
 </script></body></html>""", height=0)
 
-    # ── Sidebar ───────────────────────────────────────────────────────────────
+    # -- Sidebar ---------------------------------------------------------------
     with st.sidebar:
         st.markdown("""<style>
         section[data-testid="stSidebar"] { overflow: hidden; }
@@ -2173,7 +2173,7 @@ def show_chat() -> None:
             st.markdown(f'<div style="font-size:.62rem;color:#6e7681;margin:-10px 0 2px 6px;">'
                         f'📅 {c["date"]} · 💬 {c["count"]} msg</div>', unsafe_allow_html=True)
 
-        # ── Rodapé da sidebar com botões de ação ──────────────────────────────
+        # -- Rodapé da sidebar com botões de ação ------------------------------
         user_msgs   = len([m for m in messages if m["role"] == "user"])
         uav_sidebar = user_avatar_html(username, size=34, fallback_emoji="🎓")
         st.markdown('<div class="sidebar-footer">', unsafe_allow_html=True)
@@ -2208,7 +2208,7 @@ def show_chat() -> None:
                     _logout(); st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── CSS do chat estilo ChatGPT ────────────────────────────────────────────
+    # -- CSS do chat estilo ChatGPT --------------------------------------------
     st.markdown("""<style>
 [data-testid="stChatInput"] textarea {
     max-height: 120px !important; min-height: 44px !important; font-size: .88rem !important;
@@ -2218,7 +2218,7 @@ def show_chat() -> None:
 .main .block-container { padding-bottom: 80px !important; }
 section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
 
-/* stAudioInput nativo — sumido, movido via JS para dentro da chat bar */
+/* stAudioInput nativo -- sumido, movido via JS para dentro da chat bar */
 [data-testid="stAudioInput"] {
     position: fixed !important; bottom: -999px !important;
     left: -9999px !important; opacity: 0 !important;
@@ -2291,7 +2291,7 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
 }
 </style>""", unsafe_allow_html=True)
 
-    # ── Header do chat ────────────────────────────────────────────────────────
+    # -- Header do chat --------------------------------------------------------
     st.markdown(f"""<div class="prof-header">
         {avatar_html(56, speaking)}
         <div class="prof-info">
@@ -2299,12 +2299,12 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
             <p><span class="status-dot"></span>Online · {user['level']} · {user['focus']}</p>
         </div></div>""", unsafe_allow_html=True)
 
-    # ── Histórico de mensagens ────────────────────────────────────────────────
-    # Mini-avatar da Tati para o chat (cache — sem re-leitura de disco)
+    # -- Histórico de mensagens ------------------------------------------------
+    # Mini-avatar da Tati para o chat (cache -- sem re-leitura de disco)
     _tati_mini   = get_tati_mini_b64()
     tati_av_html = (f'<div class="msg-av"><img src="{_tati_mini}"></div>'
                     if _tati_mini else
-                    '<div class="msg-av"><div class="av-emoji">🧑‍🏫</div></div>')
+                    '<div class="msg-av"><div class="av-emoji">&#129489;&#8205;&#127979;</div></div>')
 
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
     for i, msg in enumerate(messages):
@@ -2342,7 +2342,7 @@ html,body{{background:transparent;overflow:hidden;}}
 .btn:hover,.btn.on{{border-color:#f0a500;color:#f0a500;}}
 </style></head><body>
 <div class="row">
-  <button class="btn" id="btn">▶ Ouvir</button>
+  <button class="btn" id="btn">&#9654; Ouvir</button>
 </div>
 <script>
 (function(){{
@@ -2352,7 +2352,7 @@ html,body{{background:transparent;overflow:hidden;}}
   btn.onclick = function() {{
     if (speaking) {{
       speechSynthesis.cancel(); speaking=false;
-      btn.textContent='▶ Ouvir'; btn.classList.remove('on'); return;
+      btn.textContent='&#9654; Ouvir'; btn.classList.remove('on'); return;
     }}
     var u = new SpeechSynthesisUtterance(txt);
     u.lang='en-US'; u.rate=0.95; u.pitch=1.05;
@@ -2361,8 +2361,8 @@ html,body{{background:transparent;overflow:hidden;}}
       var vv=speechSynthesis.getVoices();
       var pick=vv.find(v=>v.lang==='en-US')||vv.find(v=>v.lang.startsWith('en'));
       if(pick)u.voice=pick;
-      u.onstart=function(){{speaking=true;btn.textContent='⏹ Parar';btn.classList.add('on');}};
-      u.onend=u.onerror=function(){{speaking=false;btn.textContent='▶ Ouvir';btn.classList.remove('on');}};
+      u.onstart=function(){{speaking=true;btn.textContent='&#9209; Parar';btn.classList.add('on');}};
+      u.onend=u.onerror=function(){{speaking=false;btn.textContent='&#9654; Ouvir';btn.classList.remove('on');}};
       speechSynthesis.cancel(); speechSynthesis.speak(u);
     }},100);
   }};
@@ -2383,7 +2383,7 @@ html,body{{background:transparent;overflow:hidden;}}
                 unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Indicador "digitando" — aparece enquanto Claude processa ─────────────
+    # -- Indicador "digitando" -- aparece enquanto Claude processa -------------
     if st.session_state.get("speaking"):
         components.html("""<!DOCTYPE html><html><head>
 <style>
@@ -2413,20 +2413,20 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
 .typing-text{font-size:.75rem;color:#8b949e;font-style:italic;letter-spacing:.2px;}
 </style></head><body>
 <div class="typing-row">
-  <div class="av">🧑‍🏫</div>
+  <div class="av">&#129489;&#8205;&#127979;</div>
   <div class="typing-bubble">
-    <span class="spin">✳</span>
-    <span class="typing-text" id="msg">Pensando…</span>
+    <span class="spin">*</span>
+    <span class="typing-text" id="msg">Pensando...</span>
   </div>
 </div>
 <script>
 (function(){
   var msgs = [
-    [0,   "Pensando…"],
-    [3,   "Elaborando resposta…"],
-    [7,   "Demorando mais que o normal. Tentando novamente em breve (tentativa 1)"],
-    [14,  "Demorando mais que o normal. Tentando novamente em breve (tentativa 2)"],
-    [22,  "Demorando mais que o normal. Tentando novamente em breve (tentativa 3)"],
+    [0,   "Pensando..."],
+    [3,   "Elaborando resposta..."],
+    [7,   "Demorando mais que o normal. Tentando novamente (tentativa 1)"],
+    [14,  "Demorando mais que o normal. Tentando novamente (tentativa 2)"],
+    [22,  "Demorando mais que o normal. Tentando novamente (tentativa 3)"],
   ];
   var el    = document.getElementById('msg');
   var start = Date.now();
@@ -2460,7 +2460,7 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
             st.session_state.staged_file_name = None
             st.rerun()
 
-    # ── Botão de download de arquivo gerado pela IA ───────────────────────────
+    # -- Botão de download de arquivo gerado pela IA ---------------------------
     pending_dl = st.session_state.get("_pending_download")
     if pending_dl:
         b64_data = pending_dl["b64"]
@@ -2477,7 +2477,7 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
      text-decoration:none;white-space:nowrap;">⬇ Baixar arquivo</a>
 </div>""", unsafe_allow_html=True)
 
-    # ── Chat input (texto) ────────────────────────────────────────────────────
+    # -- Chat input (texto) ----------------------------------------------------
     prompt = st.chat_input(t("type_message", ui_lang))
     if prompt:
         if not API_KEY:
@@ -2504,7 +2504,7 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
             st.session_state["_pending_prompt"] = prompt
         st.rerun()
 
-    # ── Gravador de áudio nativo (st.audio_input) ─────────────────────────────
+    # -- Gravador de áudio nativo (st.audio_input) -----------------------------
     audio_val = st.audio_input(" ", key=f"voice_input_{st.session_state.audio_key}",
                                label_visibility="collapsed")
     if audio_val and audio_val != st.session_state.get("_last_audio"):
@@ -2523,7 +2523,7 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
         elif txt:
             st.error(txt)
 
-    # ── File uploader (oculto — acionado pelo clipe na chat bar) ─────────────
+    # -- File uploader (oculto -- acionado pelo clipe na chat bar) -------------
     uploaded = st.file_uploader(
         "📎", key="file_upload", label_visibility="collapsed",
         type=["mp3", "wav", "ogg", "m4a", "webm", "flac",
@@ -2543,9 +2543,9 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
         st.session_state.staged_file_name = uploaded.name
         st.rerun()
 
-    # ── JS: move botão de clipe para dentro da chat bar ──────────────────────
-    # ── JS: move botão de clipe e posiciona audio input ─────────────────────
-    # Usa st.markdown (sem iframe) — acessa window diretamente pois já está no contexto pai
+    # -- JS: move botão de clipe para dentro da chat bar ----------------------
+    # -- JS: move botão de clipe e posiciona audio input ---------------------
+    # Usa st.markdown (sem iframe) -- acessa window diretamente pois já está no contexto pai
     components.html("""<!DOCTYPE html><html><head>
 <style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
 </head><body><script>
@@ -2566,12 +2566,12 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
   }
 
   function setup() {
-    // Container externo que envolve o stChatInput — é o que tem position:relative
+    // Container externo (stChatInputContainer)
     var ci = par.querySelector('[data-testid="stChatInputContainer"]');
     if (!ci) return false;
     if (ci.querySelector('.pav-mic-wrap')) { ensureClipBtn(ci); return true; }
 
-    /* ── Microfone + timer (lado esquerdo) ── */
+    /* -- Microfone + timer (lado esquerdo) -- */
     var wrap = par.createElement('div');
     wrap.className = 'pav-mic-wrap';
     wrap.style.cssText = 'position:absolute;left:10px;top:50%;transform:translateY(-50%);'
@@ -2580,8 +2580,8 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     var micBtn = par.createElement('button');
     micBtn.className = 'pav-mic-btn';
     micBtn.type = 'button';
-    micBtn.title = 'Gravar áudio';
-    micBtn.innerHTML = '\uD83C\uDF99'; // 🎙
+    micBtn.title = 'Gravar audio';
+    micBtn.innerHTML = '&#127908;';
     micBtn.style.cssText = 'background:none;border:none;cursor:pointer;padding:4px;'
       + 'color:#8b949e;font-size:18px;line-height:1;transition:color .2s;';
 
@@ -2600,13 +2600,13 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
       realBtn.click();
       if (micBtn.classList.contains('recording')) {
         micBtn.classList.remove('recording');
-        micBtn.innerHTML = '\uD83C\uDF99';
+        micBtn.innerHTML = '&#127908;';
         micBtn.style.color = '#8b949e';
         clearInterval(timerInterval); timerInterval = null; timerSecs = 0;
         timer.textContent = '00:00'; timer.style.color = '#4a5a6a';
       } else {
         micBtn.classList.add('recording');
-        micBtn.innerHTML = '\u23FA'; // ⏺
+        micBtn.innerHTML = '&#9210;';
         micBtn.style.color = '#e05c2a';
         timerSecs = 0; timer.style.color = '#e05c2a';
         timerInterval = setInterval(function(){ timerSecs++; timer.textContent = fmt(timerSecs); }, 1000);
@@ -2618,7 +2618,7 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     ci.style.position = 'relative';
     ci.insertBefore(wrap, ci.firstChild);
 
-    /* ── Ajusta padding do textarea ── */
+    /* -- Ajusta padding do textarea -- */
     var ta = ci.querySelector('textarea');
     if (ta) ta.style.paddingLeft = '80px';
 
