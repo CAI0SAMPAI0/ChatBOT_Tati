@@ -2622,8 +2622,8 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     ai.style.cssText = `
       position: fixed !important;
       bottom: ${window.parent.innerHeight - rect.bottom + 6}px !important;
-      left: ${rect.left}px !important;
-      width: ${rect.width}px !important;
+      right: 60px !important;
+      width: 48px !important;
       z-index: 99 !important;
       background: transparent !important;
       border: none !important;
