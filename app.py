@@ -302,11 +302,11 @@ def get_avatar_frames() -> dict:
                 return f"data:image/png;base64,{base64.b64encode(p.read_bytes()).decode()}"
         return ""
     return {
-        "base":   _load([_base/"assets"/"avatar_normal.png",      "assets/avatar_normal.png"]),
-        "closed": _load([_base/"assets"/"avatar_closed.png",      "assets/avatar_closed.png"]),
-        "mid":    _load([_base/"assets"/"avatar_mid.png",        "assets/avatar_mid.png"]),
-        "open":   _load([_base/"assets"/"avatar_bem_aberto.png",  "assets/avatar_bem_aberto.png",
-                         _base/"assets"/"avatar_open.png",      "assets/avatar_open.png"]),
+        "base":   _load([_base/"assets"/"avatar_tati_normal.png",      "assets/avatar_tati_normal.png"]),
+        "closed": _load([_base/"assets"/"avatar_tati_closed.png",      "assets/avatar_tati_closed.png"]),
+        "mid":    _load([_base/"assets"/"avatar_tati_meio.png",        "assets/avatar_tati_meio.png"]),
+        "open":   _load([_base/"assets"/"avatar_tati_bem_aberta.png",  "assets/avatar_tati_bem_aberta.png",
+                         _base/"assets"/"avatar_tati_aberta.png",      "assets/avatar_tati_aberta.png"]),
     }
 
 # ── Avatares individuais dos alunos ───────────────────────────────────────────
@@ -321,7 +321,7 @@ def get_user_avatar_b64(username: str, _bust: int = 0) -> str | None:
 # alias usado internamente
 _get_avatar = lambda u: get_user_avatar_b64(u, _bust=st.session_state.get("_avatar_v", 0))
 
-def _avatar_circle_html(b64: str | None, size: int, border: str = "#f0a500") -> str:
+def _avatar_circle_html(b64: str | None, size: int, border: str = "#8800f0") -> str:
     """Retorna HTML de avatar circular — foto, sem_foto.png ou ícone FA."""
     if not b64:
         for _p in [Path("assets/sem_foto.png"), Path(__file__).parent / "assets" / "sem_foto.png"]:
