@@ -283,6 +283,38 @@ def get_photo_b64() -> str | None:
 
 PHOTO_B64 = get_photo_b64()
 
+# ── Cache da foto mini da Tati (evita re-leitura de disco a cada render) ──────
+@st.cache_data(show_spinner=False)
+def get_tati_mini_b64() -> str:
+    """Lê a foto da Tati uma única vez e reutiliza em todo o app."""
+    for _p in [Path("assets/tati.png"), Path("assets/tati.jpg"),
+               Path(__file__).parent / "assets" / "tati.png",
+               Path(__file__).parent / "assets" / "tati.jpg"]:
+        if _p.exists():
+            _ext  = _p.suffix.lstrip(".").lower()
+            _mime = "jpeg" if _ext in ("jpg", "jpeg") else _ext
+            return f"data:image/{_mime};base64,{base64.b64encode(_p.read_bytes()).decode()}"
+    return get_photo_b64() or ""
+
+# ── Cache dos 4 frames do avatar animado do modo voz ─────────────────────────
+@st.cache_data(show_spinner=False)
+def get_avatar_frames() -> dict:
+    """Carrega os frames do avatar animado uma única vez."""
+    _base = Path(__file__).parent
+    def _load(candidates):
+        for p in candidates:
+            p = Path(p)
+            if p.exists():
+                return f"data:image/png;base64,{base64.b64encode(p.read_bytes()).decode()}"
+        return ""
+    return {
+        "base":   _load([_base/"assets"/"avatar_tati_normal.png",      "assets/avatar_tati_normal.png"]),
+        "closed": _load([_base/"assets"/"avatar_tati_closed.png",      "assets/avatar_tati_closed.png"]),
+        "mid":    _load([_base/"assets"/"avatar_tati_meio.png",        "assets/avatar_tati_meio.png"]),
+        "open":   _load([_base/"assets"/"avatar_tati_bem_aberta.png",  "assets/avatar_tati_bem_aberta.png",
+                         _base/"assets"/"avatar_tati_aberta.png",      "assets/avatar_tati_aberta.png"]),
+    }
+
 # ── Avatares individuais dos alunos ───────────────────────────────────────────
 @st.cache_data(ttl=300, show_spinner=False)
 def get_user_avatar_b64(username: str) -> str | None:
@@ -380,6 +412,20 @@ div[data-testid="stButton"] button {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+/* Esconde file uploader nativo imediatamente — o JS depois move o clipe */
+[data-testid="stFileUploader"] {
+    position: fixed !important;
+    bottom: -999px !important;
+    left: -9999px !important;
+    opacity: 0 !important;
+    width: 1px !important;
+    height: 1px !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+}
+[data-testid="stFileUploader"] input[type="file"] {
+    pointer-events: auto !important;
 }
 @media (max-width: 1024px) {
     .main .block-container { padding-left: 12px !important; padding-right: 12px !important; }
@@ -553,6 +599,12 @@ def get_or_create_conv(username: str) -> str:
     return st.session_state.conv_id
 
 
+@st.cache_data(ttl=10, show_spinner=False)
+def cached_load_conversation(username: str, conv_id: str) -> list:
+    """Cache de 10s do histórico — evita re-leitura do banco a cada render."""
+    return load_conversation(username, conv_id)
+
+
 def send_to_claude(username: str, user: dict, conv_id: str,
                    text: str, image_b64: str = None, image_media_type: str = None) -> str:
     """
@@ -571,7 +623,7 @@ def send_to_claude(username: str, user: dict, conv_id: str,
 
 
     # Monta histórico da conversa para a API
-    msgs     = load_conversation(username, conv_id)
+    msgs     = cached_load_conversation(username, conv_id)
     api_msgs = [
         {"role": "user" if m["role"] == "user" else "assistant", "content": m["content"]}
         for m in msgs
@@ -610,6 +662,7 @@ def send_to_claude(username: str, user: dict, conv_id: str,
             st.session_state["_tts_audio"] = tts_b64_str
 
     append_message(username, conv_id, "assistant", reply_text, tts_b64=tts_b64_str)
+    cached_load_conversation.clear()  # invalida cache para próximo render
     return reply_text
 
 
@@ -661,11 +714,13 @@ def _intercept_file_generation(reply_text: str, username: str, conv_id: str) -> 
             "Clique em **⬇ Baixar arquivo** abaixo para salvar."
         )
         append_message(username, conv_id, "assistant", display_msg, is_file=True)
+        cached_load_conversation.clear()
         return display_msg
 
     except Exception as e:
         err = f"Desculpe, não consegui gerar o arquivo: {e}"
         append_message(username, conv_id, "assistant", err)
+        cached_load_conversation.clear()
         return err
 
 
@@ -856,8 +911,10 @@ def show_login() -> None:
     """Renderiza a tela de login com aba de registro. Cria sessão ao autenticar."""
 
     # ── Auto-login via token salvo (cookie/localStorage) ──────────────────────
-    # Roda ANTES de qualquer render para evitar flash
-    components.html("""<!DOCTYPE html><html><body><script>
+    # height=0 — sem espaço visível, sem duplicação de campos no submit
+    components.html("""<!DOCTYPE html><html><head>
+<style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
+</head><body><script>
     (function() {
         function readToken() {
             try {
@@ -898,9 +955,7 @@ def show_login() -> None:
             window.parent.location.replace(url.toString());
         }
     })();
-    </script></body></html>""", height=60)
-
-    st.write("query_params:", dict(st.query_params))
+    </script></body></html>""", height=0)
 
     params = st.query_params
     if "_token" in params:
@@ -1065,35 +1120,31 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
 
         # ── Aba LOGIN ─────────────────────────────────────────────────────────
         if st.session_state["_login_tab"] == "login":
-            with st.form("form_login", clear_on_submit=False):
+            with st.form("form_login", clear_on_submit=True):
                 u = st.text_input(t("username"), placeholder="seu.usuario", key="li_u")
                 p = st.text_input(t("password"), type="password", placeholder="••••••••", key="li_p")
                 submitted = st.form_submit_button("Entrar →", use_container_width=True)
                 if submitted:
                     if not u or not p:
-                        st.error("❌ Preencha todos os campos.")
+                        st.session_state["_login_err"] = "Preencha todos os campos."
+                        st.rerun()
                     else:
                         user = authenticate(u, p)
                         if user:
                             real_u = user.get("_resolved_username", u.lower())
-
-                            # Atualiza session state
                             st.session_state.update(
                                 logged_in=True,
                                 user={"username": real_u, **user},
                                 page="dashboard" if user["role"] == "professor" else "chat",
                                 conv_id=None
                             )
-
-                            # ── Cria sessão persistente ───────────────────────
                             token = create_session(real_u)
                             st.session_state["_session_token"] = token
-                            js_save_session(token)  # persiste no localStorage
-                            # ─────────────────────────────────────────────────
-
+                            js_save_session(token)
                             st.rerun()
                         else:
-                            st.error("❌ Usuário ou senha incorretos.")
+                            st.session_state["_login_err"] = "Usuário ou senha incorretos."
+                            st.rerun()
 
         # ── Aba REGISTRO ──────────────────────────────────────────────────────
         else:
@@ -1457,36 +1508,15 @@ section[data-testid="stMain"]>div{padding:0!important;}
     vm_error  = st.session_state.get("_vm_error",     "")
     history   = st.session_state.get("_vm_history",   [])
 
-    # Foto da professora — prioriza tati.png
-    photo_src = ""
-    _photo_candidates = [
-        Path("assets/tati.png"),
-        Path("assets/tati.jpg"),
-        Path("assets/tati.jpeg"),
-        Path(__file__).parent / "assets" / "tati.png",
-        Path(__file__).parent / "assets" / "tati.jpg",
-    ]
-    for p in _photo_candidates:
-        if p.exists():
-            ext  = p.suffix.lstrip(".").lower()
-            mime = "jpeg" if ext in ("jpg","jpeg") else ext
-            photo_src = f"data:image/{mime};base64,{base64.b64encode(p.read_bytes()).decode()}"
-            break
+    # Foto da professora e frames do avatar — via cache (sem re-leitura de disco)
+    photo_src = get_tati_mini_b64()
 
-    # ── Avatar animado — 4 estados de boca ───────────────────────────────────
-    def _load_avatar(candidates):
-        for p in candidates:
-            p = Path(p)
-            if p.exists():
-                return f"data:image/png;base64,{base64.b64encode(p.read_bytes()).decode()}"
-        return ""
-
-    _base = Path(__file__).parent
-    av_base   = _load_avatar([_base/"assets"/"avatar_tati_normal.png", "assets/avatar_tati_normal.png"])
-    av_closed = _load_avatar([_base/"assets"/"avatar_tati_closed.png", "assets/avatar_tati_closed.png"])
-    av_mid    = _load_avatar([_base/"assets"/"avatar_tati_meio.png",   "assets/avatar_tati_meio.png"])
-    av_open   = _load_avatar([_base/"assets"/"avatar_tati_bem_aberta.png", "assets/avatar_tati_bem_aberta.png",
-                               _base/"assets"/"avatar_tati_aberta.png",    "assets/avatar_tati_aberta.png"])
+    # ── Avatar animado — 4 estados de boca (cache) ───────────────────────────
+    _frames   = get_avatar_frames()
+    av_base   = _frames["base"]
+    av_closed = _frames["closed"]
+    av_mid    = _frames["mid"]
+    av_open   = _frames["open"]
     _has_avatar = bool(av_base and av_closed and av_mid and av_open)
 
     is_speaking  = bool(reply)
@@ -2040,7 +2070,7 @@ def show_chat() -> None:
     profile  = user.get("profile", {})
     ui_lang  = profile.get("language", "pt-BR")
     conv_id  = get_or_create_conv(username)
-    messages = load_conversation(username, conv_id)
+    messages = cached_load_conversation(username, conv_id)
     speaking = st.session_state.speaking
 
     # Redireciona para o modo voz se ativo
@@ -2248,18 +2278,8 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
         </div></div>""", unsafe_allow_html=True)
 
     # ── Histórico de mensagens ────────────────────────────────────────────────
-    # Mini-avatar da Tati para o chat
-    _tati_mini = ""
-    for _p in [Path("assets/tati.png"), Path("assets/tati.jpg"),
-               Path(__file__).parent/"assets"/"tati.png"]:
-        if _p.exists():
-            _ext = _p.suffix.lstrip(".").lower()
-            _mime = "jpeg" if _ext in ("jpg","jpeg") else _ext
-            _tati_mini = f"data:image/{_mime};base64,{base64.b64encode(_p.read_bytes()).decode()}"
-            break
-    if not _tati_mini:
-        _tati_mini = get_photo_b64() or ""
-
+    # Mini-avatar da Tati para o chat (cache — sem re-leitura de disco)
+    _tati_mini   = get_tati_mini_b64()
     tati_av_html = (f'<div class="msg-av"><img src="{_tati_mini}"></div>'
                     if _tati_mini else
                     '<div class="msg-av"><div class="av-emoji">🧑‍🏫</div></div>')
@@ -2341,7 +2361,64 @@ html,body{{background:transparent;overflow:hidden;}}
                 unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Banner de arquivo em staging (aguardando envio) ───────────────────────
+    # ── Indicador "digitando" — aparece enquanto Claude processa ─────────────
+    if st.session_state.get("speaking"):
+        components.html("""<!DOCTYPE html><html><head>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
+.typing-row{
+  display:flex;align-items:center;gap:10px;
+  padding:6px 0 4px 0;
+}
+.av{
+  width:30px;height:30px;border-radius:50%;
+  background:#1e2a3a;display:flex;align-items:center;
+  justify-content:center;font-size:14px;flex-shrink:0;
+}
+.typing-bubble{
+  display:flex;align-items:center;gap:8px;
+  background:#1a1f2e;border:1px solid #252d3d;
+  border-radius:18px;border-bottom-left-radius:4px;
+  padding:8px 14px;
+}
+.spin{
+  color:#e05c2a;font-size:16px;line-height:1;
+  animation:spinme 1.2s linear infinite;
+  display:inline-block;flex-shrink:0;
+}
+@keyframes spinme{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+.typing-text{font-size:.75rem;color:#8b949e;font-style:italic;letter-spacing:.2px;}
+</style></head><body>
+<div class="typing-row">
+  <div class="av">🧑‍🏫</div>
+  <div class="typing-bubble">
+    <span class="spin">✳</span>
+    <span class="typing-text" id="msg">Pensando…</span>
+  </div>
+</div>
+<script>
+(function(){
+  var msgs = [
+    [0,   "Pensando…"],
+    [3,   "Elaborando resposta…"],
+    [7,   "Demorando mais que o normal. Tentando novamente em breve (tentativa 1)"],
+    [14,  "Demorando mais que o normal. Tentando novamente em breve (tentativa 2)"],
+    [22,  "Demorando mais que o normal. Tentando novamente em breve (tentativa 3)"],
+  ];
+  var el    = document.getElementById('msg');
+  var start = Date.now();
+  function update(){
+    var sec = (Date.now()-start)/1000;
+    var txt = msgs[0][1];
+    for(var i=0;i<msgs.length;i++){ if(sec>=msgs[i][0]) txt=msgs[i][1]; }
+    el.textContent = txt;
+    setTimeout(update, 800);
+  }
+  update();
+})();
+</script>
+</body></html>""", height=52, scrolling=False)
     staged = st.session_state.get("staged_file")
     if staged:
         fname = staged.get("name", "arquivo")
@@ -2440,78 +2517,105 @@ html,body{{background:transparent;overflow:hidden;}}
         st.rerun()
 
     # ── JS: move botão de clipe para dentro da chat bar ──────────────────────
-    components.html("""<!DOCTYPE html><html><body>
+    components.html("""<!DOCTYPE html><html><head>
+<style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
+</head><body>
 <script>
-function pavMoveToChatBar() {
-  const parent = window.parent ? window.parent.document : document;
-  const chatInputContainer = parent.querySelector('[data-testid="stChatInput"]');
-  if (!chatInputContainer) return;
-  if (chatInputContainer.querySelector('.pav-extras')) return;
+(function() {
+  var done = false;
 
-  const extras = parent.createElement('div');
-  extras.className = 'pav-extras';
+  function pavMoveToChatBar() {
+    const par = window.parent ? window.parent.document : document;
+    const chatInputContainer = par.querySelector('[data-testid="stChatInput"]');
+    if (!chatInputContainer) return false;
+    if (chatInputContainer.querySelector('.pav-extras')) return true; // já feito
 
-  const ab = parent.createElement('button');
-  ab.className = 'pav-icon-btn';
-  ab.title = 'Anexar arquivo';
-  ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
-  ab.onclick = () => {
-    const fw = parent.querySelector('[data-testid="stFileUploader"]');
-    if (fw) {
-      const fileInput = fw.querySelector('input[type="file"]');
-      if (fileInput) fileInput.click();
-    }
-  };
+    const extras = par.createElement('div');
+    extras.className = 'pav-extras';
 
-  extras.appendChild(ab);
-  const chatInner = chatInputContainer.querySelector('div');
-  if (chatInner) chatInner.style.position = 'relative';
-  chatInputContainer.appendChild(extras);
+    const ab = par.createElement('button');
+    ab.className = 'pav-icon-btn';
+    ab.title = 'Anexar arquivo';
+    ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
+    ab.onclick = () => {
+      const fw = par.querySelector('[data-testid="stFileUploader"]');
+      if (fw) {
+        const fileInput = fw.querySelector('input[type="file"]');
+        if (fileInput) fileInput.click();
+      }
+    };
 
-  const fw = parent.querySelector('[data-testid="stFileUploader"]');
-  if (fw) {
-    fw.style.cssText = 'position:fixed!important;bottom:-999px!important;left:-9999px!important;opacity:0!important;width:1px!important;height:1px!important;pointer-events:none!important;';
-    const fi = fw.querySelector('input[type="file"]');
-    if (fi) fi.style.pointerEvents = 'auto';
+    extras.appendChild(ab);
+    const chatInner = chatInputContainer.querySelector('div');
+    if (chatInner) chatInner.style.position = 'relative';
+    chatInputContainer.appendChild(extras);
+    return true;
   }
-}
 
-function pavFixAudioInput() {
-  const par = window.parent ? window.parent.document : document;
-  const ai  = par.querySelector('[data-testid="stAudioInput"]');
-  const ci  = par.querySelector('[data-testid="stChatInput"]');
-  if (!ai || !ci) return;
+  function pavFixAudioInput() {
+    const par = window.parent ? window.parent.document : document;
+    const ai  = par.querySelector('[data-testid="stAudioInput"]');
+    const ci  = par.querySelector('[data-testid="stChatInput"]');
+    if (!ai || !ci) return;
 
-  const rect = ci.getBoundingClientRect();
-  ai.style.cssText = `
-    position: fixed !important;
-    bottom: ${window.parent.innerHeight - rect.top + 42}px !important;
-    left: ${rect.left}px !important;
-    width: ${rect.width}px !important;
-    z-index: 99 !important;
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    height: 52px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    box-shadow: none !important;
-  `;
-  const inners = ai.querySelectorAll('div');
-  inners.forEach(d => {
+    const rect = ci.getBoundingClientRect();
+    ai.style.cssText = `
+      position: fixed !important;
+      bottom: ${window.parent.innerHeight - rect.top + 42}px !important;
+      left: ${rect.left}px !important;
+      width: ${rect.width}px !important;
+      z-index: 99 !important;
+      background: transparent !important;
+      border: none !important;
+      padding: 0 !important;
+      height: 52px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-shadow: none !important;
+    `;
+    const inners = ai.querySelectorAll('div');
+    inners.forEach(d => {
       d.style.background = 'transparent';
       d.style.border = 'none';
       d.style.boxShadow = 'none';
-  });
-  const lbl = ai.querySelector('label');
-  if (lbl) lbl.style.display = 'none';
-}
+    });
+    const lbl = ai.querySelector('label');
+    if (lbl) lbl.style.display = 'none';
+  }
 
-setInterval(pavMoveToChatBar, 1000);
-setInterval(pavFixAudioInput, 500);
+  function trySetup() {
+    const ok = pavMoveToChatBar();
+    pavFixAudioInput();
+    if (ok) done = true;
+    return ok;
+  }
+
+  // Tenta imediatamente
+  if (!trySetup()) {
+    // Observa o DOM do parent para agir assim que o chat input aparecer
+    try {
+      const par = window.parent ? window.parent.document : document;
+      const obs = new MutationObserver(function() {
+        if (trySetup()) obs.disconnect();
+      });
+      obs.observe(par.body, { childList: true, subtree: true });
+      // Fallback de segurança: desliga observer após 10s
+      setTimeout(() => obs.disconnect(), 10000);
+    } catch(e) {
+      // Cross-origin fallback
+      var t = setInterval(function() {
+        if (trySetup()) clearInterval(t);
+      }, 200);
+      setTimeout(function() { clearInterval(t); }, 10000);
+    }
+  }
+
+  // Reconecta audio input ao resize
+  window.parent.addEventListener('resize', pavFixAudioInput);
+})();
 </script>
-</body></html>""", height=1)
+</body></html>""", height=0)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
