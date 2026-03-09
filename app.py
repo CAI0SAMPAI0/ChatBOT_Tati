@@ -2584,215 +2584,123 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
         st.session_state.staged_file_name = uploaded.name
         st.rerun()
 
-    # ── JS: move botão de clipe para dentro da chat bar ──────────────────────
-    components.html("""<!DOCTYPE html><html><head>
-<style>html,body{margin:0;padding:0;overflow:hidden;height:0;}</style>
-</head><body>
+    # ── JS: injeta botões mic e clipe diretamente na página (sem iframe) ────────
+    st.markdown("""
+<style>
+[data-testid="stAudioInput"]{position:fixed!important;bottom:-9999px!important;left:-9999px!important;opacity:0!important;pointer-events:none!important;width:1px!important;height:1px!important;overflow:hidden!important;}
+[data-testid="stAudioInput"] button{pointer-events:auto!important;}
+[data-testid="stChatInput"]{position:relative!important;}
+.pav-extras{position:absolute!important;right:52px!important;top:50%!important;transform:translateY(-50%)!important;display:flex!important;align-items:center!important;gap:6px!important;z-index:10!important;}
+.pav-icon-btn{width:32px!important;height:32px!important;border-radius:50%!important;border:1px solid #30363d!important;background:transparent!important;color:#8b949e!important;font-size:13px!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;transition:all .15s!important;flex-shrink:0!important;padding:0!important;}
+.pav-icon-btn:hover{border-color:#f0a500!important;color:#f0a500!important;}
+.pav-icon-btn.recording{border-color:#f85149!important;color:#f85149!important;animation:pavpulse .7s ease-in-out infinite alternate!important;}
+@keyframes pavpulse{from{box-shadow:0 0 0 rgba(248,81,73,0);}to{box-shadow:0 0 8px rgba(248,81,73,.6);}}
+.pav-timer{font-size:11px!important;color:#8b949e!important;font-family:monospace!important;min-width:36px!important;text-align:center!important;display:none!important;letter-spacing:.5px!important;}
+.pav-timer.visible{display:block!important;}
+</style>
 <script>
-(function() {
+(function pavSetup(){
+  if(window._pavDone) return;
+  window._pavDone = true;
 
-  function pavMoveToChatBar() {
-    const par = window.parent ? window.parent.document : document;
-    const chatInputContainer = par.querySelector('[data-testid="stChatInput"]');
-    if (!chatInputContainer) return false;
-    if (chatInputContainer.querySelector('.pav-extras')) return true;
+  function inject(){
+    var ci = document.querySelector('[data-testid="stChatInput"]');
+    if(!ci) return false;
+    if(ci.querySelector('.pav-extras')) return true;
 
-    // Injeta estilos no parent
-    if (!par.getElementById('pav-style')) {
-      const styleEl = par.createElement('style');
-      styleEl.id = 'pav-style';
-      styleEl.textContent = `
-        [data-testid="stAudioInput"] {
-          position: fixed !important; bottom: -9999px !important;
-          left: -9999px !important; opacity: 0 !important;
-          pointer-events: none !important; width: 1px !important;
-          height: 1px !important; overflow: hidden !important;
-        }
-        [data-testid="stAudioInput"] button { pointer-events: auto !important; }
-        [data-testid="stChatInput"] { position: relative !important; }
-        .pav-extras {
-          position: absolute !important;
-          right: 52px !important;
-          top: 50% !important;
-          transform: translateY(-50%) !important;
-          display: flex !important;
-          align-items: center !important;
-          gap: 6px !important;
-          z-index: 10 !important;
-        }
-        .pav-icon-btn {
-          width: 32px !important; height: 32px !important;
-          border-radius: 50% !important;
-          border: 1px solid #30363d !important;
-          background: transparent !important;
-          color: #8b949e !important;
-          font-size: 13px !important;
-          cursor: pointer !important;
-          display: flex !important; align-items: center !important; justify-content: center !important;
-          transition: all .15s !important; flex-shrink: 0 !important;
-          padding: 0 !important;
-        }
-        .pav-icon-btn:hover { border-color: #f0a500 !important; color: #f0a500 !important; }
-        .pav-icon-btn.recording { border-color: #f85149 !important; color: #f85149 !important; animation: pavpulse .7s ease-in-out infinite alternate !important; }
-        @keyframes pavpulse { from{box-shadow:0 0 0 rgba(248,81,73,0);} to{box-shadow:0 0 8px rgba(248,81,73,.6);} }
-        .pav-timer {
-          font-size: 11px !important;
-          color: #8b949e !important;
-          font-family: 'JetBrains Mono', monospace !important;
-          min-width: 36px !important;
-          text-align: center !important;
-          display: none !important;
-          letter-spacing: 0.5px !important;
-        }
-        .pav-timer.visible { display: block !important; }
-      `;
-      par.head.appendChild(styleEl);
-    }
-
-    const extras = par.createElement('div');
+    var extras = document.createElement('div');
     extras.className = 'pav-extras';
 
-    // Contador de tempo
-    const timer = par.createElement('span');
+    var timer = document.createElement('span');
     timer.className = 'pav-timer';
-    timer.id = 'pav-timer';
     timer.textContent = '00:00';
+    var timerIv=null, timerSec=0;
 
-    let timerInterval = null;
-    let timerSeconds = 0;
-
-    function startTimer() {
-      timerSeconds = 0;
-      timer.textContent = '00:00';
-      timer.classList.add('visible');
-      timerInterval = setInterval(() => {
-        timerSeconds++;
-        const m = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
-        const s = String(timerSeconds % 60).padStart(2, '0');
-        timer.textContent = m + ':' + s;
-      }, 1000);
+    function startTimer(){
+      timerSec=0; timer.textContent='00:00'; timer.classList.add('visible');
+      timerIv=setInterval(function(){
+        timerSec++;
+        var m=String(Math.floor(timerSec/60)).padStart(2,'0');
+        var s=String(timerSec%60).padStart(2,'0');
+        timer.textContent=m+':'+s;
+      },1000);
+    }
+    function stopTimer(){
+      clearInterval(timerIv); timerIv=null; timerSec=0;
+      timer.textContent='00:00'; timer.classList.remove('visible');
+    }
+    function clickAudioBtn(){
+      var att=0;
+      (function t(){
+        var ai=document.querySelector('[data-testid="stAudioInput"]');
+        var btn=ai?ai.querySelector('button'):null;
+        if(btn){btn.click();}
+        else if(att++<20){setTimeout(t,100);}
+      })();
     }
 
-    function stopTimer() {
-      clearInterval(timerInterval);
-      timerInterval = null;
-      timerSeconds = 0;
-      timer.textContent = '00:00';
-      timer.classList.remove('visible');
-    }
-
-    // Botao microfone
-    const mb = par.createElement('button');
-    mb.className = 'pav-icon-btn';
-    mb.id = 'pav-mic-btn';
-    mb.title = 'Gravar audio';
-    mb.type = 'button';
-    mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-
-    function clickAudioBtn(callback) {
-      // Tenta até 20x em 2s — o widget pode demorar para reaparecer após rerun
-      let attempts = 0;
-      function tryClick() {
-        const ai = par.querySelector('[data-testid="stAudioInput"]');
-        const btn = ai ? ai.querySelector('button') : null;
-        if (btn) {
-          btn.click();
-          if (callback) callback();
-        } else if (attempts++ < 20) {
-          setTimeout(tryClick, 100);
-        }
-      }
-      tryClick();
-    }
-
-    mb.onclick = (e) => {
+    var mb=document.createElement('button');
+    mb.className='pav-icon-btn'; mb.type='button'; mb.title='Gravar audio';
+    mb.innerHTML='<i class="fa-solid fa-microphone"></i>';
+    mb.addEventListener('click',function(e){
       e.preventDefault(); e.stopPropagation();
-      if (mb.classList.contains('recording')) {
-        // Para gravação
+      if(mb.classList.contains('recording')){
         mb.classList.remove('recording');
-        mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-        stopTimer();
-        clickAudioBtn(null);
+        mb.innerHTML='<i class="fa-solid fa-microphone"></i>';
+        stopTimer(); clickAudioBtn();
       } else {
-        // Inicia gravação
         mb.classList.add('recording');
-        mb.innerHTML = '<i class="fa-solid fa-stop"></i>';
-        startTimer();
-        clickAudioBtn(null);
-      }
-    };
-
-    // Observer permanente: reseta estado do mic quando o stAudioInput é recriado
-    const micObs = new MutationObserver(() => {
-      const ai = par.querySelector('[data-testid="stAudioInput"]');
-      if (ai) {
-        // Widget recriado = gravação encerrada pelo Streamlit
-        if (mb.classList.contains('recording')) {
-          mb.classList.remove('recording');
-          mb.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-          stopTimer();
-        }
+        mb.innerHTML='<i class="fa-solid fa-stop"></i>';
+        startTimer(); clickAudioBtn();
       }
     });
-    micObs.observe(par.body, { childList: true, subtree: true });
 
-    // Botao clipe
-    const ab = par.createElement('button');
-    ab.className = 'pav-icon-btn';
-    ab.title = 'Anexar arquivo';
-    ab.type = 'button';
-    ab.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
-    ab.onclick = (e) => {
+    var ab=document.createElement('button');
+    ab.className='pav-icon-btn'; ab.type='button'; ab.title='Anexar arquivo';
+    ab.innerHTML='<i class="fa-solid fa-paperclip"></i>';
+    ab.addEventListener('click',function(e){
       e.preventDefault(); e.stopPropagation();
-      const fw = par.querySelector('[data-testid="stFileUploader"]');
-      if (fw) {
-        const fileInput = fw.querySelector('input[type="file"]');
-        if (fileInput) fileInput.click();
-      }
-    };
+      var fw=document.querySelector('[data-testid="stFileUploader"]');
+      if(fw){var fi=fw.querySelector('input[type="file"]'); if(fi)fi.click();}
+    });
 
     extras.appendChild(timer);
     extras.appendChild(mb);
     extras.appendChild(ab);
-    chatInputContainer.appendChild(extras);
+    ci.appendChild(extras);
+
+    // Reset mic se stAudioInput for recriado
+    new MutationObserver(function(){
+      if(mb.classList.contains('recording')){
+        var ai=document.querySelector('[data-testid="stAudioInput"]');
+        if(!ai||!ai.querySelector('button[aria-pressed="true"]')){
+          mb.classList.remove('recording');
+          mb.innerHTML='<i class="fa-solid fa-microphone"></i>';
+          stopTimer();
+        }
+      }
+    }).observe(document.body,{childList:true,subtree:true});
+
     return true;
   }
 
-  function pavFixAudioInput() {
-    // Audio input oculto via CSS - nada a reposicionar
-  }
+  // Observer permanente no document — sobrevive a reruns e troca de aba
+  new MutationObserver(function(){
+    var ci=document.querySelector('[data-testid="stChatInput"]');
+    if(ci&&!ci.querySelector('.pav-extras')) inject();
+  }).observe(document.body,{childList:true,subtree:true});
 
-  function trySetup() {
-    pavMoveToChatBar();
-    pavFixAudioInput();
-  }
+  // Re-injeta ao voltar para a aba
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='visible') setTimeout(inject,50);
+  });
 
-  const par = window.parent ? window.parent.document : document;
-
-  // Observer permanente: re-injeta os botões sempre que o Streamlit re-renderizar
-  try {
-    const obs = new MutationObserver(function() {
-      const ci = par.querySelector('[data-testid="stChatInput"]');
-      if (ci && !ci.querySelector('.pav-extras')) {
-        pavMoveToChatBar();
-      }
-    });
-    obs.observe(par.body, { childList: true, subtree: true });
-  } catch(e) {
-    // Fallback cross-origin: polling contínuo
-    setInterval(function() {
-      const ci = par.querySelector('[data-testid="stChatInput"]');
-      if (ci && !ci.querySelector('.pav-extras')) {
-        pavMoveToChatBar();
-      }
-    }, 300);
-  }
-
-  // Injeção inicial
-  trySetup();
+  inject();
+  setTimeout(inject,500);
+  setTimeout(inject,1500);
 })();
 </script>
-</body></html>""", height=1)
+""", unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
