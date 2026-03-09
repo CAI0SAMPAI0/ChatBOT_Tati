@@ -2570,7 +2570,7 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
         type=["mp3", "wav", "ogg", "m4a", "webm", "flac",
               "pdf", "doc", "docx", "txt", "png", "jpg", "jpeg", "webp"])
 
-    if uploaded and uploaded.name != st.session_state.get("_last_file"):
+    if uploaded:
         st.session_state["_last_file"] = uploaded.name
         raw    = uploaded.read()
         result = extract_file(raw, uploaded.name)
