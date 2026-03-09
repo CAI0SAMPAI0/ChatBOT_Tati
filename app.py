@@ -1694,7 +1694,7 @@ html,body{{
 /* ── Layout principal ── */
 .vm-wrap{{
   display:flex;flex-direction:column;
-  height:100vh;position:relative;
+  height:100vh;position:relative;overflow:hidden;
   background:radial-gradient(ellipse at 50% 0%,rgba(240,165,0,.06) 0%,transparent 60%);
 }}
 
@@ -1711,7 +1711,9 @@ html,body{{
 /* ── Avatar central ── */
 .avatar-section{{
   display:flex;flex-direction:column;align-items:center;
-  padding-top:36px;gap:8px;flex-shrink:0;
+  padding-top:28px;padding-bottom:12px;gap:6px;flex-shrink:0;
+  position:sticky;top:0;z-index:10;
+  background:linear-gradient(180deg,#080c12 80%,transparent 100%);
 }}
 
 /* Ondas sonoras ao redor do avatar */
