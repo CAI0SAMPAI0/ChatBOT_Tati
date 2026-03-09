@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-# ══════════════════════════════════════════════════════════════════════════════
-# app.py — Teacher Tati · English Learning AI
-# Autor: Caio (programador) · Arquitetura: Streamlit + Claude + ElevenLabs TTS
-# ══════════════════════════════════════════════════════════════════════════════
-
 import os
 import json
 import base64
@@ -1217,7 +1211,8 @@ def show_profile() -> None:
 
     is_prof    = user.get("role") == "professor"
     level_opts = ["Beginner", "Pre-Intermediate", "Intermediate", "Business English", "Advanced", "Native"]
-    focus_opts = ["General Conversation", "Sports & Games", "Business & News", "Series & Pop Culture", "Teaching"]
+    focus_opts = ["General Conversation","Business English","Travel","Academic",
+                  "Pronunciation","Grammar","Vocabulary","Exam Prep"]
 
     def safe_index(lst, val, default=0):
         try:    return lst.index(val)
