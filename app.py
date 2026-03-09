@@ -2598,6 +2598,14 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     };
 
     extras.appendChild(ab);
+    const submitBtn = chatInputContainer.querySelector('button[kind="primaryFormSubmit"], button[data-testid="stChatInputSubmitButton"], button:last-of-type');
+    if (submitBtn) {
+        chatInputContainer.insertBefore(extras, submitBtn);
+    } else {
+        chatInputContainer.appendChild(extras);
+    }
+    return true;
+    }
     const chatInner = chatInputContainer.querySelector('div');
     if (chatInner) chatInner.style.position = 'relative';
     chatInputContainer.appendChild(extras);
@@ -2613,7 +2621,7 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
     const rect = ci.getBoundingClientRect();
     ai.style.cssText = `
       position: fixed !important;
-      bottom: ${window.parent.innerHeight - rect.top + 42}px !important;
+      bottom: ${window.parent.innerHeight - rect.top + 6}px !important;
       left: ${rect.left}px !important;
       width: ${rect.width}px !important;
       z-index: 99 !important;
