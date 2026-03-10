@@ -13,6 +13,7 @@ import secrets
 from datetime import datetime
 import json
 
+import streamlit as st
 from supabase import create_client, Client
 
 # ── Cliente Supabase ──────────────────────────────────────────────────────────
@@ -180,14 +181,12 @@ def validate_session(token: str) -> dict | None:
         return None
     db = get_client()
 
-    # Tenta usar a função RPC otimizada
     try:
         result = db.rpc("validate_session", {"p_token": token}).execute()
         username = result.data
         if not username:
             return None
     except Exception:
-        # Fallback para query direta se a função RPC não existir
         row = db.table("sessions").select("username").eq("token", token).execute().data
         if not row:
             return None
@@ -225,7 +224,6 @@ def delete_conversation(username: str, conv_id: str):
             "p_conv_id":  conv_id,
         }).execute()
     except Exception:
-        # Fallback
         db.table("messages").delete().eq("username", username).eq("conv_id", conv_id).execute()
         db.table("conversations").delete().eq("username", username).eq("id", conv_id).execute()
 
@@ -236,7 +234,6 @@ def list_conversations(username: str) -> list:
     try:
         rows = db.rpc("list_conversations", {"p_username": username}).execute().data or []
     except Exception:
-        # Fallback para query direta
         return _list_conversations_fallback(username, db)
 
     result = []
@@ -311,7 +308,6 @@ def load_conversation(username: str, conv_id: str) -> list:
             "p_username": username,
             "p_conv_id":  conv_id,
         }).execute().data or []
-        # Renomeia colunas que foram escapadas no SQL (time/date/timestamp são reservadas)
         for r in rows:
             if "msg_time" in r:
                 r["time"]      = r.pop("msg_time")
@@ -328,6 +324,12 @@ def load_conversation(username: str, conv_id: str) -> list:
             .data or []
         )
     return rows
+
+
+@st.cache_data(show_spinner=False, ttl=60)
+def cached_load_conversation(username: str, conv_id: str) -> list:
+    """Versão cacheada de load_conversation para evitar queries repetidas."""
+    return load_conversation(username, conv_id)
 
 
 def append_message(username, conv_id, role, content,
@@ -350,7 +352,6 @@ def append_message(username, conv_id, role, content,
             "p_msg_timestamp":  now.isoformat(),
         }).execute()
     except Exception:
-        # Fallback
         db.table("conversations").upsert(
             {"id": conv_id, "username": username, "created_at": now.isoformat()},
             on_conflict="id,username",
@@ -399,7 +400,6 @@ def get_user_avatar_db(username: str) -> tuple[bytes, str] | None:
     path = f"{username}/avatar"
     try:
         raw = db.storage.from_(AVATAR_BUCKET).download(path)
-        # Tenta detectar mime pelo header mágico
         mime = "image/jpeg"
         if raw[:4] == b"\x89PNG":
             mime = "image/png"
