@@ -22,7 +22,6 @@ from database import (
 from transcriber import transcribe_bytes
 from tts import text_to_speech, tts_available
 from file_reader import extract_file
-from tati_views.login import show_login as _show_login_view
 
 # ── Wav2Lip (avatar realista — opcional, requer Colab rodando) ────────────────
 try:
