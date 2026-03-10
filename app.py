@@ -1041,6 +1041,7 @@ def show_login() -> None:
                 st.session_state.page              = "dashboard" if udata["role"] == "professor" else "chat"
                 st.session_state.conv_id           = None
                 st.session_state["_session_token"] = token
+                st.session_state["_session_saved"] = True
                 st.query_params.clear()
                 st.rerun()
         else:
@@ -1057,6 +1058,7 @@ def show_login() -> None:
             st.session_state.page              = "dashboard" if udata["role"] == "professor" else "chat"
             st.session_state.conv_id           = None
             st.session_state["_session_token"] = token
+            st.session_state["_session_saved"] = True
             js_save_session(token)
             st.query_params.clear()
             st.rerun()
@@ -1155,7 +1157,7 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
 <div class="bg"><div class="orb1"></div><div class="orb2"></div><div class="grid"></div></div>
 <div class="wrap">
   <div class="card">
-    {"<img class='avatar-img' src='" + avatar_src + "'/>" if avatar_src else "<div class='avatar-emoji'>🧑‍🏫</div>"}
+    {('<div class="avatar-img" style="background:url(' + avatar_src + ') center top/cover no-repeat;width:88px;height:88px;border-radius:50%;display:block;margin:0 auto 18px;border:2.5px solid #f0a500;box-shadow:0 0 0 6px rgba(240,165,0,.1),0 0 36px rgba(240,165,0,.22);flex-shrink:0;"></div>') if avatar_src else "<div class='avatar-emoji'>🧑‍🏫</div>"}
     <h2>{PROF_NAME}</h2>
     <p>Your personal English practice companion</p>
     <div class="line"></div>
@@ -1209,6 +1211,7 @@ p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px
                             )
                             token = create_session(real_u)
                             st.session_state["_session_token"] = token
+                            st.session_state["_session_saved"] = True
                             js_save_session(token)
                             st.rerun()
                         else:
@@ -2177,6 +2180,7 @@ def _logout() -> None:
         delete_session(token)          # remove do banco SQLite
     js_clear_session()                 # remove do localStorage do browser
     st.session_state.pop("_session_token", None)
+    st.session_state.pop("_session_saved", None)
     st.session_state.update(logged_in=False, user=None, conv_id=None)
 
 
@@ -2203,6 +2207,7 @@ def show_chat() -> None:
 <style>html,body{{margin:0;padding:0;overflow:hidden;}}</style>
 </head><body><script>
 (function(){{
+  // ── Cores de destaque ──
   function hexToRgb(h){{
     h=h.replace('#','');
     if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
@@ -2232,38 +2237,20 @@ def show_chat() -> None:
   r.style.setProperty('--ai-bubble-bg', ab);
   r.style.setProperty('--ai-bubble-text', luminance(ab)>128 ? '#111' : '#e6edf3');
   r.style.setProperty('--ai-bubble-border', 'rgba('+hexToRgb(ab)+', .6)');
+  // ── Para todo áudio ao trocar de conversa ──
+  var par=window.parent;
+  if(par){{
+    par.document.querySelectorAll('audio').forEach(function(a){{a.pause();a.currentTime=0;}});
+    par.document.querySelectorAll('iframe').forEach(function(f){{
+      try{{
+        f.contentDocument.querySelectorAll('audio').forEach(function(a){{a.pause();a.currentTime=0;}});
+        f.contentDocument.querySelectorAll('#b').forEach(function(b){{b.textContent='\u25b6 Ouvir';}});
+        if(f.contentWindow.speechSynthesis) f.contentWindow.speechSynthesis.cancel();
+      }}catch(e){{}}
+    }});
+    if(par.speechSynthesis) par.speechSynthesis.cancel();
+  }}
 }})();
-</script></body></html>""", height=1)
-
-    # ── JS: para todo áudio ao trocar de conversa ou recarregar ──────────────
-    components.html("""<!DOCTYPE html><html><body><script>
-(function() {
-  const par = window.parent;
-  if (!par) return;
-  function stopAllAudio() {
-    par.document.querySelectorAll('audio').forEach(function(a) {
-      a.pause(); a.currentTime = 0;
-    });
-    par.document.querySelectorAll('iframe').forEach(function(iframe) {
-      try {
-        iframe.contentDocument.querySelectorAll('audio').forEach(function(a) {
-          a.pause(); a.currentTime = 0;
-        });
-        iframe.contentDocument.querySelectorAll('#b').forEach(function(b) {
-          b.textContent = '\u25b6 Ouvir';
-        });
-        if (iframe.contentWindow.speechSynthesis) {
-          iframe.contentWindow.speechSynthesis.cancel();
-        }
-      } catch(e) {}
-    });
-    if (par.speechSynthesis) par.speechSynthesis.cancel();
-  }
-  stopAllAudio();
-  const observer = new MutationObserver(function() { stopAllAudio(); });
-  observer.observe(par.document.body, { childList: true, subtree: false });
-  window.addEventListener('beforeunload', function() { observer.disconnect(); });
-})();
 </script></body></html>""", height=1)
 
     # ── Sidebar ───────────────────────────────────────────────────────────────
@@ -2403,6 +2390,17 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
 }
 .bot-row .msg-time { text-align: left; }
 
+/* Botão Ouvir inline — sem iframe */
+.msg-ouvir-row { padding: 2px 0 0 40px; }
+.msg-ouvir-btn {
+    background: none; border: 1px solid #30363d; border-radius: 16px;
+    color: #8b949e; font-size: .68rem; padding: 2px 10px; cursor: pointer;
+    transition: all .15s; white-space: nowrap; font-family: inherit;
+}
+.msg-ouvir-btn:hover, .msg-ouvir-btn.speaking {
+    border-color: #f0a500; color: #f0a500;
+}
+
 @media (max-width: 768px) {
     .msg-bubble { max-width: 88% !important; font-size: .82rem !important; }
 }
@@ -2420,9 +2418,9 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
         </div></div>""", unsafe_allow_html=True)
 
     # ── Histórico de mensagens ────────────────────────────────────────────────
-    # Mini-avatar da Tati para o chat (cache — sem re-leitura de disco)
+    # Mini-avatar da Tati — background-image no div (sem <img>, sem flash)
     _tati_mini   = get_tati_mini_b64()
-    tati_av_html = (f'<div class="msg-av"><img src="{_tati_mini}"></div>'
+    tati_av_html = (f'<div class="msg-av" style="background:url({_tati_mini}) center top/cover no-repeat;"></div>'
                     if _tati_mini else
                     '<div class="msg-av"><div class="av-emoji">🧑‍🏫</div></div>')
 
@@ -2448,46 +2446,14 @@ section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
             elif not is_file:
                 clean_text = (msg["content"]
                     .replace("\\", "").replace("`", "")
-                    .replace("'", "\\'").replace('"', '\\"')
+                    .replace('"', "&quot;").replace("'", "&#39;")
                     .replace("\n", " ").replace("\r", "")
                     .replace("*", "").replace("#", ""))[:600]
-                components.html(f"""<!DOCTYPE html><html><head>
-<style>
-*{{margin:0;padding:0;box-sizing:border-box;}}
-html,body{{background:transparent;overflow:hidden;}}
-.row{{display:flex;align-items:center;gap:8px;padding:2px 0 0 40px;}}
-.btn{{background:none;border:1px solid #30363d;border-radius:16px;
-      color:#8b949e;font-size:.68rem;padding:2px 10px;cursor:pointer;
-      transition:all .15s;white-space:nowrap;}}
-.btn:hover,.btn.on{{border-color:#f0a500;color:#f0a500;}}
-</style></head><body>
-<div class="row">
-  <button class="btn" id="btn">▶ Ouvir</button>
-</div>
-<script>
-(function(){{
-  var txt = '{clean_text}';
-  var btn = document.getElementById('btn');
-  var speaking = false;
-  btn.onclick = function() {{
-    if (speaking) {{
-      speechSynthesis.cancel(); speaking=false;
-      btn.textContent='▶ Ouvir'; btn.classList.remove('on'); return;
-    }}
-    var u = new SpeechSynthesisUtterance(txt);
-    u.lang='en-US'; u.rate=0.95; u.pitch=1.05;
-    speechSynthesis.getVoices();
-    setTimeout(function(){{
-      var vv=speechSynthesis.getVoices();
-      var pick=vv.find(v=>v.lang==='en-US')||vv.find(v=>v.lang.startsWith('en'));
-      if(pick)u.voice=pick;
-      u.onstart=function(){{speaking=true;btn.textContent='⏹ Parar';btn.classList.add('on');}};
-      u.onend=u.onerror=function(){{speaking=false;btn.textContent='▶ Ouvir';btn.classList.remove('on');}};
-      speechSynthesis.cancel(); speechSynthesis.speak(u);
-    }},100);
-  }};
-}})();
-</script></body></html>""", height=28, scrolling=False)
+                st.markdown(
+                    f'<div class="msg-ouvir-row">'
+                    f'<button class="msg-ouvir-btn" data-pav-tts data-text="{clean_text}">▶ Ouvir</button>'
+                    f'</div>',
+                    unsafe_allow_html=True)
             else:
                 st.markdown(f'<div class="msg-time" style="margin-left:40px;">{msg_time}</div>',
                             unsafe_allow_html=True)
@@ -2671,6 +2637,45 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
             st.session_state.staged_file_name = ", ".join(f["name"] for f in staged_list)
             st.rerun()
 
+    # ── Handler único para todos os botões Ouvir (substitui iframes por mensagem) ─
+    components.html("""<!DOCTYPE html><html><body><script>
+(function(){
+  var par = window.parent ? window.parent.document : document;
+  var cur = null;
+  function initBtns(){
+    par.querySelectorAll('[data-pav-tts]').forEach(function(btn){
+      if(btn._pavInit) return;
+      btn._pavInit = true;
+      btn.addEventListener('click', function(){
+        if(cur && cur !== btn){
+          speechSynthesis.cancel();
+          cur.textContent='▶ Ouvir'; cur.classList.remove('speaking'); cur=null;
+        }
+        if(btn.classList.contains('speaking')){
+          speechSynthesis.cancel();
+          btn.textContent='▶ Ouvir'; btn.classList.remove('speaking'); cur=null; return;
+        }
+        var txt = btn.getAttribute('data-text') || '';
+        var u = new SpeechSynthesisUtterance(txt);
+        u.lang='en-US'; u.rate=0.95; u.pitch=1.05;
+        speechSynthesis.getVoices();
+        setTimeout(function(){
+          var vv=speechSynthesis.getVoices();
+          var pick=vv.find(function(v){return v.lang==='en-US';})||vv.find(function(v){return v.lang.startsWith('en');});
+          if(pick) u.voice=pick;
+          u.onstart=function(){ btn.textContent='⏹ Parar'; btn.classList.add('speaking'); cur=btn; };
+          u.onend=u.onerror=function(){ btn.textContent='▶ Ouvir'; btn.classList.remove('speaking'); cur=null; };
+          speechSynthesis.cancel(); speechSynthesis.speak(u);
+        },80);
+      });
+    });
+  }
+  initBtns();
+  var obs = new MutationObserver(initBtns);
+  obs.observe(par.body, {childList:true, subtree:true});
+})();
+</script></body></html>""", height=1)
+
     # ── Botões mic e clipe — carregados de arquivos externos ──────────────────
     _btn_html = Path("static/pav_buttons.html")
     _btn_css  = Path("static/pav_buttons.css")
@@ -2766,10 +2771,11 @@ def show_dashboard() -> None:
 if not st.session_state.logged_in:
     show_login()
 else:
-    # Re-salva token a cada render para garantir persistência
+    # Salva token apenas uma vez por sessão (não a cada rerun)
     _tok = st.session_state.get("_session_token", "")
-    if _tok:
+    if _tok and not st.session_state.get("_session_saved"):
         js_save_session(_tok)
+        st.session_state["_session_saved"] = True
 
     if st.session_state.page == "profile":
         show_profile()
