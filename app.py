@@ -1024,7 +1024,7 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
 </style></head><body>
 <div class="player">
   <span class="tl">{msg_time}</span>
-  <button class="pb" id="b">▶ Ouvir</button>
+  <button class="pb" id="b">▶ Play</button>
   <div class="pw" id="pw"><div class="pf" id="pf"></div></div>
   <div class="sw" id="sw">
     <span style="font-size:.6rem;color:#8b949e;">vel:</span>
@@ -1066,17 +1066,17 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
   b.onclick=function(){{
     unlockAudio();
     if(!audio.paused){{
-      audio.pause(); b.textContent='▶ Ouvir';
+      audio.pause(); b.textContent='▶ Play';
     }}else{{
       var p=audio.play();
       if(p!==undefined){{
-        p.then(function(){{b.textContent='⏸ Pausar';}})
+        p.then(function(){{b.textContent='⏸ Stop';}})
          .catch(function(err){{
            console.warn('play() bloqueado:', err);
-           b.textContent='▶ Ouvir';
+           b.textContent='▶ Play';
            setTimeout(function(){{
              audio.play()
-               .then(function(){{b.textContent='⏸ Pausar';}})
+               .then(function(){{b.textContent='⏸ Stop';}})
                .catch(function(){{}});
            }},300);
          }});
@@ -1084,7 +1084,7 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
     }}
   }};
 
-  audio.onended=function(){{b.textContent='▶ Ouvir';pf.style.width='0%';}};
+  audio.onended=function(){{b.textContent='▶ Play';pf.style.width='0%';}};
   audio.ontimeupdate=function(){{
     if(audio.duration)pf.style.width=(audio.currentTime/audio.duration*100)+'%';
   }};
@@ -2014,7 +2014,7 @@ input[type=range].ctrl-range::-moz-range-thumb{{
 
     <div class="mic-footer">
         <div class="audio-controls" id="audioControls">
-            <button id="global-play-btn">&#9654; Ouvir</button>
+            <button id="global-play-btn">&#9654; Play</button>
             <span class="ctrl-label">Vol</span>
             <input type="range" class="ctrl-range" id="vol-slider" min="0" max="1" step="0.05" value="1">
             <span class="ctrl-val" id="vol-val">100%</span>
@@ -2235,7 +2235,7 @@ function stopTTS(){{
 function updateGlobalBtn(playing){{
     var btn = document.getElementById('global-play-btn');
     if(!btn) return;
-    btn.textContent  = playing ? '⏹ Parar' : '▶ Ouvir';
+    btn.textContent  = playing ? '⏹ Stop' : '▶ Play';
     btn.style.background = playing ? '#8b2a2a' : '#1a2535';
 }}
 
@@ -2267,16 +2267,16 @@ function addBubble(role, text, b64){{
     if(role === 'bot' && b64){{
         var pbtn = document.createElement('button');
         pbtn.className = 'bubble-play-btn';
-        pbtn.textContent = '▶ Ouvir';
+        pbtn.textContent = '▶ Play';
         pbtn.addEventListener('click', function(){{
             var isPlaying = currentAudio && !currentAudio.paused && currentAudio._srcB64 === b64;
-            if(isPlaying){{ stopTTS(); pbtn.textContent = '▶ Ouvir'; pbtn.classList.remove('playing'); }}
+            if(isPlaying){{ stopTTS(); pbtn.textContent = '▶ Play'; pbtn.classList.remove('playing'); }}
             else{{
                 document.querySelectorAll('.bubble-play-btn').forEach(function(b){{
-                    b.textContent = '▶ Ouvir'; b.classList.remove('playing');
+                    b.textContent = '▶ Play'; b.classList.remove('playing');
                 }});
-                pbtn.textContent = '⏹ Parar'; pbtn.classList.add('playing');
-                playTTS(b64, function(){{ pbtn.textContent = '▶ Ouvir'; pbtn.classList.remove('playing'); }});
+                pbtn.textContent = '⏹ Stop'; pbtn.classList.add('playing');
+                playTTS(b64, function(){{ pbtn.textContent = '▶ Play'; pbtn.classList.remove('playing'); }});
             }}
         }});
         histWrap.appendChild(pbtn);
@@ -2546,7 +2546,7 @@ def show_chat() -> None:
     par.document.querySelectorAll('iframe').forEach(function(f){{
       try{{
         f.contentDocument.querySelectorAll('audio').forEach(function(a){{a.pause();a.currentTime=0;}});
-        f.contentDocument.querySelectorAll('#b').forEach(function(b){{b.textContent='\u25b6 Ouvir';}});
+        f.contentDocument.querySelectorAll('#b').forEach(function(b){{b.textContent='\u25b6 Play';}});
         if(f.contentWindow.speechSynthesis) f.contentWindow.speechSynthesis.cancel();
       }}catch(e){{}}
     }});
@@ -2753,7 +2753,7 @@ section[data-testid="stMain"] { transition: margin-left 0.3s, width 0.3s ease !i
                     .replace("*", "").replace("#", ""))[:600]
                 st.markdown(
                     f'<div class="msg-ouvir-row">'
-                    f'<button class="msg-ouvir-btn" data-pav-tts data-text="{clean_text}">▶ Ouvir</button>'
+                    f'<button class="msg-ouvir-btn" data-pav-tts data-text="{clean_text}">▶ Play</button>'
                     f'</div>',
                     unsafe_allow_html=True)
             else:
@@ -2951,11 +2951,11 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
       btn.addEventListener('click', function(){
         if(cur && cur !== btn){
           speechSynthesis.cancel();
-          cur.textContent='▶ Ouvir'; cur.classList.remove('speaking'); cur=null;
+          cur.textContent='▶ Play'; cur.classList.remove('speaking'); cur=null;
         }
         if(btn.classList.contains('speaking')){
           speechSynthesis.cancel();
-          btn.textContent='▶ Ouvir'; btn.classList.remove('speaking'); cur=null; return;
+          btn.textContent='▶ Play'; btn.classList.remove('speaking'); cur=null; return;
         }
         var txt = btn.getAttribute('data-text') || '';
         var u = new SpeechSynthesisUtterance(txt);
@@ -2966,7 +2966,7 @@ html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
           var pick=vv.find(function(v){return v.lang==='en-US';})||vv.find(function(v){return v.lang.startsWith('en');});
           if(pick) u.voice=pick;
           u.onstart=function(){ btn.textContent='⏹ Parar'; btn.classList.add('speaking'); cur=btn; };
-          u.onend=u.onerror=function(){ btn.textContent='▶ Ouvir'; btn.classList.remove('speaking'); cur=null; };
+          u.onend=u.onerror=function(){ btn.textContent='▶ Play'; btn.classList.remove('speaking'); cur=null; };
           speechSynthesis.cancel(); speechSynthesis.speak(u);
         },80);
       });
