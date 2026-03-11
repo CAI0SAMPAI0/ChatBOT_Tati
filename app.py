@@ -2733,30 +2733,37 @@ section[data-testid="stMain"] { transition: margin-left 0.3s, width 0.3s ease !i
 
         if msg["role"] == "assistant":
             is_file = msg.get("is_file", False)
+            lang = st.session_state.user.get("profile", {}).get("language", "pt-BR")
+            is_en = "en" in lang.lower()
+            lbl_play = "Listen" if is_en else "Ouvir"
+            lbl_stop = "Pause" if is_en else "Pausar"
             
             # --- SE A MENSAGEM TEM ÁUDIO B64 SALVO NO BANCO ---
             if msg.get("tts_b64"):
+                b64_data = msg["tts_b64"]
                 audio_html = f"""
-                <div style="margin-top: 8px;">
-                    <audio id="audio-app-{i}" src="data:audio/mp3;base64,{msg['tts_b64']}" style="display:none;"></audio>
+                <div class="msg-ouvir-row" style="margin-top: 4px; margin-bottom: 8px;">
+                    <audio id="audio-app-{i}" src="data:audio/mp3;base64,{b64_data}" style="display:none;"></audio>
                     <button onclick="
+                        var btn = this;
                         var aud = document.getElementById('audio-app-{i}');
+                        
                         if(aud.paused) {{ 
                             aud.play(); 
-                            this.innerHTML = '⏹ {t_stop}'; 
-                            this.style.color = '#e05c2a';
-                            this.style.borderColor = 'rgba(224,92,42,.5)';
+                            btn.innerHTML = '⏹ {lbl_stop}'; 
+                            btn.style.color = '#e05c2a';
+                            btn.style.borderColor = 'rgba(224,92,42,.5)';
                         }} else {{ 
                             aud.pause(); 
                             aud.currentTime = 0;
-                            this.innerHTML = '▶ {t_play}'; 
-                            this.style.color = '#3a6a8a';
-                            this.style.borderColor = '#1a2535';
+                            btn.innerHTML = '▶ {lbl_play}'; 
+                            btn.style.color = '#3a6a8a';
+                            btn.style.borderColor = '#1a2535';
                         }}
                         aud.onended = () => {{ 
-                            this.innerHTML = '▶ {t_play}'; 
-                            this.style.color = '#3a6a8a';
-                            this.style.borderColor = '#1a2535';
+                            btn.innerHTML = '▶ {lbl_play}'; 
+                            btn.style.color = '#3a6a8a';
+                            btn.style.borderColor = '#1a2535';
                         }};
                     " style="
                         background: transparent; border: 1px solid #1a2535; 
@@ -2764,7 +2771,7 @@ section[data-testid="stMain"] { transition: margin-left 0.3s, width 0.3s ease !i
                         padding: 4px 12px; cursor: pointer; font-size: 0.75rem;
                         transition: all 0.15s; font-family: sans-serif;
                     ">
-                        ▶ {t_play}
+                        ▶ {lbl_play}
                     </button>
                 </div>
                 """
