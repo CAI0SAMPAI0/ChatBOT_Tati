@@ -1,9 +1,11 @@
 """
 core/database.py — Teacher Tati · Supabase (PostgreSQL) backend
-Senhas com bcrypt (rounds=12), sessões com expiração, sem retorno de passwords.
+Criptografia: bcrypt (rounds=12) com migração automática de hashes SHA-256 legados.
+Sessões com expiração em 30 dias.
 """
 
 import os
+import hashlib
 import secrets
 from datetime import datetime, timedelta
 
@@ -25,7 +27,7 @@ def get_client() -> Client:
     return create_client(url, key)
 
 
-# ── Senha (bcrypt) ────────────────────────────────────────────────────────────
+# ── Senha (bcrypt + migração SHA-256) ─────────────────────────────────────────
 
 def hash_password(plain: str) -> str:
     """Gera hash bcrypt com 12 rounds."""
@@ -35,17 +37,20 @@ def hash_password(plain: str) -> str:
 def check_password(plain: str, hashed: str) -> bool:
     """
     Verifica senha aceitando bcrypt (novo) e SHA-256 (legado).
-    Se SHA-256 bater, migra automaticamente para bcrypt no banco.
+    Não faz nenhum output — silencioso.
     """
-    import hashlib
+    if not plain or not hashed:
+        return False
     if hashed.startswith("$2"):
         try:
             return bcrypt.checkpw(plain.encode(), hashed.encode())
         except Exception:
             return False
-    # Fallback: SHA-256 legado (64 chars hex)
-    sha = hashlib.sha256(plain.encode()).hexdigest()
-    return sha == hashed
+    # Fallback SHA-256 legado (hex 64 chars)
+    if len(hashed) == 64:
+        sha = hashlib.sha256(plain.encode()).hexdigest()
+        return secrets.compare_digest(sha, hashed)
+    return False
 
 
 def _migrate_password_to_bcrypt(username: str, plain: str) -> None:
@@ -149,7 +154,7 @@ def authenticate(username: str, password: str) -> dict | None:
     if not check_password(password, u["password"]):
         return None
 
-    # Migra SHA-256 → bcrypt automaticamente na primeira entrada
+    # Migra SHA-256 → bcrypt automaticamente (silencioso)
     if not u["password"].startswith("$2"):
         _migrate_password_to_bcrypt(u["username"], password)
 
@@ -451,7 +456,7 @@ def remove_user_avatar_db(username: str) -> bool:
         return False
 
 
-# ── Stats do professor ────────────────────────────────────────────────────────
+# ── Stats do professor ─────────────────────────────────────────────────────────
 
 def get_all_students_stats() -> list:
     db = get_client()
