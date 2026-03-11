@@ -31,16 +31,24 @@ st.markdown(
 )
 
 # ── JS: ajusta layout ao abrir/fechar sidebar automaticamente ─────────────────
-st.markdown("""<script>
+components.html("""<!DOCTYPE html><html><head>
+<style>html,body{margin:0;padding:0;overflow:hidden;}</style>
+</head><body><script>
 (function(){
+    function fixToggle(){
+        var toggle = window.parent.document.querySelector('[data-testid="collapsedControl"]');
+        if(toggle){
+            toggle.style.setProperty('position','fixed','important');
+            toggle.style.setProperty('top','10px','important');
+            toggle.style.setProperty('left','10px','important');
+            toggle.style.setProperty('z-index','99999','important');
+        }
+    }
     function fixLayout(){
         var sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
         var main    = window.parent.document.querySelector('[data-testid="stMain"]');
-        var toggle  = window.parent.document.querySelector('[data-testid="collapsedControl"]');
         if(!sidebar || !main) return;
         var collapsed = sidebar.getAttribute('aria-expanded') === 'false'
-                     || sidebar.classList.contains('st-emotion-cache-collapsed')
-                     || sidebar.style.width === '0px'
                      || sidebar.offsetWidth < 20;
         main.style.transition = 'margin-left 0.3s ease, width 0.3s ease';
         if(collapsed){
@@ -50,14 +58,9 @@ st.markdown("""<script>
             main.style.marginLeft = '';
             main.style.width = '';
         }
-        // Move o toggle para o canto superior esquerdo
-        if(toggle){
-            toggle.style.position = 'fixed';
-            toggle.style.top      = '10px';
-            toggle.style.left     = '10px';
-            toggle.style.zIndex   = '99999';
-        }
+        fixToggle();
     }
+    // Observa mudanças na sidebar
     var obs = new MutationObserver(fixLayout);
     function init(){
         var sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
@@ -69,14 +72,15 @@ st.markdown("""<script>
         }
     }
     init();
+    // Escuta cliques no botão
     window.parent.document.addEventListener('click', function(e){
         var btn = e.target.closest('[data-testid="collapsedControl"], [data-testid="stSidebarCollapseButton"]');
         if(btn) setTimeout(fixLayout, 350);
     }, true);
-    // Garante que aplica mesmo após reruns do Streamlit
-    setInterval(fixLayout, 1000);
+    // Reaplica periodicamente para sobreviver a reruns
+    setInterval(fixToggle, 800);
 })();
-</script>""", unsafe_allow_html=True)
+</script></body></html>""", height=0)
 
 # login lendo o cookie
 
