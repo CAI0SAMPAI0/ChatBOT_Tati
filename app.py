@@ -2488,9 +2488,6 @@ def _logout() -> None:
 
 def show_chat() -> None:
     """Tela principal do chat — sidebar com histórico + área de mensagens."""
-    lang = st.session_state.user.get("profile", {}).get("language", "pt-BR")
-    t_play = t("listen", lang, default="Ouvir")
-    t_stop = t("pause", lang, default="Pausar")
     user     = st.session_state.user
     username = user["username"]
     profile  = user.get("profile", {})
