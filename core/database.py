@@ -38,7 +38,6 @@ def check_password(plain: str, hashed: str) -> bool:
     Se SHA-256 bater, migra automaticamente para bcrypt no banco.
     """
     import hashlib
-    # Tenta bcrypt primeiro (hashes novos começam com $2b$ ou $2a$)
     if hashed.startswith("$2"):
         try:
             return bcrypt.checkpw(plain.encode(), hashed.encode())
@@ -95,7 +94,6 @@ def _ensure_default_users(db: Client):
         },
     ]
     for u in defaults:
-        # Só insere se não existir (não sobrescreve senha customizada)
         existing = db.table("users").select("username").eq("username", u["username"]).execute().data
         if not existing:
             db.table("users").insert(u).execute()
@@ -106,7 +104,6 @@ def _ensure_default_users(db: Client):
 def load_students() -> dict:
     """Carrega usuários SEM retornar senhas."""
     db   = get_client()
-    # Seleciona tudo EXCETO password
     rows = db.table("users").select(
         "username, name, role, email, level, focus, created_at, profile"
     ).execute().data or []
@@ -128,7 +125,7 @@ def load_students() -> dict:
 def authenticate(username: str, password: str) -> dict | None:
     """Autentica usuário. Retorna dados sem senha, ou None."""
     db = get_client()
-    # Busca apenas username + password hash
+
     row = (
         db.table("users")
         .select("username, name, role, email, level, focus, created_at, profile, password")
@@ -137,7 +134,6 @@ def authenticate(username: str, password: str) -> dict | None:
         .data
     )
     if not row:
-        # tenta sem .lower() para compatibilidade
         row = (
             db.table("users")
             .select("username, name, role, email, level, focus, created_at, profile, password")
@@ -150,22 +146,13 @@ def authenticate(username: str, password: str) -> dict | None:
 
     u = row[0]
 
-    # DEBUG
-    import hashlib, streamlit as _st
-    _ok = check_password(password, u["password"])
-    _st.warning(f"DEBUG: user=`{u['username']}` | check_password={_ok} | hash_prefix=`{u['password'][:10]}`")
-    if not _ok:
+    if not check_password(password, u["password"]):
         return None
 
     # Migra SHA-256 → bcrypt automaticamente na primeira entrada
     if not u["password"].startswith("$2"):
-        try:
-            _migrate_password_to_bcrypt(u["username"], password)
-            _st.info("DEBUG: migração bcrypt executada")
-        except Exception as e:
-            _st.error(f"DEBUG: erro na migração: {e}")
+        _migrate_password_to_bcrypt(u["username"], password)
 
-    # Retorna dados SEM a senha
     return {
         "_resolved_username": u["username"],
         "name":       u["name"],
@@ -258,7 +245,7 @@ def validate_session(token: str) -> dict | None:
     now = datetime.now()
 
     try:
-        result = db.rpc("validate_session", {"p_token": token}).execute()
+        result   = db.rpc("validate_session", {"p_token": token}).execute()
         username = result.data
         if not username:
             return None
@@ -274,8 +261,7 @@ def validate_session(token: str) -> dict | None:
             return None
         sess     = row[0]
         username = sess["username"]
-        # Verifica expiração
-        expires = sess.get("expires_at")
+        expires  = sess.get("expires_at")
         if expires and datetime.fromisoformat(expires) < now:
             db.table("sessions").delete().eq("token", token).execute()
             return None
