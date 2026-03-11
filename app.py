@@ -2727,9 +2727,7 @@ section[data-testid="stMain"] { transition: margin-left 0.3s, width 0.3s ease !i
                     '<div class="msg-av"><div class="av-emoji">🧑‍🏫</div></div>')
 
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    for i, msg in enumerate(st.session_state.messages):
+    for i, msg in enumerate(messages):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
