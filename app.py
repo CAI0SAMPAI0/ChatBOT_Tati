@@ -250,7 +250,7 @@ TEACHING STYLE:
 # ══════════════════════════════════════════════════════════════════════════════
 # SESSION STATE
 # ══════════════════════════════════════════════════════════════════════════════
-for k, v in {"logged_in": False, "user": None, "page": "voice", "speaking": False,
+for k, v in {"logged_in": False, "user": None, "page": "chat", "speaking": False,
               "conv_id": None, "staged_file": None, "audio_key": 0}.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -265,7 +265,7 @@ if not st.session_state.logged_in:
                 (k for k, v in load_students().items() if v.get("password") == _ud.get("password")), None)
             if _un:
                 st.session_state.update(logged_in=True, user={"username": _un, **_ud},
-                    page="dashboard" if _ud.get("role") == "professor" else "voice", conv_id=None)
+                    page="dashboard" if _ud.get("role") == "professor" else "chat", conv_id=None)
                 st.session_state["_session_token"] = _s
         else:
             st.query_params.pop("s", None)
@@ -371,23 +371,11 @@ def _gen_docx(title, content, path):
 # TELA DE LOGIN  (do login.py enviado, sem ui_helpers)
 # ══════════════════════════════════════════════════════════════════════════════
 def show_login() -> None:
-    photo_src = get_photo_b64() or ""
+    # Se já está logado (auto-login pelo roteador), não renderiza o login
+    if st.session_state.logged_in:
+        return
 
-    # Auto-login via ?s=
-    if "s" in st.query_params:
-        token = st.query_params["s"]
-        udata = validate_session(token)
-        if udata:
-            uname = udata.get("_resolved_username") or next(
-                (k for k, v in load_students().items() if v.get("password") == udata.get("password")), None)
-            if uname:
-                st.session_state.update(logged_in=True, user={"username": uname, **udata},
-                    page="dashboard" if udata.get("role") == "professor" else "voice", conv_id=None)
-                st.session_state["_session_token"] = token
-                st.session_state["_session_saved"] = True
-                st.query_params.clear(); st.rerun()
-        else:
-            js_clear_session(); st.query_params.clear()
+    photo_src = get_photo_b64() or ""
 
     st.markdown("""<style>
 [data-testid='stSidebar']{display:none!important;}
@@ -514,7 +502,7 @@ p{{font-size:.7rem;color:#3a4e5e;text-align:center;}}
                     if user:
                         real_u = user.get("_resolved_username", u.lower())
                         st.session_state.update(logged_in=True, user={"username": real_u, **user},
-                            page="dashboard" if user["role"] == "professor" else "voice", conv_id=None)
+                            page="dashboard" if user["role"] == "professor" else "chat", conv_id=None)
                         token = create_session(real_u)
                         st.session_state["_session_token"] = token
                         st.session_state["_session_saved"] = True
@@ -1378,7 +1366,7 @@ def show_profile() -> None:
 
     st.markdown("---")
     if st.button(t("back",ui_lang),key="bk"):
-        st.session_state.page = "dashboard" if is_prof else "voice"; st.rerun()
+        st.session_state.page = "dashboard" if is_prof else "chat"; st.rerun()
 
 # ══════════════════════════════════════════════════════════════════════════════
 # DASHBOARD
@@ -1394,7 +1382,6 @@ def show_dashboard() -> None:
             st.session_state.page="voice"; st.rerun()
         if st.button(t("use_as_student",ui_lang),use_container_width=True,key="dc"):
             st.session_state.page="chat"; st.rerun()
-        if st.button(t("my_profile",ui_lang),use_container_width=True,key="dp"):
             st.session_state.page="profile"; st.rerun()
         if st.button(t("logout",ui_lang),use_container_width=True,key="dl"):
             _logout(); st.rerun()
@@ -1429,4 +1416,4 @@ else:
     if   _page == "profile":   show_profile()
     elif _page == "dashboard": show_dashboard()
     elif _page == "chat":      show_chat()
-    else:                      show_voice()   # padrão: modo voz
+    else:                      show_chat()    # padrão: modo chat
