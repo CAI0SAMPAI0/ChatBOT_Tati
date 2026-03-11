@@ -170,12 +170,53 @@ _STRINGS = {
         "new_password":       "Nova senha",
         "confirm_password":   "Confirmar senha",
         "speaking":           "🗣 Falando...",
+        "speaking_ai":        "🗣 Falando...",
         "listening":          "🎙 Ouvindo...",
         "processing":         "⏳ Processando...",
         "tap_to_speak":       "Toque no microfone para falar",
         "tap_to_record":      "Toque para gravar",
         "tap_to_stop":        "Toque para parar",
         "wait":               "Aguarde...",
+        "conv_accent":        "Cor de destaque",
+        "user_bubble":        "Balão do usuário",
+        "ai_bubble":          "Balão da IA",
+        "custom_instructions":"Instruções personalizadas para a IA",
+        "custom_placeholder": "ex: Sempre me corrija quando eu errar o Past Simple.",
+        "your_account":       "Sua Conta",
+        "profile_photo":      "Foto de Perfil",
+        "change_photo":       "Alterar foto — JPG, PNG ou WEBP (máx 15 MB)",
+        "account_info":       "Informações da Conta",
+        "username_label":     "Username:",
+        "created_at":         "Conta criada em:",
+        "change_pw_title":    "Alterar Senha",
+        "pw_too_short":       "Senha muito curta.",
+        "pw_mismatch":        "As senhas não coincidem.",
+        "pw_changed":         "✅ Senha alterada!",
+        "saved_ok":           "✅ Salvo!",
+        "photo_saved":        "✅ Foto salva!",
+        "photo_removed":      "Foto removida.",
+        "photo_too_large":    "❌ Foto muito grande. Máximo 15 MB.",
+        "appearance":         "Aparência",
+        "voice_settings":     "Voz",
+        "about_you":          "Sobre Você",
+        "ai_style_title":     "Estilo da IA",
+        "conversations":      "Conversas",
+        "no_convs":           "Nenhuma conversa ainda.",
+        "msgs":               "msgs",
+        "online":             "● Online",
+        "students":           "Alunos",
+        "messages":           "Mensagens",
+        "corrections":        "Correções",
+        "active_today":       "Ativos Hoje",
+        "no_students":        "Nenhum aluno ainda.",
+        "level":              "Nível",
+        "last_access":        "Último Acesso",
+        "fill_fields":        "Preencha todos os campos.",
+        "invalid_email":      "E-mail inválido.",
+        "pw_min":             "Senha muito curta (mínimo 6 caracteres).",
+        "wrong_credentials":  "Usuário ou senha incorretos.",
+        "back_dashboard":     "← Voltar ao Dashboard",
+        "back_chat":          "← Voltar ao Chat",
     },
     "en-US": {
         "type_message":       "Type a message…",
@@ -216,12 +257,53 @@ _STRINGS = {
         "new_password":       "New password",
         "confirm_password":   "Confirm password",
         "speaking":           "🗣 Speaking...",
+        "speaking_ai":        "🗣 Speaking...",
         "listening":          "🎙 Listening...",
         "processing":         "⏳ Processing...",
         "tap_to_speak":       "Tap the mic to speak",
         "tap_to_record":      "Tap to record",
         "tap_to_stop":        "Tap to stop",
         "wait":               "Please wait...",
+        "conv_accent":        "Accent color",
+        "user_bubble":        "User bubble",
+        "ai_bubble":          "AI bubble",
+        "custom_instructions":"Custom AI instructions",
+        "custom_placeholder": "e.g. Always correct me when I get the Past Simple wrong.",
+        "your_account":       "Your Account",
+        "profile_photo":      "Profile Photo",
+        "change_photo":       "Change photo — JPG, PNG or WEBP (max 15 MB)",
+        "account_info":       "Account Information",
+        "username_label":     "Username:",
+        "created_at":         "Account created on:",
+        "change_pw_title":    "Change Password",
+        "pw_too_short":       "Password too short.",
+        "pw_mismatch":        "Passwords do not match.",
+        "pw_changed":         "✅ Password changed!",
+        "saved_ok":           "✅ Saved!",
+        "photo_saved":        "✅ Photo saved!",
+        "photo_removed":      "Photo removed.",
+        "photo_too_large":    "❌ Photo too large. Maximum 15 MB.",
+        "appearance":         "Appearance",
+        "voice_settings":     "Voice",
+        "about_you":          "About You",
+        "ai_style_title":     "AI Style",
+        "conversations":      "Conversations",
+        "no_convs":           "No conversations yet.",
+        "msgs":               "msgs",
+        "online":             "● Online",
+        "students":           "Students",
+        "messages":           "Messages",
+        "corrections":        "Corrections",
+        "active_today":       "Active Today",
+        "no_students":        "No students yet.",
+        "level":              "Level",
+        "last_access":        "Last Access",
+        "fill_fields":        "Please fill in all fields.",
+        "invalid_email":      "Invalid email address.",
+        "pw_min":             "Password too short (minimum 6 characters).",
+        "wrong_credentials":  "Incorrect username or password.",
+        "back_dashboard":     "← Back to Dashboard",
+        "back_chat":          "← Back to Chat",
     },
     "en-UK": {
         "type_message":       "Type a message…",
@@ -262,12 +344,53 @@ _STRINGS = {
         "new_password":       "New password",
         "confirm_password":   "Confirm password",
         "speaking":           "🗣 Speaking...",
+        "speaking_ai":        "🗣 Speaking...",
         "listening":          "🎙 Listening...",
         "processing":         "⏳ Processing...",
         "tap_to_speak":       "Tap the mic to speak",
         "tap_to_record":      "Tap to record",
         "tap_to_stop":        "Tap to stop",
         "wait":               "Please wait...",
+        "conv_accent":        "Accent colour",
+        "user_bubble":        "User bubble",
+        "ai_bubble":          "AI bubble",
+        "custom_instructions":"Custom AI instructions",
+        "custom_placeholder": "e.g. Always correct me when I get the Past Simple wrong.",
+        "your_account":       "Your Account",
+        "profile_photo":      "Profile Photo",
+        "change_photo":       "Change photo — JPG, PNG or WEBP (max 15 MB)",
+        "account_info":       "Account Information",
+        "username_label":     "Username:",
+        "created_at":         "Account created on:",
+        "change_pw_title":    "Change Password",
+        "pw_too_short":       "Password too short.",
+        "pw_mismatch":        "Passwords do not match.",
+        "pw_changed":         "✅ Password changed!",
+        "saved_ok":           "✅ Saved!",
+        "photo_saved":        "✅ Photo saved!",
+        "photo_removed":      "Photo removed.",
+        "photo_too_large":    "❌ Photo too large. Maximum 15 MB.",
+        "appearance":         "Appearance",
+        "voice_settings":     "Voice",
+        "about_you":          "About You",
+        "ai_style_title":     "AI Style",
+        "conversations":      "Conversations",
+        "no_convs":           "No conversations yet.",
+        "msgs":               "msgs",
+        "online":             "● Online",
+        "students":           "Students",
+        "messages":           "Messages",
+        "corrections":        "Corrections",
+        "active_today":       "Active Today",
+        "no_students":        "No students yet.",
+        "level":              "Level",
+        "last_access":        "Last Access",
+        "fill_fields":        "Please fill in all fields.",
+        "invalid_email":      "Invalid e-mail address.",
+        "pw_min":             "Password too short (minimum 6 characters).",
+        "wrong_credentials":  "Incorrect username or password.",
+        "back_dashboard":     "← Back to Dashboard",
+        "back_chat":          "← Back to Chat",
     },
 }
 
@@ -1498,7 +1621,7 @@ def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
     history.append({"role": "user", "content": txt})
     client = anthropic.Anthropic(api_key=API_KEY)
     resp   = client.messages.create(
-        model="claude-haiku-4-5", max_tokens=1000,
+        model="claude-haiku-4-5", max_tokens=300,
         system=SYSTEM_PROMPT + context, messages=history
     )
     reply = resp.content[0].text
@@ -2139,7 +2262,13 @@ function addBubble(role, text, b64){{
     label.textContent = role === 'user' ? 'Você' : PROF_NAME;
     var bub = document.createElement('div');
     bub.className = 'bubble ' + role;
-    bub.textContent = text;
+    bub.innerHTML = text
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g,'<em>$1</em>')
+        .replace(/_(.+?)_/g,'<em>$1</em>')
+        .replace(/__(.+?)__/g,'<u>$1</u>')
+        .replace(/\n/g,'<br>');
     histWrap.appendChild(label);
     histWrap.appendChild(bub);
     if(role === 'bot' && b64){{
@@ -2345,6 +2474,19 @@ def _process_and_send_file(username: str, user: dict, conv_id: str,
         st.warning(f"⚠️ Formato '{label}' não suportado.")
         return False
 
+# formatação
+def _md_to_html(text: str) -> str:
+    import re
+    # Negrito: **texto** → <strong>
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    # Itálico: *texto* ou _texto_ → <em>
+    text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
+    text = re.sub(r'_(.+?)_', r'<em>\1</em>', text)
+    # Sublinhado: __texto__ → <u>
+    text = re.sub(r'__(.+?)__', r'<u>\1</u>', text)
+    # Quebra de linha
+    text = text.replace("\n", "<br>")
+    return text
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CHAT — tela principal de conversa
@@ -2605,8 +2747,9 @@ section[data-testid="stMain"] { transition: margin-left 0.3s, width 0.3s ease !i
                     '<div class="msg-av"><div class="av-emoji">🧑‍🏫</div></div>')
 
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
+    
     for i, msg in enumerate(messages):
-        content  = msg["content"].replace("\n", "<br>")
+        content = _md_to_html(msg["content"])
         msg_time = msg.get("time", "")
 
         if msg["role"] == "assistant":
