@@ -2027,10 +2027,7 @@ function enterProcessing(){{
 }}
 
 // ── SPEAKING: sincronização labial via Web Audio API ─────────────────────────
-// silêncio → normal | suave → meio | normal → aberta | intenso → bem_aberta
-// início (0-8%) → surpresa
-// ── SPEAKING: sincronização labial via Web Audio API ─────────────────────────
-// Apenas 2 frames: normal (silêncio/pausa) e meio (qualquer fala)
+// normal = boca fechada (pausas) | meio = boca aberta (fala)
 function enterSpeaking(audioEl){{
     _stopAllTimers();
     _state = 'speaking';
@@ -2045,8 +2042,8 @@ function enterSpeaking(audioEl){{
         }}
         if(!_analyser){{
             _analyser = _audioCtx.createAnalyser();
-            _analyser.fftSize = 256;
-            _analyser.smoothingTimeConstant = 0.75;
+            _analyser.fftSize = 512;
+            _analyser.smoothingTimeConstant = 0.1; // reage rápido ao volume real
             var src = _audioCtx.createMediaElementSource(audioEl);
             src.connect(_analyser);
             _analyser.connect(_audioCtx.destination);
@@ -2056,20 +2053,21 @@ function enterSpeaking(audioEl){{
         _mouthTimer = setInterval(function(){{
             if(_state !== 'speaking') return;
             _analyser.getByteFrequencyData(buf);
-            var sum = 0, n = Math.min(80, buf.length);
-            for(var i = 8; i < n; i++) sum += buf[i] * buf[i];
-            var rms = Math.sqrt(sum / (n - 8)) / 128;
-            setFrame(rms < 0.04 ? F_NORMAL : F_MEIO);
-        }}, 80);
+            // média simples dos bins de fala
+            var sum = 0, n = Math.min(100, buf.length);
+            for(var i = 4; i < n; i++) sum += buf[i];
+            var avg = sum / (n - 4); // 0..255
+            setFrame(avg < 18 ? F_NORMAL : F_MEIO);
+        }}, 60); // ~16fps — rápido o suficiente para parecer natural
 
     }}catch(e){{
-        // Fallback sem Web Audio: alterna normal↔meio
+        // Fallback sem Web Audio: alterna meio↔normal a ~2Hz
         _mouthFallbackIdx = 0;
         _mouthTimer = setInterval(function(){{
             if(_state !== 'speaking') return;
             setFrame(_mouthFallbackIdx % 2 === 0 ? F_MEIO : F_NORMAL);
             _mouthFallbackIdx++;
-        }}, 300);
+        }}, 250);
     }}
 }}
 
