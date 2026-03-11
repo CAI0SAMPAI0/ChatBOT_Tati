@@ -38,6 +38,46 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# ── JS: ajusta layout ao abrir/fechar sidebar automaticamente ─────────────────
+st.markdown("""<script>
+(function(){
+    function fixLayout(){
+        var sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
+        var main    = window.parent.document.querySelector('[data-testid="stMain"]');
+        if(!sidebar || !main) return;
+        var collapsed = sidebar.getAttribute('aria-expanded') === 'false'
+                     || sidebar.classList.contains('st-emotion-cache-collapsed')
+                     || sidebar.style.width === '0px'
+                     || sidebar.offsetWidth < 20;
+        main.style.transition = 'margin-left 0.3s ease, width 0.3s ease';
+        if(collapsed){
+            main.style.marginLeft = '0';
+            main.style.width = '100%';
+        } else {
+            main.style.marginLeft = '';
+            main.style.width = '';
+        }
+    }
+    // Observa mudanças na sidebar (collapse/expand)
+    var obs = new MutationObserver(fixLayout);
+    function init(){
+        var sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
+        if(sidebar){
+            obs.observe(sidebar, {attributes:true, attributeFilter:['aria-expanded','style','class']});
+            fixLayout();
+        } else {
+            setTimeout(init, 300);
+        }
+    }
+    init();
+    // também escuta o botão de colapso
+    window.parent.document.addEventListener('click', function(e){
+        var btn = e.target.closest('[data-testid="collapsedControl"], [data-testid="stSidebarCollapseButton"]');
+        if(btn) setTimeout(fixLayout, 350);
+    }, true);
+})();
+</script>""", unsafe_allow_html=True)
+
 # login lendo o cookie
 
 def _try_autologin_from_cookie() -> bool:
@@ -56,7 +96,6 @@ def _try_autologin_from_cookie() -> bool:
         headers = st.context.headers
         cookie_header = headers.get("Cookie", "") or headers.get("cookie", "")
     except AttributeError:
-        # Streamlit < 1.31 — st.context não existe, usa fallback JS
         return False
 
     if not cookie_header:
@@ -977,278 +1016,230 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
 # ══════════════════════════════════════════════════════════════════════════════
 
 def show_login() -> None:
-    """Renderiza a tela de login com aba de registro. Cria sessão ao autenticar."""
+    photo_src = get_photo_b64() or ""
 
-    # ── Auto-login via token salvo (cookie/localStorage) ──────────────────────
-    # height=0 — sem espaço visível, sem duplicação de campos no submit
+    # Remove TODO o padding/margin do Streamlit e aplica roxo nos botões
+    st.markdown("""<style>
+[data-testid='stSidebar']{display:none!important;}
+#MainMenu,footer,header{display:none!important;}
+[data-testid="stToolbar"]{display:none!important;}
+.stApp{background:#060a10!important;}
+section[data-testid="stMain"],
+section[data-testid="stMain"]>div,
+.main .block-container{
+    padding:0!important;margin:0!important;
+    max-width:100%!important;width:100%!important;
+}
+/* Botões de aba secundários */
+div[data-testid="stButton"]>button{
+    border-radius:10px!important;font-weight:600!important;
+    border:1px solid #2a2a4a!important;
+    background:transparent!important;color:#6b7280!important;
+}
+/* Botão de aba ativo (primary) */
+div[data-testid="stButton"]>button[kind="primary"],
+div[data-testid="stButton"]>button[data-testid="baseButton-primary"]{
+    background:linear-gradient(135deg,#6c3fc5,#8b5cf6)!important;
+    border-color:#7c4dcc!important;color:#fff!important;
+    box-shadow:0 0 14px rgba(139,92,246,.35)!important;
+}
+/* Botão submit do form */
+div[data-testid="stFormSubmitButton"]>button{
+    background:linear-gradient(135deg,#6c3fc5,#8b5cf6)!important;
+    border:1px solid #7c4dcc!important;color:#fff!important;
+    border-radius:10px!important;font-weight:700!important;
+    box-shadow:0 0 14px rgba(139,92,246,.3)!important;
+}
+div[data-testid="stFormSubmitButton"]>button:hover{
+    background:linear-gradient(135deg,#7c4dcc,#9d6ff7)!important;
+    box-shadow:0 0 22px rgba(139,92,246,.5)!important;
+}
+/* Iframes fantasma invisíveis */
+iframe[height="1"]{
+    position:fixed!important;opacity:0!important;
+    pointer-events:none!important;bottom:0!important;left:0!important;
+}
+/* Centraliza tudo verticalmente */
+section[data-testid="stMain"]>div>div>div{
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:center!important;
+}
+div[data-testid="stVerticalBlock"]{
+    width:100%!important;
+    max-width:420px!important;
+    margin:0 auto!important;
+    padding:0 16px!important;
+}
+</style>""", unsafe_allow_html=True)
+
+    # ── Auto-login via localStorage ──────────────────────────────────────────
     components.html("""<!DOCTYPE html><html><head>
 <style>html,body{margin:0;padding:0;overflow:hidden;}</style>
 </head><body><script>
-    (function() {
-        function readToken() {
-            try {
-                var v = window.parent.localStorage.getItem('pav_session');
-                if (v && v.length > 10) return v;
-            } catch(e) {}
-            try {
-                var v2 = localStorage.getItem('pav_session');
-                if (v2 && v2.length > 10) return v2;
-            } catch(e) {}
-            try {
-                var match = window.parent.document.cookie.split(';')
-                    .map(function(c) { return c.trim(); })
-                    .find(function(c) { return c.startsWith('pav_session='); });
-                if (match) {
-                    var val = decodeURIComponent(match.split('=')[1]);
-                    if (val && val.length > 10) return val;
-                }
-            } catch(e) {}
-            try {
-                var match2 = document.cookie.split(';')
-                    .map(function(c) { return c.trim(); })
-                    .find(function(c) { return c.startsWith('pav_session='); });
-                if (match2) {
-                    var val2 = decodeURIComponent(match2.split('=')[1]);
-                    if (val2 && val2.length > 10) return val2;
-                }
-            } catch(e) {}
-            return '';
-        }
-        var val = readToken();
-        if (!val) return;
-        var url      = new URL(window.parent.location.href);
-        var isToken  = val.length > 20;
-        var paramKey = isToken ? '_token' : '_u';
-        if (url.searchParams.get(paramKey) !== val) {
-            url.searchParams.set(paramKey, val);
-            window.parent.location.replace(url.toString());
-        }
-    })();
-    </script></body></html>""", height=1)
-
-    params = st.query_params
-    if "_token" in params:
-        token = params["_token"]
-        udata = validate_session(token)
-        if udata:
-            uname = udata.get("_resolved_username") or next(
-                (k for k, v in load_students().items() if v["password"] == udata["password"]),
-                None
-            )
-            if uname:
-                st.session_state.logged_in         = True
-                st.session_state.user              = {"username": uname, **udata}
-                st.session_state.page              = "dashboard" if udata["role"] == "professor" else "chat"
-                st.session_state.conv_id           = None
-                st.session_state["_session_token"] = token
-                st.session_state["_session_saved"] = True
-                st.query_params.clear()
-                st.rerun()
-        else:
-            js_clear_session()
-            st.query_params.clear()
-    elif "_u" in params:
-        uname    = params["_u"]
-        students = load_students()
-        if uname in students:
-            udata = students[uname]
-            token = create_session(uname)
-            st.session_state.logged_in         = True
-            st.session_state.user              = {"username": uname, **udata}
-            st.session_state.page              = "dashboard" if udata["role"] == "professor" else "chat"
-            st.session_state.conv_id           = None
-            st.session_state["_session_token"] = token
-            st.session_state["_session_saved"] = True
-            js_save_session(token)
-            st.query_params.clear()
-            st.rerun()
+(function(){
+    function readToken(){
+        try{var s=window.parent.localStorage.getItem('pav_session');if(s&&s.length>10)return s;}catch(e){}
+        try{var s2=localStorage.getItem('pav_session');if(s2&&s2.length>10)return s2;}catch(e){}
+        try{var m=window.parent.document.cookie.split(';').map(function(c){return c.trim();})
+            .find(function(c){return c.startsWith('pav_session=');});
+            if(m){var v=decodeURIComponent(m.split('=')[1]);if(v&&v.length>10)return v;}}catch(e){}
+        return '';
+    }
+    var val=readToken();
+    if(!val)return;
+    var url=new URL(window.parent.location.href);
+    if(url.searchParams.get('s')!==val){
+        url.searchParams.set('s',val);
+        window.parent.location.replace(url.toString());
+    }
+})();
+</script></body></html>""", height=1)
 
     if "_login_tab" not in st.session_state:
         st.session_state["_login_tab"] = "login"
 
-    # ── CSS exclusivo da página de login ──────────────────────────────────────
-    st.markdown("""<style>
-[data-testid="stSidebar"]    { display:none!important; }
-[data-testid="stHeader"]     { display:none!important; }
-[data-testid="stToolbar"]    { display:none!important; }
-[data-testid="stDecoration"] { display:none!important; }
-footer                       { display:none!important; }
-.stApp                       { background:#060a10!important; }
-.block-container             { padding-top:0!important; max-width:100%!important; }
-section.main > div           { padding:0!important; }
-.stTextInput label {
-  font-size:.7rem!important; color:#4a5a6a!important;
-  font-weight:700!important; text-transform:uppercase!important;
-  letter-spacing:1px!important;
-}
-.stTextInput input {
-  background:rgba(255,255,255,.04)!important;
-  border:1px solid #1e2a3a!important; border-radius:10px!important;
-  color:#e6edf3!important; font-size:.88rem!important;
-  transition:border-color .2s,box-shadow .2s!important;
-}
-.stTextInput input:focus {
-  border-color:#f0a500!important;
-  box-shadow:0 0 0 3px rgba(240,165,0,.12)!important;
-}
-.stForm [data-testid="stFormSubmitButton"] button {
-  background:linear-gradient(135deg,#f0a500,#e05c2a)!important;
-  border:none!important; border-radius:12px!important;
-  color:#060a10!important; font-weight:800!important;
-  font-size:.9rem!important; padding:14px!important;
-  width:100%!important; letter-spacing:.5px!important;
-  box-shadow:0 4px 24px rgba(240,165,0,.3)!important;
-  transition:all .25s!important; margin-top:8px!important;
-}
-.stForm [data-testid="stFormSubmitButton"] button:hover {
-  transform:translateY(-2px)!important;
-  box-shadow:0 8px 32px rgba(240,165,0,.45)!important;
-}
-div[data-testid="stButton"] button {
-  border-radius:10px!important; font-size:.82rem!important;
-  font-weight:600!important; transition:all .2s!important;
-}
-[data-testid="InputInstructions"] { display:none!important; }
-small[data-testid="InputInstructions"] { display:none!important; }
-</style>""", unsafe_allow_html=True)
+    # ── Avatar HTML ──────────────────────────────────────────────────────────
+    if photo_src:
+        av_html = (
+            f'<img class="av" src="{photo_src}" alt="{PROF_NAME}" '
+            f'onerror="this.style.display=\'none\';'
+            f'document.getElementById(\'avE\').style.display=\'flex\';">'
+            f'<div class="av-emoji" id="avE" style="display:none">&#129489;&#8203;&#127979;</div>'
+        )
+    else:
+        av_html = '<div class="av-emoji" id="avE">&#129489;&#8203;&#127979;</div>'
 
-    # ── Header visual animado ─────────────────────────────────────────────────
-    avatar_src = PHOTO_B64 if PHOTO_B64 else ""
-    components.html(f"""<!DOCTYPE html><html><head>
+    # ── Card visual (avatar + nome) ──────────────────────────────────────────
+    components.html(f"""<!DOCTYPE html>
+<html><head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;700;800&display=swap');
 *{{box-sizing:border-box;margin:0;padding:0;}}
-html,body{{background:#060a10;font-family:'Sora',sans-serif;overflow:hidden;}}
-.bg{{position:fixed;inset:0;background:#060a10;overflow:hidden;}}
-.orb1{{position:absolute;width:560px;height:560px;border-radius:50%;
-       background:radial-gradient(circle,rgba(240,165,0,.12),transparent 70%);
-       top:-160px;right:-120px;animation:d1 14s ease-in-out infinite alternate;}}
-.orb2{{position:absolute;width:420px;height:420px;border-radius:50%;
-       background:radial-gradient(circle,rgba(224,92,42,.09),transparent 70%);
-       bottom:-110px;left:-90px;animation:d2 14s ease-in-out infinite alternate;}}
-.grid{{position:absolute;inset:0;
-       background-image:linear-gradient(rgba(240,165,0,.03) 1px,transparent 1px),
-                        linear-gradient(90deg,rgba(240,165,0,.03) 1px,transparent 1px);
-       background-size:48px 48px;}}
-@keyframes d1{{from{{transform:translate(0,0) scale(1);}}to{{transform:translate(24px,16px) scale(1.06);}}}}
-@keyframes d2{{from{{transform:translate(0,0) scale(1);}}to{{transform:translate(-18px,14px) scale(1.04);}}}}
-.card{{position:relative;z-index:1;background:linear-gradient(180deg,#0f1824,#0a1020);
-       border:1px solid #1a2535;border-radius:24px;
-       padding:36px 32px 28px;width:100%;max-width:440px;margin:0 auto;
-       box-shadow:0 32px 80px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.03);}}
-.wrap{{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}}
-.avatar-img{{width:88px;height:88px;border-radius:50%;
-             object-fit:cover;object-position:top;
-             border:2.5px solid #f0a500;display:block;margin:0 auto 18px;
-             box-shadow:0 0 0 6px rgba(240,165,0,.1),0 0 36px rgba(240,165,0,.22);}}
-.avatar-emoji{{width:88px;height:88px;border-radius:50%;
-               background:linear-gradient(135deg,#f0a500,#e05c2a);
-               display:flex;align-items:center;justify-content:center;
-               font-size:40px;margin:0 auto 18px;
-               box-shadow:0 0 0 6px rgba(240,165,0,.1),0 0 36px rgba(240,165,0,.22);}}
-h2{{font-size:1.55rem;font-weight:800;text-align:center;margin:0 0 5px;
-    background:linear-gradient(135deg,#f0a500 30%,#e05c2a 100%);
-    -webkit-background-clip:text;-webkit-text-fill-color:transparent;}}
-p{{font-size:.76rem;color:#3a4e5e;text-align:center;margin:0;letter-spacing:.3px;}}
-.line{{width:44px;height:2px;background:linear-gradient(90deg,#f0a500,#e05c2a);
-       border-radius:2px;margin:12px auto 0;opacity:.55;}}
+html,body{{
+    background:#060a10;font-family:'Sora',sans-serif;
+    width:100%;height:100%;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+}}
+.card{{
+    background:linear-gradient(180deg,#0f1824,#0a1020);
+    border:1px solid #1a2535;border-radius:24px;
+    padding:28px 24px 20px;width:100%;
+    box-shadow:0 24px 64px rgba(0,0,0,.7);
+    display:flex;flex-direction:column;align-items:center;
+}}
+.av{{
+    width:90px;height:90px;border-radius:50%;
+    object-fit:cover;object-position:top center;
+    border:2.5px solid #8b5cf6;
+    box-shadow:0 0 0 6px rgba(139,92,246,.12),0 0 28px rgba(139,92,246,.25);
+    display:block;margin-bottom:12px;
+}}
+.av-emoji{{
+    width:90px;height:90px;border-radius:50%;
+    background:linear-gradient(135deg,#6c3fc5,#8b5cf6);
+    display:flex;align-items:center;justify-content:center;
+    font-size:38px;margin-bottom:12px;
+}}
+h2{{
+    font-size:1.35rem;font-weight:800;text-align:center;margin:0 0 3px;
+    background:linear-gradient(135deg,#8b5cf6 30%,#c084fc 100%);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}}
+p{{font-size:.7rem;color:#3a4e5e;text-align:center;}}
 </style></head><body>
-<div class="bg"><div class="orb1"></div><div class="orb2"></div><div class="grid"></div></div>
-<div class="wrap">
-  <div class="card">
-    {('<div class="avatar-img" style="background:url(' + avatar_src + ') center top/cover no-repeat;width:88px;height:88px;border-radius:50%;display:block;margin:0 auto 18px;border:2.5px solid #f0a500;box-shadow:0 0 0 6px rgba(240,165,0,.1),0 0 36px rgba(240,165,0,.22);flex-shrink:0;"></div>') if avatar_src else "<div class='avatar-emoji'>🧑‍🏫</div>"}
+<div class="card">
+    {av_html}
     <h2>{PROF_NAME}</h2>
-    <p>Your personal English practice companion</p>
-    <div class="line"></div>
-  </div>
+    <p>Voice English Coach</p>
 </div>
-</body></html>""", height=320, scrolling=False)
+</body></html>""", height=220, scrolling=False)
 
-    # ── Formulários centralizados ─────────────────────────────────────────────
-    _, col, _ = st.columns([1, 2.2, 1])
-    with col:
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button(t("enter"), use_container_width=True, key="tab_btn_login",
-                         type="primary" if st.session_state["_login_tab"] == "login" else "secondary"):
-                st.session_state["_login_tab"] = "login"; st.rerun()
-        with c2:
-            if st.button(t("create_account"), use_container_width=True, key="tab_btn_reg",
-                         type="primary" if st.session_state["_login_tab"] == "reg" else "secondary"):
-                st.session_state["_login_tab"] = "reg"; st.rerun()
+    # ── Mensagens de feedback ────────────────────────────────────────────────
+    login_err = st.session_state.pop("_login_err", "")
+    reg_err   = st.session_state.pop("_reg_err",   "")
+    reg_ok    = st.session_state.pop("_reg_ok",    False)
+    reg_name  = st.session_state.pop("_reg_name",  "")
+    if login_err: st.error(f"❌ {login_err}")
+    if reg_err:   st.error(f"❌ {reg_err}")
+    if reg_ok:    st.success(f"✅ Conta criada! Bem-vindo(a), {reg_name}!")
 
-        st.markdown("<div style='height:2px'></div>", unsafe_allow_html=True)
+    # ── Abas ─────────────────────────────────────────────────────────────────
+    tab = st.session_state["_login_tab"]
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button(t("enter"), use_container_width=True, key="tab_login",
+                     type="primary" if tab == "login" else "secondary"):
+            st.session_state["_login_tab"] = "login"
+            st.rerun()
+    with c2:
+        if st.button(t("create_account"), use_container_width=True, key="tab_reg",
+                     type="primary" if tab == "reg" else "secondary"):
+            st.session_state["_login_tab"] = "reg"
+            st.rerun()
 
-        # ── Feedback de operações anteriores ──────────────────────────────────
-        login_err = st.session_state.pop("_login_err", "")
-        reg_err   = st.session_state.pop("_reg_err",   "")
-        reg_ok    = st.session_state.pop("_reg_ok",    False)
-        reg_name  = st.session_state.pop("_reg_name",  "")
-        if login_err: st.error(f"❌ {login_err}")
-        if reg_err:   st.error(f"❌ {reg_err}")
-        if reg_ok:    st.success(f"✅ Conta criada! Bem-vindo(a), {reg_name}! Faça login.")
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
-        # ── Aba LOGIN ─────────────────────────────────────────────────────────
-        if st.session_state["_login_tab"] == "login":
-            with st.form("form_login", clear_on_submit=True):
-                u = st.text_input(t("username"), placeholder="seu.usuario", key="li_u")
-                p = st.text_input(t("password"), type="password", placeholder="••••••••", key="li_p")
-                submitted = st.form_submit_button("Entrar →", use_container_width=True)
-                if submitted:
-                    if not u or not p:
-                        st.session_state["_login_err"] = "Preencha todos os campos."
+    # ── Formulários ──────────────────────────────────────────────────────────
+    if tab == "login":
+        with st.form("form_login", clear_on_submit=True):
+            u = st.text_input(t("username"), placeholder="seu.usuario")
+            p = st.text_input(t("password"), type="password", placeholder="••••••••")
+            if st.form_submit_button(t("enter"), use_container_width=True):
+                if not u or not p:
+                    st.session_state["_login_err"] = "Preencha todos os campos."
+                    st.rerun()
+                else:
+                    user = authenticate(u, p)
+                    if user:
+                        real_u = user.get("_resolved_username", u.lower())
+                        st.session_state.update(
+                            logged_in=True,
+                            user={"username": real_u, **user},
+                            page="dashboard" if user["role"] == "professor" else "voice",
+                            conv_id=None,
+                        )
+                        token = create_session(real_u)
+                        st.session_state["_session_token"] = token
+                        st.session_state["_session_saved"] = True
+                        js_save_session(token)
                         st.rerun()
                     else:
-                        user = authenticate(u, p)
-                        if user:
-                            real_u = user.get("_resolved_username", u.lower())
-                            st.session_state.update(
-                                logged_in=True,
-                                user={"username": real_u, **user},
-                                page="dashboard" if user["role"] == "professor" else "chat",
-                                conv_id=None
-                            )
-                            token = create_session(real_u)
-                            st.session_state["_session_token"] = token
-                            st.session_state["_session_saved"] = True
-                            js_save_session(token)
-                            st.rerun()
-                        else:
-                            st.session_state["_login_err"] = "Usuário ou senha incorretos."
-                            st.rerun()
-
-        # ── Aba REGISTRO ──────────────────────────────────────────────────────
-        else:
-            with st.form("form_reg", clear_on_submit=False):
-                rn = st.text_input(t("full_name"), placeholder="João Silva",     key="r_n")
-                re = st.text_input(t("email"),        placeholder="joao@email.com", key="r_e")
-                ru = st.text_input(t("username"),       placeholder="joao.silva",    key="r_u")
-                rp = st.text_input("Senha", type="password",
-                                   placeholder="mínimo 6 caracteres",             key="r_p")
-                submitted = st.form_submit_button("Criar Conta →", use_container_width=True)
-                if submitted:
-                    if not rn or not re or not ru or not rp:
-                        st.error("❌ Preencha todos os campos.")
-                    elif "@" not in re:
-                        st.error("❌ E-mail inválido.")
-                    elif len(rp) < 6:
-                        st.error("❌ Senha muito curta (mínimo 6 caracteres).")
+                        st.session_state["_login_err"] = "Usuário ou senha incorretos."
+                        st.rerun()
+    else:
+        with st.form("form_reg", clear_on_submit=True):
+            rn  = st.text_input(t("full_name"),  placeholder="João Silva")
+            re_ = st.text_input(t("email"),      placeholder="joao@email.com")
+            ru  = st.text_input(t("username"),   placeholder="joao.silva")
+            rp  = st.text_input("Senha", type="password", placeholder="mínimo 6 caracteres")
+            if st.form_submit_button(t("create_account"), use_container_width=True):
+                if not rn or not re_ or not ru or not rp:
+                    st.session_state["_reg_err"] = "Preencha todos os campos."
+                    st.rerun()
+                elif "@" not in re_:
+                    st.session_state["_reg_err"] = "E-mail inválido."
+                    st.rerun()
+                elif len(rp) < 6:
+                    st.session_state["_reg_err"] = "Senha muito curta (mínimo 6)."
+                    st.rerun()
+                else:
+                    ok, msg = register_student(ru, rn, rp, email=re_)
+                    if ok:
+                        st.session_state["_reg_ok"]    = True
+                        st.session_state["_reg_name"]  = rn
+                        st.session_state["_login_tab"] = "login"
+                        st.rerun()
                     else:
-                        ok, msg = register_student(ru, rn, rp, email=re)
-                        if ok:
-                            st.session_state["_reg_ok"]   = True
-                            st.session_state["_reg_name"]  = rn
-                            st.session_state["_login_tab"] = "login"
-                            st.rerun()
-                        else:
-                            st.error(f"❌ {msg}")
+                        st.session_state["_reg_err"] = msg
+                        st.rerun()
 
-        st.markdown(
-            f'<p style="text-align:center;font-size:.65rem;color:#1a2535;margin-top:16px;">'
-            f'© 2025 · {PROF_NAME} · AI English Coach</p>',
-            unsafe_allow_html=True
-        )
+    st.markdown(
+        f'<p style="text-align:center;font-size:.6rem;color:#1a2535;margin-top:14px;">'
+        f'2025 © {PROF_NAME}</p>',
+        unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1559,546 +1550,598 @@ def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
     append_message(username, conv_id, "assistant", reply, tts_b64=tts_b64 or None)
 
 
-def show_voice_mode() -> None:
-    """
-    Modo voz imersivo — estilo ChatGPT Voz.
-    Avatar centralizado, histórico de mensagens em bolhas, microfone como ícone FA.
-    """
+def show_voice() -> None:
     user     = st.session_state.user
     username = user["username"]
     profile  = user.get("profile", {})
-    ui_lang         = profile.get("language",    "pt-BR")
-    whisper_lang    = profile.get("voice_lang",  "en")
-    speech_lang_val = profile.get("speech_lang", "en-US")
-    accent_color    = profile.get("accent_color", "#f0a500")
+    lang     = profile.get("language", "pt-BR")
+
+    ring_color        = profile.get("ring_color",        "#f0a500")
+    user_bubble_color = profile.get("user_bubble_color", "#2d6a4f")
+    bot_bubble_color  = profile.get("bot_bubble_color",  "#1a1f2e")
+
+    def _rgba(h: str, a: float) -> str:
+        h = h.lstrip("#")
+        if len(h) == 3: h = h[0]*2+h[1]*2+h[2]*2
+        r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+        return f"rgba({r},{g},{b},{a})"
+
+    # Sem scroll no modo voz
+    st.markdown("""<style>
+body,.stApp,[data-testid="stAppViewContainer"],[data-testid="stMain"]{background:#060a10!important;}
+section[data-testid="stMain"]>div,.main .block-container{padding:0!important;margin:0!important;overflow:hidden!important;max-height:100vh!important;}
+div[data-testid="stVerticalBlock"],div[data-testid="stVerticalBlockBorderWrapper"],div[data-testid="element-container"]{gap:0!important;padding:0!important;margin:0!important;}
+html,body{overflow:hidden!important;}
+</style>""", unsafe_allow_html=True)
 
     conv_id = get_or_create_conv(username)
 
-    # Botão fechar — invisível no Streamlit, acionado pelo JS do iframe
-    if st.button(t("close_voice", ui_lang), key="close_voice_inner"):
-        st.session_state.voice_mode = False
-        for k in ["_vm_history", "_vm_reply", "_vm_tts_b64", "_vm_user_said",
-                  "_vm_error", "_vm_last_upload", "_vm_video_b64", "_vm_audio_key"]:
-            st.session_state.pop(k, None)
-        st.rerun()
-    st.markdown("""<style>
-/* Esconde TODOS os botões Streamlit no modo voz — só usamos o do iframe */
-[data-testid="stMain"] button { display: none !important; }
-[data-testid="stSidebar"]{display:none!important;}
-[data-testid="stHeader"]{display:none!important;}
-[data-testid="stToolbar"]{display:none!important;}
-footer{display:none!important;}
-.main .block-container{padding:0!important;max-width:100%!important;}
-section[data-testid="stMain"]>div{padding:0!important;}
-/* Oculta o st.audio_input — só usamos ele via JS invisível */
-[data-testid="stAudioInput"]{
-    position:fixed!important;bottom:-200px!important;
-    left:-200px!important;opacity:0!important;
-    pointer-events:none!important;width:1px!important;height:1px!important;
-}
-</style>""", unsafe_allow_html=True)
+    # Carrega histórico do banco se _vm_history estiver vazio
+    if not st.session_state.get("_vm_history") and conv_id:
+        msgs_db = load_conversation(username, conv_id)
+        if msgs_db:
+            st.session_state["_vm_history"] = [
+                {
+                    "role":    m["role"],
+                    "content": m["content"],
+                    "tts_b64": m.get("tts_b64", ""),   # ← preserva áudio por mensagem
+                }
+                for m in msgs_db if m.get("content")
+            ]
 
-    # ── Processa áudio quando chega ───────────────────────────────────────────
-    if "_vm_audio_key" not in st.session_state:
-        st.session_state["_vm_audio_key"] = 0
-
+    # Processa áudio recebido — só 1 rerun após processar
     audio_val = st.audio_input(
-        " ", key=f"vm_audio_{st.session_state['_vm_audio_key']}",
+        " ", key=f"voice_input_{st.session_state.audio_key}",
         label_visibility="collapsed",
     )
     if audio_val and audio_val != st.session_state.get("_vm_last_upload"):
         st.session_state["_vm_last_upload"] = audio_val
-        for k in ["_vm_reply", "_vm_tts_b64", "_vm_user_said", "_vm_error", "_vm_video_b64"]:
+        for k in ["_vm_reply", "_vm_tts_b64", "_vm_user_said", "_vm_error"]:
             st.session_state.pop(k, None)
-        _vm_process_audio(audio_val.read(), whisper_lang, conv_id)
-        st.session_state["_vm_audio_key"] += 1
+        with st.spinner(t("processing", lang)):
+            process_voice(audio_val.read(), conv_id)
+        st.session_state.audio_key += 1
         st.rerun()
 
-    # ── Dados do estado ───────────────────────────────────────────────────────
-    user_said = st.session_state.get("_vm_user_said", "")
-    reply     = st.session_state.get("_vm_reply",     "")
-    tts_b64   = st.session_state.get("_vm_tts_b64",   "")
-    video_b64 = st.session_state.get("_vm_video_b64", "")
-    vm_error  = st.session_state.get("_vm_error",     "")
-    history   = st.session_state.get("_vm_history",   [])
+    # Estado atual
+    reply   = st.session_state.get("_vm_reply",   "")
+    tts_b64 = st.session_state.get("_vm_tts_b64", "")
+    vm_error = st.session_state.get("_vm_error",  "")
+    history  = st.session_state.get("_vm_history", [])
 
-    # Foto da professora e frames do avatar — via cache (sem re-leitura de disco)
-    photo_src = get_tati_mini_b64()
+    # Frames do avatar
+    frames    = get_avatar_frames()
+    has_anim  = bool(frames["base"] and frames["closed"] and frames["mid"] and frames["open"])
 
-    # ── Avatar animado — 4 estados de boca (cache) ───────────────────────────
-    _frames   = get_avatar_frames()
-    av_base   = _frames["base"]
-    av_closed = _frames["closed"]
-    av_mid    = _frames["mid"]
-    av_open   = _frames["open"]
-    _has_avatar = bool(av_base and av_closed and av_mid and av_open)
+    # Serializa dados para JS
+    history_js  = json.dumps(history)
+    tts_js      = json.dumps(tts_b64)
+    reply_js    = json.dumps(reply)
+    err_js      = json.dumps(vm_error)
+    tap_speak   = json.dumps(t("tap_to_speak", lang))
+    tap_stop    = json.dumps(t("tap_to_stop",  lang))
+    speaking_   = json.dumps(t("speaking_ai",  lang))
+    proc_       = json.dumps(t("processing",   lang))
 
-    is_speaking  = bool(reply)
-    is_processing = bool(user_said and not reply and not vm_error)
-
-    # Serializa para JS
-    tts_js       = json.dumps(tts_b64)
-    video_js     = json.dumps(video_b64)
-    reply_js     = json.dumps(reply)
-    us_js        = json.dumps(user_said)
-    err_js       = json.dumps(vm_error)
-    sl_js        = json.dumps(speech_lang_val)
-    pnm_js       = json.dumps(PROF_NAME)
-    photo_js     = json.dumps(photo_src)
-    av_base_js   = json.dumps(av_base)
-    av_closed_js = json.dumps(av_closed)
-    av_mid_js    = json.dumps(av_mid)
-    av_open_js   = json.dumps(av_open)
-    accent_js    = json.dumps(accent_color)
-    # UI strings para o modo voz (JS)
-    js_speaking   = json.dumps(t("speaking",     ui_lang))
-    js_listening  = json.dumps(t("listening",    ui_lang))
-    js_processing = json.dumps(t("processing",   ui_lang))
-    js_tap_speak  = json.dumps(t("tap_to_speak", ui_lang))
-    js_tap_record = json.dumps(t("tap_to_record",ui_lang))
-    js_tap_stop   = json.dumps(t("tap_to_stop",  ui_lang))
-    js_wait       = json.dumps(t("wait",         ui_lang))
-    js_close      = json.dumps(t("close",        ui_lang))
-
-    # Monta bolhas do histórico (pares user/assistant)
-    bubbles_html = ""
-    msgs = history[:-2] if (reply and len(history) >= 2) else history
-    for m in msgs:
-        txt = m["content"].replace("<","&lt;").replace(">","&gt;")
-        if m["role"] == "user":
-            bubbles_html += f'<div class="bubble user-bubble">{txt}</div>'
-        else:
-            bubbles_html += f'<div class="bubble ai-bubble">{txt}</div>'
-    # Adiciona o par mais recente
-    if user_said:
-        txt_u = user_said.replace("<","&lt;").replace(">","&gt;")
-        bubbles_html += f'<div class="bubble user-bubble">{txt_u}</div>'
-    if reply:
-        txt_r = reply.replace("<","&lt;").replace(">","&gt;")
-        bubbles_html += f'<div class="bubble ai-bubble">{txt_r}</div>'
-    if vm_error:
-        bubbles_html += f'<div class="bubble err-bubble">❌ {vm_error}</div>'
-    if is_processing:
-        bubbles_html += '<div class="bubble ai-bubble typing"><span></span><span></span><span></span></div>'
+    av_b64_js   = json.dumps(frames["base"])
+    avc_js      = json.dumps(frames["closed"])
+    avm_js      = json.dumps(frames["mid"])
+    avo_js      = json.dumps(frames["open"])
+    has_anim_js = "true" if has_anim else "false"
+    photo_js    = json.dumps(get_tati_mini_b64() or get_photo_b64())
+    prof_name_js = json.dumps(PROF_NAME)
 
     components.html(f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
-<link rel="stylesheet"
-  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&display=swap');
 *{{box-sizing:border-box;margin:0;padding:0;}}
 html,body{{
-  background:#080c12;font-family:'Sora',sans-serif;
-  color:#e6edf3;height:100vh;overflow:hidden;
-  display:flex;flex-direction:column;
+    background:#060a10;font-family:'Sora',sans-serif;
+    height:100%;overflow:hidden;
+    /* iOS safe area */
+    padding-bottom:env(safe-area-inset-bottom);
+}}
+.app{{
+    display:flex;flex-direction:column;align-items:center;
+    height:100vh;
+    height:100dvh;
+    padding:0 16px 0;
+    gap:0;overflow:hidden;
 }}
 
-/* ── Layout principal ── */
-.vm-wrap{{
-  display:flex;flex-direction:column;
-  height:100vh;position:relative;overflow:hidden;
-  background:radial-gradient(ellipse at 50% 0%,rgba(240,165,0,.06) 0%,transparent 60%);
-}}
-
-/* ── Botão fechar ── */
-.close-btn{{
-  position:absolute;top:14px;left:16px;z-index:100;
-  background:rgba(255,255,255,.06);border:1px solid #2a3545;
-  color:#8b949e;border-radius:8px;padding:6px 14px;
-  font-size:.75rem;font-family:'Sora',sans-serif;cursor:pointer;
-  transition:all .2s;
-}}
-.close-btn:hover{{background:rgba(255,255,255,.12);color:#e6edf3;}}
-
-/* ── Avatar central ── */
+/* ── Avatar ── */
 .avatar-section{{
-  display:flex;flex-direction:column;align-items:center;
-  padding-top:28px;padding-bottom:12px;gap:6px;flex-shrink:0;
-  position:sticky;top:0;z-index:10;
-  background:linear-gradient(180deg,#080c12 80%,transparent 100%);
+    flex-shrink:0;width:100%;
+    display:flex;flex-direction:column;align-items:center;gap:4px;
+    padding:12px 0 8px;
+    position:sticky;top:0;z-index:10;
+    background:linear-gradient(180deg,#060a10 85%,transparent 100%);
 }}
-
-/* Ondas sonoras ao redor do avatar */
-.avatar-outer{{
-  position:relative;width:220px;height:220px;
-  display:flex;align-items:center;justify-content:center;
+/* Avatar menor em telas pequenas */
+.avatar-wrap{{position:relative;width:200px;height:200px;flex-shrink:0;}}
+@media(max-height:700px){{
+    .avatar-wrap{{width:130px;height:130px;}}
+    .avatar-img,.avatar-emoji{{width:130px!important;height:130px!important;}}
+    .avatar-section{{padding:6px 0 4px;}}
+    .prof-name{{font-size:.85rem!important;}}
 }}
-.wave{{
-  position:absolute;border-radius:50%;border:2px solid rgba(240,165,0,0);
-  width:100%;height:100%;
-  transition:border-color .4s;
-}}
-.speaking .wave:nth-child(1){{
-  animation:wave1 1.4s ease-out infinite;
-}}
-.speaking .wave:nth-child(2){{
-  animation:wave1 1.4s ease-out infinite .35s;
-}}
-.speaking .wave:nth-child(3){{
-  animation:wave1 1.4s ease-out infinite .7s;
-}}
-@keyframes wave1{{
-  0%  {{transform:scale(1);   border-color:var(--accent-70);opacity:1;}}
-  100%{{transform:scale(1.55);border-color:transparent;      opacity:0;}}
-}}
-
 .avatar-ring{{
-  width:200px;height:200px;border-radius:50%;overflow:hidden;
-  box-shadow:0 0 0 3px var(--accent-30),0 0 20px var(--accent-15);
-  transition:box-shadow .4s;position:relative;z-index:2;flex-shrink:0;
+    position:absolute;inset:-8px;border-radius:50%;
+    border:2px solid {_rgba(ring_color,.3)};
+    animation:ring-pulse 2s ease-in-out infinite;
 }}
-.speaking .avatar-ring{{
-  box-shadow:0 0 0 4px var(--accent-full),0 0 40px var(--accent-40);
+.avatar-ring.active{{
+    border-color:{ring_color};
+    box-shadow:0 0 0 0 {_rgba(ring_color,.5)};
+    animation:ring-glow 1s ease-in-out infinite;
 }}
-.avatar-ring img{{width:100%;height:100%;object-fit:cover;object-position:top center;}}
-.avatar-ring .emoji{{
-  width:100%;height:100%;display:flex;align-items:center;
-  justify-content:center;font-size:60px;background:#0f1824;
+@keyframes ring-pulse{{0%,100%{{opacity:.4;transform:scale(1);}}50%{{opacity:.8;transform:scale(1.03);}}}}
+@keyframes ring-glow{{0%{{box-shadow:0 0 0 0 {_rgba(ring_color,.5)};}}70%{{box-shadow:0 0 14px {_rgba(ring_color,0)};}}100%{{box-shadow:0 0 0 0 {_rgba(ring_color,0)};}}}}
+.avatar-img{{
+    width:200px;height:200px;border-radius:50%;
+    object-fit:cover;object-position:top center;
+    border:3px solid {ring_color};
+    box-shadow:0 0 32px {_rgba(ring_color,.25)};
 }}
-.av-name{{color:#e6edf3;font-weight:700;font-size:.95rem;}}
-.av-status{{color:#8b949e;font-size:.72rem;min-height:18px;letter-spacing:.3px;}}
+.avatar-emoji{{
+    width:200px;height:200px;border-radius:50%;
+    background:linear-gradient(135deg,#1a2535,#0f1824);
+    border:3px solid {ring_color};
+    display:flex;align-items:center;justify-content:center;font-size:54px;
+}}
+.prof-name{{font-size:1rem;font-weight:700;color:#e6edf3;margin-top:6px;}}
+.status{{font-size:.68rem;color:{ring_color};margin-top:1px;}}
 
-/* ── Área de mensagens ── */
-.messages{{
-  flex:1;overflow-y:auto;padding:16px 20px 12px;
-  display:flex;flex-direction:column;gap:10px;
-  scrollbar-width:thin;scrollbar-color:#1e2530 transparent;
+/* ── Histórico de bolhas ── */
+.history-wrap{{
+    width:100%;max-width:1890px;
+    flex:1;min-height:0;
+    overflow-y:auto;display:flex;flex-direction:column;gap:8px;
+    padding:8px 4px;
+    scrollbar-width:thin;scrollbar-color:#1a2535 transparent;
+    -webkit-overflow-scrolling:touch;
 }}
-.messages::-webkit-scrollbar{{width:4px;}}
-.messages::-webkit-scrollbar-track{{background:transparent;}}
-.messages::-webkit-scrollbar-thumb{{background:#1e2530;border-radius:4px;}}
-
+.history-wrap::-webkit-scrollbar{{width:4px;}}
+.history-wrap::-webkit-scrollbar-thumb{{background:#1a2535;border-radius:4px;}}
 .bubble{{
-  max-width:62%;padding:10px 14px;border-radius:18px;
-  font-size:.86rem;line-height:1.55;word-break:break-word;
+    max-width:82%;padding:10px 15px;border-radius:18px;
+    font-size:.84rem;line-height:1.55;word-break:break-word;
 }}
-.user-bubble{{
-  align-self:flex-end;
-  background:var(--bubble-bg);border:1px solid var(--bubble-border);
-  color:var(--bubble-text);border-bottom-right-radius:4px;
+.bubble.user{{
+    align-self:flex-end;
+    background:{user_bubble_color};color:#fff;
+    border-bottom-right-radius:4px;
 }}
-.ai-bubble{{
-  align-self:flex-start;
-  background:#0f1824;border:1px solid #1e2d40;
-  color:#e6edf3;border-bottom-left-radius:4px;
+.bubble.bot{{
+    align-self:flex-start;
+    background:{bot_bubble_color};color:#e6edf3;
+    border:1px solid {_rgba(bot_bubble_color,.8)};
+    border-bottom-left-radius:4px;
 }}
-.err-bubble{{
-  align-self:center;background:rgba(248,81,73,.1);
-  border:1px solid rgba(248,81,73,.3);color:#f85149;
-  border-radius:10px;font-size:.78rem;
+.bubble-label{{font-size:.6rem;color:#4a5a6a;margin:2px 4px;}}
+.bubble-label.right{{text-align:right;}}
+
+/* ── Botão de áudio por bolha ── */
+.bubble-play-btn{{
+    align-self:flex-start;
+    background:transparent;border:1px solid #1a2535;color:#3a6a8a;
+    font-size:.72rem;padding:4px 12px;border-radius:8px;
+    cursor:pointer;font-family:inherit;transition:all .15s;margin-bottom:4px;
+    /* touch-friendly */
+    min-height:32px;
+}}
+.bubble-play-btn:hover{{color:#f0a500;border-color:rgba(240,165,0,.4);background:rgba(240,165,0,.06);}}
+.bubble-play-btn.playing{{color:#e05c2a;border-color:rgba(224,92,42,.5);}}
+
+/* ── Erro ── */
+.error-box{{
+    background:rgba(224,92,42,.1);border:1px solid rgba(224,92,42,.3);
+    border-radius:10px;padding:8px 14px;font-size:.78rem;color:#e05c2a;
+    max-width:560px;width:100%;text-align:center;flex-shrink:0;
 }}
 
-/* Typing dots */
-.typing{{display:flex;align-items:center;gap:5px;padding:12px 16px!important;}}
-.typing span{{
-  width:7px;height:7px;border-radius:50%;background:#f0a500;opacity:.4;
-  animation:tdot 1.1s ease-in-out infinite;
-}}
-.typing span:nth-child(2){{animation-delay:.18s;}}
-.typing span:nth-child(3){{animation-delay:.36s;}}
-@keyframes tdot{{
-  0%,80%,100%{{transform:scale(.7);opacity:.3;}}
-  40%{{transform:scale(1.1);opacity:1;}}
+/* ── Rodapé do mic — RESPONSIVO ── */
+.mic-footer{{
+    flex-shrink:0;
+    width:100%;max-width:620px;
+    display:flex;flex-direction:column;align-items:center;
+    gap:6px;
+    padding:8px 0 max(16px, env(safe-area-inset-bottom));
+    background:linear-gradient(to top,#060a10 70%,transparent);
+    position:sticky;bottom:0;
 }}
 
-/* ── Barra inferior ── */
-.bottom-bar{{
-  display:flex;align-items:center;justify-content:center;
-  padding:14px 24px 20px;gap:20px;flex-shrink:0;
-  border-top:1px solid #0f1419;
+/* ── Controles de áudio: linha única que não quebra ── */
+.audio-controls{{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    padding:8px 12px;
+    background:#0d1420;
+    border:1px solid #1a2535;
+    border-radius:12px;
+    width:100%;
+    overflow-x:auto;          /* scroll horizontal se necessário */
+    overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;
+    white-space:nowrap;
+    scrollbar-width:none;     /* esconde scrollbar */
+    flex-wrap:nowrap;         /* NUNCA quebra linha */
+    min-height:44px;
 }}
-.mic-icon-btn{{
-  width:58px;height:58px;border-radius:50%;border:none;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;font-size:22px;
-  background:linear-gradient(135deg,#3fb950,#2ea043);
-  box-shadow:0 0 20px rgba(63,185,80,.3);
-  color:#fff;transition:all .25s;
+.audio-controls::-webkit-scrollbar{{display:none;}}
+
+/* Em telas muito pequenas, reduz padding e fonte */
+@media(max-width:400px){{
+    .audio-controls{{padding:6px 10px;gap:4px;}}
+    .ctrl-label{{font-size:.6rem;}}
+    .ctrl-val{{font-size:.6rem;min-width:24px;}}
+    #global-play-btn{{padding:4px 10px;font-size:.72rem;}}
 }}
-.mic-icon-btn:hover{{transform:scale(1.08);}}
-.mic-icon-btn.recording{{
-  background:linear-gradient(135deg,#f85149,#c03030);
-  box-shadow:0 0 28px rgba(248,81,73,.5);
-  animation:micpulse .8s ease-in-out infinite alternate;
+
+.ctrl-label{{font-size:.68rem;color:#4a5a6a;white-space:nowrap;flex-shrink:0;}}
+.ctrl-val{{font-size:.68rem;color:#8b949e;min-width:28px;text-align:left;flex-shrink:0;}}
+
+input[type=range].ctrl-range{{
+    -webkit-appearance:none;
+    flex-shrink:0;
+    width:60px;
+    height:4px;
+    background:#1a2535;border-radius:2px;outline:none;cursor:pointer;
+    touch-action:none;   /* evita scroll ao arrastar no mobile */
 }}
-.mic-icon-btn.processing{{
-  background:linear-gradient(135deg,#58a6ff,#1f6feb);
-  box-shadow:0 0 20px rgba(88,166,255,.3);
-  animation:none;cursor:default;
+@media(min-width:480px){{
+    input[type=range].ctrl-range{{ width:80px; }}
 }}
-@keyframes micpulse{{
-  from{{box-shadow:0 0 14px rgba(248,81,73,.3);}}
-  to  {{box-shadow:0 0 36px rgba(248,81,73,.8);}}
+input[type=range].ctrl-range::-webkit-slider-thumb{{
+    -webkit-appearance:none;width:16px;height:16px;  /* maior para touch */
+    border-radius:50%;background:{ring_color};cursor:pointer;
 }}
-.hint-text{{color:#2d3a4a;font-size:.65rem;text-align:center;}}
+input[type=range].ctrl-range::-moz-range-thumb{{
+    width:16px;height:16px;border-radius:50%;background:{ring_color};cursor:pointer;border:none;
+}}
+
+#global-play-btn{{
+    background:#1a2535;color:#e6edf3;border:1px solid #252d3d;
+    border-radius:8px;padding:5px 12px;font-size:.78rem;cursor:pointer;
+    white-space:nowrap;transition:background .15s;font-family:inherit;
+    flex-shrink:0;
+    min-height:32px;        /* touch-friendly */
+    touch-action:manipulation;
+}}
+#global-play-btn:hover{{background:#252d3d;}}
+
+/* ── Botão mic ── */
+.mic-btn{{
+    width:72px;height:72px;border-radius:50%;border:none;cursor:pointer;
+    background:linear-gradient(135deg,#1a2535,#131c2a);
+    color:#8b949e;font-size:28px;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 20px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.05);
+    transition:all .2s;outline:none;
+    touch-action:manipulation;   /* remove delay 300ms no mobile */
+    -webkit-tap-highlight-color:transparent;
+    flex-shrink:0;
+}}
+/* Mic maior em tablets */
+@media(min-width:600px){{
+    .mic-btn{{width:80px;height:80px;font-size:32px;}}
+}}
+.mic-btn:hover{{background:linear-gradient(135deg,#1e2f40,#182130);color:#e6edf3;}}
+.mic-btn.recording{{
+    background:linear-gradient(135deg,#e05c2a,#c44a1a);color:#fff;
+    box-shadow:0 0 0 0 rgba(224,92,42,.6),0 4px 20px rgba(224,92,42,.3);
+    animation:mic-pulse 1.2s ease-in-out infinite;
+}}
+.mic-btn.processing{{
+    background:linear-gradient(135deg,#f0a500,#c88800);color:#060a10;animation:none;
+}}
+@keyframes mic-pulse{{
+    0%{{box-shadow:0 0 0 0 rgba(224,92,42,.6),0 4px 20px rgba(224,92,42,.3);}}
+    70%{{box-shadow:0 0 0 16px rgba(224,92,42,0),0 4px 20px rgba(224,92,42,.3);}}
+    100%{{box-shadow:0 0 0 0 rgba(224,92,42,0),0 4px 20px rgba(224,92,42,.3);}}
+}}
+.mic-hint{{font-size:.68rem;color:#4a5a6a;letter-spacing:.3px;}}
 </style>
-</head>
-<body>
-<div class="vm-wrap">
-
-  <!-- Fechar -->
-  <button class="close-btn" onclick="closeModeVoz()">Fechar</button>
-
-  <!-- Avatar -->
-  <div class="avatar-section">
-    <div class="avatar-outer {"speaking" if is_speaking else ""}">
-      <div class="wave"></div>
-      <div class="wave"></div>
-      <div class="wave"></div>
-      <div class="avatar-ring" id="avatarRing">
-        <img id="avImg" src="" alt="Tati" style="width:100%;height:100%;object-fit:cover;object-position:top;">
-      </div>
+</head><body>
+<div class="app" id="app">
+    <div class="avatar-section">
+        <div class="avatar-wrap">
+            <div class="avatar-ring" id="ring"></div>
+            <img id="avImg" class="avatar-img" src="" alt="" style="display:none;"
+                 onerror="this.style.display='none';document.getElementById('avEmoji').style.display='flex';">
+            <div id="avEmoji" class="avatar-emoji">&#129489;&#8205;&#127979;</div>
+        </div>
+        <div class="prof-name" id="profName"></div>
+        <div class="status" id="statusTxt">&#9679; Online</div>
     </div>
-    <div class="av-name">{PROF_NAME}</div>
-    <div class="av-status" id="avStatus">{"🗣 Falando..." if is_speaking else "Toque no microfone para falar"}</div>
-  </div>
 
-  <!-- Mensagens -->
-  <div class="messages" id="messages">
-    {bubbles_html}
-  </div>
+    <div class="history-wrap" id="historyWrap"></div>
+    <div class="error-box" id="errBox" style="display:none;"></div>
 
-  <!-- Barra inferior -->
-  <div class="bottom-bar">
-    <div>
-      <button class="mic-icon-btn" id="micBtn" onclick="toggleMic()">
-        <i class="fa-solid fa-microphone" id="micIcon"></i>
-      </button>
-      <div class="hint-text" id="hintText">Toque para gravar</div>
+    <div class="mic-footer">
+        <div class="audio-controls" id="audioControls">
+            <button id="global-play-btn">&#9654; Ouvir</button>
+            <span class="ctrl-label">Vol</span>
+            <input type="range" class="ctrl-range" id="vol-slider" min="0" max="1" step="0.05" value="1">
+            <span class="ctrl-val" id="vol-val">100%</span>
+            <span class="ctrl-label">Vel</span>
+            <input type="range" class="ctrl-range" id="spd-slider" min="0.5" max="2" step="0.1" value="1">
+            <span class="ctrl-val" id="spd-val">1.0x</span>
+        </div>
+        <button class="mic-btn" id="micBtn"><i class="fa-solid fa-microphone"></i></button>
+        <div class="mic-hint" id="micHint"></div>
     </div>
-  </div>
-
 </div>
 
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script>
-const TTS_B64    = {tts_js};
-const VIDEO_B64  = {video_js};
-const REPLY_TEXT = {reply_js};
-const USER_SAID  = {us_js};
-const VM_ERROR   = {err_js};
-const SPEECH_LANG= {sl_js};
-const PROF_NAME  = {pnm_js};
-const AV_BASE    = {av_base_js};
-const AV_CLOSED  = {av_closed_js};
-const AV_MID     = {av_mid_js};
-const AV_OPEN    = {av_open_js};
-const ACCENT     = {accent_js};
-const STR_SPEAKING  = {js_speaking};
-const STR_LISTENING = {js_listening};
-const STR_PROCESSING= {js_processing};
-const STR_TAP_SPEAK = {js_tap_speak};
-const STR_TAP_RECORD= {js_tap_record};
-const STR_TAP_STOP  = {js_tap_stop};
-const STR_WAIT      = {js_wait};
-const STR_CLOSE     = {js_close};
+(function(){{
+// ── Dados do Python ──
+var TTS_B64    = {tts_js};
+var REPLY      = {reply_js};
+var HISTORY    = {history_js};
+var VM_ERROR   = {err_js};
+var TAP_SPEAK  = {tap_speak};
+var TAP_STOP   = {tap_stop};
+var SPEAKING   = {speaking_};
+var HAS_ANIM   = {has_anim_js};
+var AV_BASE    = {av_b64_js};
+var AV_CLOSED  = {avc_js};
+var AV_MID     = {avm_js};
+var AV_OPEN    = {avo_js};
+var PHOTO      = {photo_js};
+var PROF_NAME  = {prof_name_js};
 
-// Injeta CSS vars dinamicas baseadas na cor do perfil
-(function applyAccent(){{
-  function hexToRgb(h){{
-    h=h.replace('#','');
-    if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
-    const n=parseInt(h,16);
-    return [(n>>16)&255,(n>>8)&255,n&255].join(',');
-  }}
-  const rgb = hexToRgb(ACCENT||'#f0a500');
-  const r = document.documentElement;
-  r.style.setProperty('--accent-full', ACCENT||'#f0a500');
-  r.style.setProperty('--accent-70',  `rgba(${{rgb}},.7)`);
-  r.style.setProperty('--accent-40',  `rgba(${{rgb}},.4)`);
-  r.style.setProperty('--accent-30',  `rgba(${{rgb}},.3)`);
-  r.style.setProperty('--accent-15',  `rgba(${{rgb}},.15)`);
-  // Bubble: deriva cor mais escura do accent para background
-  r.style.setProperty('--bubble-bg',     `rgba(${{rgb}},.12)`);
-  r.style.setProperty('--bubble-border', `rgba(${{rgb}},.3)`);
-  r.style.setProperty('--bubble-text',   '#e6edf3');
-}})();
+// ── Elementos ──
+var micBtn   = document.getElementById('micBtn');
+var micHint  = document.getElementById('micHint');
+var statusTxt= document.getElementById('statusTxt');
+var errBox   = document.getElementById('errBox');
+var ring     = document.getElementById('ring');
+var avImg    = document.getElementById('avImg');
+var avEmoji  = document.getElementById('avEmoji');
+var histWrap = document.getElementById('historyWrap');
+var profName = document.getElementById('profName');
 
-// Traduz botão fechar
-document.querySelector('.close-btn').textContent = STR_CLOSE;
+profName.textContent = PROF_NAME;
+micHint.textContent  = TAP_SPEAK;
 
-// ── Scroll mensagens para baixo ───────────────────────────────────────────────
-const msgEl = document.getElementById('messages');
-function scrollBottom(){{ msgEl.scrollTop = msgEl.scrollHeight; }}
-scrollBottom();
+// ── Avatar ──
+var photoSrc = HAS_ANIM ? AV_BASE : (PHOTO || AV_BASE);
+if(photoSrc){{ avImg.src=photoSrc; avImg.style.display='block'; avEmoji.style.display='none'; }}
 
-// ── Estado do avatar ──────────────────────────────────────────────────────────
-const avOuter  = document.querySelector('.avatar-outer');
-const avStatus = document.getElementById('avStatus');
-const micBtn   = document.getElementById('micBtn');
-const micIcon  = document.getElementById('micIcon');
-const hintText = document.getElementById('hintText');
-
-function setAvatarState(state){{
-  avOuter.classList.remove('speaking');
-  micBtn.classList.remove('recording','processing');
-  if(state==='speaking'){{
-    avOuter.classList.add('speaking');
-    avStatus.textContent=STR_SPEAKING;
-    micBtn.classList.add('processing');
-    micIcon.className='fa-solid fa-volume-high';
-    hintText.textContent=STR_WAIT;
-  }} else if(state==='recording'){{
-    avStatus.textContent=STR_LISTENING;
-    micBtn.classList.add('recording');
-    micIcon.className='fa-solid fa-stop';
-    hintText.textContent=STR_TAP_STOP;
-  }} else if(state==='processing'){{
-    avStatus.textContent=STR_PROCESSING;
-    micBtn.classList.add('processing');
-    micIcon.className='fa-solid fa-spinner fa-spin';
-    hintText.textContent=STR_WAIT;
-  }} else {{
-    avStatus.textContent=STR_TAP_SPEAK;
-    micIcon.className='fa-solid fa-microphone';
-    hintText.textContent=STR_TAP_RECORD;
-  }}
-}}
-
-// ── Avatar animado — sincroniza boca com volume do áudio ─────────────────────
-const avImg = document.getElementById('avImg');
-let _avAnimFrame = null;
-
-// Inicializa avatar com imagem base — revela só após carregar
-(function initAvatar(){{
-  var ring = document.getElementById('avatarRing');
-  ring.style.opacity = '0';
-  ring.style.transition = 'opacity .3s ease';
-  avImg.onload = function() {{ ring.style.opacity = '1'; }};
-  if(AV_BASE) avImg.src = AV_BASE;
-  else if({photo_js}) avImg.src = {photo_js};
-}})();
-
+// ── Animação boca ──
+var mouthTimer=null, analyser=null, audioCtx=null, mouthIdx=0;
 function stopMouthAnim(){{
-  if(_avAnimFrame){{ cancelAnimationFrame(_avAnimFrame); _avAnimFrame=null; }}
-  if(AV_CLOSED) avImg.src = AV_CLOSED;
-  else if(AV_BASE) avImg.src = AV_BASE;
+    if(mouthTimer){{ clearInterval(mouthTimer); mouthTimer=null; }}
+    if(HAS_ANIM && avImg.src !== AV_BASE) avImg.src=AV_BASE;
 }}
-
 function startMouthAnim(audioEl){{
-  stopMouthAnim();
-  if(!AV_CLOSED || !AV_MID || !AV_OPEN){{ return; }}
-  let ctx, analyser, source;
-  try{{
-    ctx      = new (window.AudioContext||window.webkitAudioContext)();
-    analyser = ctx.createAnalyser();
-    analyser.fftSize = 256;
-    source   = ctx.createMediaElementSource(audioEl);
-    source.connect(analyser);
-    analyser.connect(ctx.destination);
-  }}catch(e){{ return; }}
-
-  const data = new Uint8Array(analyser.frequencyBinCount);
-  let lastSrc = '', frameCount = 0;
-
-  function loop(){{
-    _avAnimFrame = requestAnimationFrame(loop);
-    frameCount++;
-    if(frameCount % 3 !== 0) return; // ~20fps suficiente
-    analyser.getByteFrequencyData(data);
-    const vol = data.slice(0,16).reduce((a,b)=>a+b,0)/16;
-    let src;
-    if     (vol < 8)  src = AV_CLOSED;
-    else if(vol < 25) src = AV_MID;
-    else              src = AV_OPEN;
-    if(src !== lastSrc){{ avImg.src = src; lastSrc = src; }}
-  }}
-  loop();
+    if(!HAS_ANIM) return;
+    try{{
+        if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+        if(!analyser){{
+            analyser=audioCtx.createAnalyser(); analyser.fftSize=256;
+            var src=audioCtx.createMediaElementSource(audioEl);
+            src.connect(analyser); analyser.connect(audioCtx.destination);
+        }}
+        var buf=new Uint8Array(analyser.frequencyBinCount);
+        mouthTimer=setInterval(function(){{
+            analyser.getByteFrequencyData(buf);
+            var vol=buf.reduce(function(a,b){{return a+b;}},0)/buf.length/128;
+            if(vol<0.05) avImg.src=AV_BASE;
+            else if(vol<0.2) avImg.src=AV_CLOSED;
+            else if(vol<0.5) avImg.src=AV_MID;
+            else avImg.src=AV_OPEN;
+        }},80);
+    }}catch(e){{
+        mouthTimer=setInterval(function(){{
+            mouthIdx=(mouthIdx+1)%4;
+            avImg.src=[AV_BASE,AV_CLOSED,AV_MID,AV_OPEN][mouthIdx];
+        }},200);
+    }}
 }}
 
-// ── Tocar TTS automaticamente ─────────────────────────────────────────────────
-function playTTSAuto(b64, text){{
-  setAvatarState('speaking');
-  if(b64 && b64.length > 20){{
-    const audio = new Audio('data:audio/mpeg;base64,' + b64);
-    startMouthAnim(audio);
-    audio.onended = ()=>{{ stopMouthAnim(); setAvatarState('idle'); }};
-    audio.onerror = ()=>{{ stopMouthAnim(); fallbackSpeech(text); }};
-    audio.play().catch(()=>{{ stopMouthAnim(); fallbackSpeech(text); }});
-  }} else {{
-    fallbackSpeech(text);
-  }}
+// ── Áudio global ──
+var currentAudio=null, lastB64=null;
+function getVol(){{ return parseFloat(document.getElementById('vol-slider').value)||1; }}
+function getSpd(){{ return parseFloat(document.getElementById('spd-slider').value)||1; }}
+
+function playTTS(b64, onEndCallback){{
+    if(currentAudio){{ currentAudio.pause(); currentAudio=null; stopMouthAnim(); }}
+    if(!b64) return;
+    lastB64 = b64;
+    ring.classList.add('active');
+    statusTxt.textContent=SPEAKING;
+    var audio=new Audio('data:audio/mp3;base64,'+b64);
+    audio.volume=getVol(); audio.playbackRate=getSpd(); audio._srcB64=b64;
+    currentAudio=audio;
+    audio.onplay=function(){{ startMouthAnim(audio); updateGlobalBtn(true); }};
+    audio.onended=function(){{
+        stopMouthAnim(); ring.classList.remove('active');
+        statusTxt.textContent='Online'; currentAudio=null;
+        updateGlobalBtn(false);
+        if(onEndCallback) onEndCallback();
+    }};
+    audio.onerror=function(){{ stopMouthAnim(); ring.classList.remove('active'); updateGlobalBtn(false); }};
+    audio.play().catch(function(){{ stopMouthAnim(); ring.classList.remove('active'); updateGlobalBtn(false); }});
+}}
+function stopTTS(){{
+    if(currentAudio){{ currentAudio.pause(); currentAudio=null; stopMouthAnim(); ring.classList.remove('active'); statusTxt.textContent='Online'; updateGlobalBtn(false); }}
+}}
+function updateGlobalBtn(playing){{
+    var btn=document.getElementById('global-play-btn');
+    if(!btn) return;
+    btn.textContent = playing ? '⏹ Parar' : '▶ Ouvir';
+    btn.style.background = playing ? '#8b2a2a' : '#1a2535';
 }}
 
-function fallbackSpeech(text){{
-  const u = new SpeechSynthesisUtterance((text||'').substring(0,500));
-  u.lang = SPEECH_LANG; u.rate = 0.95; u.pitch = 1.05;
-  speechSynthesis.getVoices();
-  setTimeout(()=>{{
-    const vv = speechSynthesis.getVoices();
-    const pick = vv.find(v=>v.lang===SPEECH_LANG)||vv.find(v=>v.lang.startsWith('en'));
-    if(pick) u.voice = pick;
-    u.onend = u.onerror = ()=>setAvatarState('idle');
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
-  }}, 100);
-}}
-
-// ── Acionar st.audio_input via parent ────────────────────────────────────────
-let isRecording = false;
-
-function triggerAudioInput(){{
-  // Clica no botão de gravar do st.audio_input que está oculto
-  const par = window.parent ? window.parent.document : document;
-  const btn = par.querySelector('[data-testid="stAudioInput"] button')
-           || par.querySelector('[data-testid="stAudioInputRecordButton"]')
-           || par.querySelector('button[title*="ecord"]')
-           || par.querySelector('button[aria-label*="ecord"]');
-  if(btn){{
-    btn.click();
-    return true;
-  }}
-  return false;
-}}
-
-function toggleMic(){{
-  if(micBtn.classList.contains('processing')) return;
-  if(!isRecording){{
-    isRecording = true;
-    setAvatarState('recording');
-    triggerAudioInput();
-  }} else {{
-    isRecording = false;
-    setAvatarState('processing');
-    triggerAudioInput(); // segundo clique para = e envia
-    hintText.textContent=STR_PROCESSING;
-  }}
-}}
-
-// ── Fechar modo voz ───────────────────────────────────────────────────────────
-function closeModeVoz(){{
-  try{{ speechSynthesis.cancel(); }}catch(e){{}}
-  stopMouthAnim();
-  // Clica no botão Streamlit com key="close_voice_inner"
-  const par = window.parent ? window.parent.document : document;
-  // Tenta pelo data-testid key
-  let closeBtn = par.querySelector('[data-testid="stButton"][key="close_voice_inner"] button')
-               || par.querySelector('button[kind="secondary"]');
-  // Fallback: qualquer botão que contenha texto de fechar em qualquer idioma
-  if(!closeBtn){{
-    const btns = Array.from(par.querySelectorAll('button'));
-    closeBtn = btns.find(b=>{{
-      const txt = b.textContent.trim();
-      return txt.includes('Fechar') || txt.includes('Close') || txt.includes('close_voice');
-    }});
-  }}
-  // Último recurso: primeiro botão visível na página
-  if(!closeBtn){{
-    closeBtn = par.querySelector('button');
-  }}
-  if(closeBtn) closeBtn.click();
-}}
-
-// ── Auto-play quando há resposta nova ─────────────────────────────────────────
-window.addEventListener('load', ()=>{{
-  if(REPLY_TEXT && REPLY_TEXT.length > 1){{
-    playTTSAuto(TTS_B64, REPLY_TEXT);
-  }} else if(USER_SAID && USER_SAID.length > 1){{
-    setAvatarState('processing');
-  }}
-  scrollBottom();
+// ── Controles ──
+document.getElementById('global-play-btn').addEventListener('click',function(){{
+    if(currentAudio&&!currentAudio.paused) stopTTS();
+    else if(lastB64||TTS_B64) playTTS(lastB64||TTS_B64);
 }});
+document.getElementById('vol-slider').addEventListener('input',function(){{
+    document.getElementById('vol-val').textContent=Math.round(this.value*100)+'%';
+    if(currentAudio) currentAudio.volume=parseFloat(this.value);
+}});
+document.getElementById('spd-slider').addEventListener('input',function(){{
+    document.getElementById('spd-val').textContent=parseFloat(this.value).toFixed(1)+'x';
+    if(currentAudio) currentAudio.playbackRate=parseFloat(this.value);
+}});
+
+// ── Renderiza bolhas com botão ▶ por bolha ──
+function addBubble(role, text, b64){{
+    var label=document.createElement('div');
+    label.className='bubble-label'+(role==='user'?' right':'');
+    label.textContent=role==='user'?'Você':PROF_NAME;
+
+    var bub=document.createElement('div');
+    bub.className='bubble '+role;
+    bub.textContent=text;
+
+    histWrap.appendChild(label);
+    histWrap.appendChild(bub);
+
+    // Botão ▶ apenas para mensagens do bot COM áudio salvo
+    if(role==='bot'&&b64){{
+        var pbtn=document.createElement('button');
+        pbtn.className='bubble-play-btn';
+        pbtn.textContent='▶ Ouvir';
+        pbtn.addEventListener('click',function(){{
+            var isPlaying=currentAudio&&!currentAudio.paused&&currentAudio._srcB64===b64;
+            if(isPlaying){{
+                stopTTS(); pbtn.textContent='▶ Ouvir'; pbtn.classList.remove('playing');
+            }}else{{
+                // reseta todos os outros botões de bolha
+                document.querySelectorAll('.bubble-play-btn').forEach(function(b){{
+                    b.textContent='▶ Ouvir'; b.classList.remove('playing');
+                }});
+                pbtn.textContent='⏹ Parar'; pbtn.classList.add('playing');
+                playTTS(b64, function(){{
+                    pbtn.textContent='▶ Ouvir'; pbtn.classList.remove('playing');
+                }});
+            }}
+        }});
+        histWrap.appendChild(pbtn);
+    }}
+    histWrap.scrollTop=histWrap.scrollHeight;
+}}
+
+// ── Renderiza estado atual ──
+if(VM_ERROR){{
+    errBox.textContent=VM_ERROR; errBox.style.display='block';
+}}else{{
+    errBox.style.display='none';
+    if(HISTORY&&HISTORY.length>0){{
+        HISTORY.forEach(function(msg){{
+            var role=msg.role==='user'?'user':'bot';
+            addBubble(role, msg.content, msg.tts_b64||'');
+        }});
+    }}
+    // Autoplay da resposta mais recente
+    if(TTS_B64) setTimeout(function(){{ playTTS(TTS_B64); }},300);
+}}
+
+// ── Mic ──
+var recording=false;
+function getRealMicBtn(){{
+    var doc=window.parent.document;
+    var ai=doc.querySelector('[data-testid="stAudioInput"]');
+    if(!ai) return null;
+    return ai.querySelector('button')||ai.querySelector('[data-testid="stAudioInputRecordButton"]');
+}}
+micBtn.addEventListener('click',function(){{
+    var realBtn=getRealMicBtn();
+    if(!realBtn) return;
+    if(recording){{
+        micBtn.classList.remove('recording');
+        micBtn.innerHTML='<i class="fa-solid fa-microphone"></i>';
+        micHint.textContent=TAP_SPEAK;
+        micBtn.classList.add('processing');
+        recording=false;
+        realBtn.click();
+    }}else{{
+        if(currentAudio){{ currentAudio.pause(); currentAudio=null; stopMouthAnim(); ring.classList.remove('active'); }}
+        if(window.parent.speechSynthesis) window.parent.speechSynthesis.cancel();
+        micBtn.classList.add('recording');
+        micBtn.innerHTML='<i class="fa-solid fa-stop"></i>';
+        micHint.textContent=TAP_STOP;
+        recording=true;
+        realBtn.click();
+    }}
+}});
+
+// ── Esconde stAudioInput nativo ──
+function hideNativeAudio(){{
+    var doc=window.parent.document;
+    var ai=doc.querySelector('[data-testid="stAudioInput"]');
+    if(ai){{
+        ai.style.cssText='position:fixed;bottom:-999px;left:-9999px;opacity:0;pointer-events:none;width:1px;height:1px;';
+        var btn=ai.querySelector('button');
+        if(btn) btn.style.pointerEvents='auto';
+    }}
+}}
+hideNativeAudio();
+try{{
+    var obs=new MutationObserver(hideNativeAudio);
+    obs.observe(window.parent.document.body,{{childList:true,subtree:true}});
+    setTimeout(function(){{obs.disconnect();}},15000);
+}}catch(e){{}}
+
+// ── Resize iframe — usa dvh para mobile (esconde barra do browser) ──
+(function resizeIframe(){{
+    try{{
+        var par = window.parent;
+        // Altura real do viewport (dvh = dynamic viewport height, funciona no mobile)
+        var h = par.innerHeight;
+        try{{
+            // visualViewport é mais preciso no mobile (exclui teclado virtual)
+            if(par.visualViewport) h = par.visualViewport.height;
+        }}catch(e){{}}
+
+        var iframes = par.document.querySelectorAll('iframe');
+        for(var i=0;i<iframes.length;i++){{
+            try{{
+                if(iframes[i].contentWindow===window){{
+                    iframes[i].style.cssText=[
+                        'height:'+h+'px',
+                        'max-height:'+h+'px',
+                        'min-height:200px',
+                        'display:block',
+                        'border:none',
+                        'width:100%',
+                    ].join(';');
+                    // Remove padding/margin dos wrappers Streamlit
+                    var p=iframes[i].parentElement;
+                    for(var j=0;j<10&&p&&p!==par.document.body;j++){{
+                        p.style.margin='0';p.style.padding='0';
+                        p.style.overflow='hidden';p.style.maxHeight=h+'px';
+                        p=p.parentElement;
+                    }}
+                    break;
+                }}
+            }}catch(e){{}}
+        }}
+    }}catch(e){{}}
+
+    // Re-executa ao redimensionar E ao mudar visualViewport (teclado mobile)
+    try{{
+        par.removeEventListener('resize',resizeIframe);
+        par.addEventListener('resize',resizeIframe);
+        if(par.visualViewport){{
+            par.visualViewport.removeEventListener('resize',resizeIframe);
+            par.visualViewport.addEventListener('resize',resizeIframe);
+        }}
+    }}catch(e){{}}
+}})();
+
+}})();
 </script>
-</body></html>""", height=700, scrolling=False)
+</body></html>""", height=920, scrolling=False)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2344,7 +2387,7 @@ def show_chat() -> None:
 }
 [data-testid="stChatInputContainer"] { padding: 6px 10px !important; }
 .main .block-container { padding-bottom: 80px !important; }
-section[data-testid="stMain"] { transition: margin-left .3s ease !important; }
+section[data-testid="stMain"] { transition: margin-left 0.3s, width 0.3s ease !important; }
 
 /* Mensagens estilo ChatGPT */
 .msg-row { display:flex; align-items:flex-end; gap:10px; margin:6px 0; }
