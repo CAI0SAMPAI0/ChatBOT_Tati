@@ -428,7 +428,7 @@ def get_tati_mini_b64() -> str:
     return get_photo_b64() or ""
 
 # ── Cache dos 4 frames do avatar animado do modo voz ─────────────────────────
-@st.cache_resource
+@st.cache_data(show_spinner=False)
 def get_avatar_frames() -> dict:
     """Carrega os frames do avatar animado uma única vez."""
     _base = Path(__file__).parent
@@ -438,24 +438,16 @@ def get_avatar_frames() -> dict:
             if p.exists():
                 return f"data:image/png;base64,{base64.b64encode(p.read_bytes()).decode()}"
         return ""
-    # Tenta carregar a foto da professora como fallback de "normal"
-    _photo_fallback = get_photo_b64() or ""
-
-    normal = _load([
-        _base/"assets"/"avatar_tati_normal.png",
-        "assets/avatar_tati_normal.png",
-        _base/"assets"/"professor.jpg",
-        "assets/professor.jpg",
-    ]) or _photo_fallback
-
     return {
-        "normal":     normal,
-        "meio":       _load([_base/"assets"/"avatar_tati_meio.png",       "assets/avatar_tati_meio.png"])       or normal,
-        "aberta":     _load([_base/"assets"/"avatar_tati_aberta.png",     "assets/avatar_tati_aberta.png"])     or normal,
-        "bem_aberta": _load([_base/"assets"/"avatar_tati_bem_aberta.png", "assets/avatar_tati_bem_aberta.png"]) or normal,
-        "ouvindo":    _load([_base/"assets"/"avatar_tati_ouvindo.png",    "assets/avatar_tati_ouvindo.png"])    or normal,
-        "piscando":   _load([_base/"assets"/"tati_piscando.png",          "assets/tati_piscando.png"])          or normal,
-        "surpresa":   _load([_base/"assets"/"tati_surpresa.png",          "assets/tati_surpresa.png"])          or normal,
+        # ── Fala da IA ──────────────────────────────────────────────────────
+        "normal":     _load([_base/"assets"/"avatar_tati_normal.png",     "assets/avatar_tati_normal.png"]),
+        "meio":       _load([_base/"assets"/"avatar_tati_meio.png",       "assets/avatar_tati_meio.png"]),
+        "aberta":     _load([_base/"assets"/"avatar_tati_aberta.png",     "assets/avatar_tati_aberta.png"]),
+        "bem_aberta": _load([_base/"assets"/"avatar_tati_bem_aberta.png", "assets/avatar_tati_bem_aberta.png"]),
+        # ── Estados especiais ────────────────────────────────────────────────
+        "ouvindo":    _load([_base/"assets"/"avatar_tati_ouvindo.png",    "assets/avatar_tati_ouvindo.png"]),
+        "piscando":   _load([_base/"assets"/"tati_piscando.png",          "assets/tati_piscando.png"]),
+        "surpresa":   _load([_base/"assets"/"tati_surpresa.png",          "assets/tati_surpresa.png"]),
     }
 
 # ── Avatares individuais dos alunos ───────────────────────────────────────────
@@ -1629,7 +1621,7 @@ def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
     history.append({"role": "user", "content": txt})
     client = anthropic.Anthropic(api_key=API_KEY)
     resp   = client.messages.create(
-        model="claude-haiku-4-5", max_tokens=300,
+        model="claude-haiku-4-5", max_tokens=1000,
         system=SYSTEM_PROMPT + context, messages=history
     )
     reply = resp.content[0].text
@@ -2092,7 +2084,7 @@ function setFrame(src){{
     avImg.style.display   = 'block';
     avEmoji.style.display = 'none';
 }}
-setFrame(F_NORMAL || PHOTO);
+setFrame(HAS_ANIM ? F_NORMAL : (PHOTO || F_NORMAL));
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MÁQUINA DE ESTADOS:  idle | listening | processing | speaking
@@ -2270,13 +2262,7 @@ function addBubble(role, text, b64){{
     label.textContent = role === 'user' ? 'Você' : PROF_NAME;
     var bub = document.createElement('div');
     bub.className = 'bubble ' + role;
-    bub.innerHTML = text
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g,'<em>$1</em>')
-        .replace(/_(.+?)_/g,'<em>$1</em>')
-        .replace(/__(.+?)__/g,'<u>$1</u>')
-        .replace(/\n/g,'<br>');
+    bub.textContent = text;
     histWrap.appendChild(label);
     histWrap.appendChild(bub);
     if(role === 'bot' && b64){{
@@ -2482,19 +2468,6 @@ def _process_and_send_file(username: str, user: dict, conv_id: str,
         st.warning(f"⚠️ Formato '{label}' não suportado.")
         return False
 
-# formatação
-def _md_to_html(text: str) -> str:
-    import re
-    # Negrito: **texto** → <strong>
-    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
-    # Itálico: *texto* ou _texto_ → <em>
-    text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
-    text = re.sub(r'_(.+?)_', r'<em>\1</em>', text)
-    # Sublinhado: __texto__ → <u>
-    text = re.sub(r'__(.+?)__', r'<u>\1</u>', text)
-    # Quebra de linha
-    text = text.replace("\n", "<br>")
-    return text
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CHAT — tela principal de conversa
@@ -2755,9 +2728,8 @@ section[data-testid="stMain"] { transition: margin-left 0.3s, width 0.3s ease !i
                     '<div class="msg-av"><div class="av-emoji">🧑‍🏫</div></div>')
 
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
-    
     for i, msg in enumerate(messages):
-        content = _md_to_html(msg["content"])
+        content  = msg["content"].replace("\n", "<br>")
         msg_time = msg.get("time", "")
 
         if msg["role"] == "assistant":
