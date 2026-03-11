@@ -438,16 +438,24 @@ def get_avatar_frames() -> dict:
             if p.exists():
                 return f"data:image/png;base64,{base64.b64encode(p.read_bytes()).decode()}"
         return ""
+    # Tenta carregar a foto da professora como fallback de "normal"
+    _photo_fallback = get_photo_b64() or ""
+
+    normal = _load([
+        _base/"assets"/"avatar_tati_normal.png",
+        "assets/avatar_tati_normal.png",
+        _base/"assets"/"professor.jpg",
+        "assets/professor.jpg",
+    ]) or _photo_fallback
+
     return {
-        # ── Fala da IA ──────────────────────────────────────────────────────
-        "normal":     _load([_base/"assets"/"avatar_tati_normal.png",     "assets/avatar_tati_normal.png"]),
-        "meio":       _load([_base/"assets"/"avatar_tati_meio.png",       "assets/avatar_tati_meio.png"]),
-        "aberta":     _load([_base/"assets"/"avatar_tati_aberta.png",     "assets/avatar_tati_aberta.png"]),
-        "bem_aberta": _load([_base/"assets"/"avatar_tati_bem_aberta.png", "assets/avatar_tati_bem_aberta.png"]),
-        # ── Estados especiais ────────────────────────────────────────────────
-        "ouvindo":    _load([_base/"assets"/"avatar_tati_ouvindo.png",    "assets/avatar_tati_ouvindo.png"]),
-        "piscando":   _load([_base/"assets"/"tati_piscando.png",          "assets/tati_piscando.png"]),
-        "surpresa":   _load([_base/"assets"/"tati_surpresa.png",          "assets/tati_surpresa.png"]),
+        "normal":     normal,
+        "meio":       _load([_base/"assets"/"avatar_tati_meio.png",       "assets/avatar_tati_meio.png"])       or normal,
+        "aberta":     _load([_base/"assets"/"avatar_tati_aberta.png",     "assets/avatar_tati_aberta.png"])     or normal,
+        "bem_aberta": _load([_base/"assets"/"avatar_tati_bem_aberta.png", "assets/avatar_tati_bem_aberta.png"]) or normal,
+        "ouvindo":    _load([_base/"assets"/"avatar_tati_ouvindo.png",    "assets/avatar_tati_ouvindo.png"])    or normal,
+        "piscando":   _load([_base/"assets"/"tati_piscando.png",          "assets/tati_piscando.png"])          or normal,
+        "surpresa":   _load([_base/"assets"/"tati_surpresa.png",          "assets/tati_surpresa.png"])          or normal,
     }
 
 # ── Avatares individuais dos alunos ───────────────────────────────────────────
@@ -2084,7 +2092,7 @@ function setFrame(src){{
     avImg.style.display   = 'block';
     avEmoji.style.display = 'none';
 }}
-setFrame(HAS_ANIM ? F_NORMAL : (PHOTO || F_NORMAL));
+setFrame(F_NORMAL || PHOTO);
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MÁQUINA DE ESTADOS:  idle | listening | processing | speaking
