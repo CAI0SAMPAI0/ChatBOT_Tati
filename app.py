@@ -2042,7 +2042,7 @@ function enterSpeaking(audioEl){{
         }}
         if(!_analyser){{
             _analyser = _audioCtx.createAnalyser();
-            _analyser.fftSize = 512;
+            _analyser.fftSize = 1024;
             _analyser.smoothingTimeConstant = 0.1; // reage rápido ao volume real
             var src = _audioCtx.createMediaElementSource(audioEl);
             src.connect(_analyser);
