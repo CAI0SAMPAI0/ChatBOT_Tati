@@ -1580,6 +1580,13 @@ header[data-testid="stHeader"] {
 header[data-testid="stHeader"] > *:not([data-testid="collapsedControl"]) {
     display: none !important;
 }
+/* Posiciona o toggle no canto superior esquerdo quando sidebar está fechada */
+[data-testid="collapsedControl"] {
+    position: fixed !important;
+    top: 8px !important;
+    left: 8px !important;
+    z-index: 9999 !important;
+}
 /* Garante que o app começa do topo sem espaço reservado para o header */
 .stApp>[data-testid="stAppViewContainer"]{padding-top:0!important;}
 [data-testid="stAppViewContainer"]{padding-top:0!important;margin-top:0!important;}
