@@ -35,52 +35,23 @@ components.html("""<!DOCTYPE html><html><head>
 <style>html,body{margin:0;padding:0;overflow:hidden;}</style>
 </head><body><script>
 (function(){
-    function fixToggle(){
-        var toggle = window.parent.document.querySelector('[data-testid="collapsedControl"]');
-        if(toggle){
-            toggle.style.setProperty('position','fixed','important');
-            toggle.style.setProperty('top','10px','important');
-            toggle.style.setProperty('left','10px','important');
-            toggle.style.setProperty('z-index','99999','important');
+    function inject(){
+        var doc = window.parent.document;
+        // Injeta <style> diretamente no head do pai
+        if(!doc.getElementById('pav-toggle-style')){
+            var s = doc.createElement('style');
+            s.id = 'pav-toggle-style';
+            s.textContent = '[data-testid="collapsedControl"]{position:fixed!important;top:10px!important;left:10px!important;z-index:99999!important;}';
+            doc.head.appendChild(s);
         }
     }
-    function fixLayout(){
-        var sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
-        var main    = window.parent.document.querySelector('[data-testid="stMain"]');
-        if(!sidebar || !main) return;
-        var collapsed = sidebar.getAttribute('aria-expanded') === 'false'
-                     || sidebar.offsetWidth < 20;
-        main.style.transition = 'margin-left 0.3s ease, width 0.3s ease';
-        if(collapsed){
-            main.style.marginLeft = '0';
-            main.style.width = '100%';
-        } else {
-            main.style.marginLeft = '';
-            main.style.width = '';
-        }
-        fixToggle();
-    }
-    // Observa mudanças na sidebar
-    var obs = new MutationObserver(fixLayout);
-    function init(){
-        var sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
-        if(sidebar){
-            obs.observe(sidebar, {attributes:true, attributeFilter:['aria-expanded','style','class']});
-            fixLayout();
-        } else {
-            setTimeout(init, 300);
-        }
-    }
-    init();
-    // Escuta cliques no botão
-    window.parent.document.addEventListener('click', function(e){
-        var btn = e.target.closest('[data-testid="collapsedControl"], [data-testid="stSidebarCollapseButton"]');
-        if(btn) setTimeout(fixLayout, 350);
-    }, true);
-    // Reaplica periodicamente para sobreviver a reruns
-    setInterval(fixToggle, 800);
+    // Tenta imediatamente e depois com delay
+    inject();
+    setTimeout(inject, 500);
+    setTimeout(inject, 1500);
+    setInterval(inject, 3000);
 })();
-</script></body></html>""", height=0)
+</script></body></html>""", height=1)
 
 # login lendo o cookie
 
