@@ -316,11 +316,15 @@ def get_avatar_frames() -> dict:
                 return f"data:image/png;base64,{base64.b64encode(p.read_bytes()).decode()}"
         return ""
     return {
-        "base":   _load([_base/"assets"/"avatar_tati_normal.png",      "assets/avatar_tati_normal.png"]),
-        "closed": _load([_base/"assets"/"avatar_tati_closed.png",      "assets/avatar_tati_closed.png"]),
-        "mid":    _load([_base/"assets"/"avatar_tati_meio.png",        "assets/avatar_tati_meio.png"]),
-        "open":   _load([_base/"assets"/"avatar_tati_bem_aberta.png",  "assets/avatar_tati_bem_aberta.png",
-                         _base/"assets"/"avatar_tati_aberta.png",      "assets/avatar_tati_aberta.png"]),
+        # ── Fala da IA ──────────────────────────────────────────────────────
+        "normal":     _load([_base/"assets"/"avatar_tati_normal.png",     "assets/avatar_tati_normal.png"]),
+        "meio":       _load([_base/"assets"/"avatar_tati_meio.png",       "assets/avatar_tati_meio.png"]),
+        "aberta":     _load([_base/"assets"/"avatar_tati_aberta.png",     "assets/avatar_tati_aberta.png"]),
+        "bem_aberta": _load([_base/"assets"/"avatar_tati_bem_aberta.png", "assets/avatar_tati_bem_aberta.png"]),
+        # ── Estados especiais ────────────────────────────────────────────────
+        "ouvindo":    _load([_base/"assets"/"avatar_tati_ouvindo.png",    "assets/avatar_tati_ouvindo.png"]),
+        "piscando":   _load([_base/"assets"/"tati_piscando.png",          "assets/tati_piscando.png"]),
+        "surpresa":   _load([_base/"assets"/"tati_surpresa.png",          "assets/tati_surpresa.png"]),
     }
 
 # ── Avatares individuais dos alunos ───────────────────────────────────────────
@@ -1501,6 +1505,18 @@ def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
     history.append({"role": "assistant", "content": reply})
     st.session_state["_vm_history"] = history
 
+    # ── Detecta pronúncia excelente no reply ─────────────────────────────────
+    _praise_en = ["great pronunciation","excellent pronunciation","perfect pronunciation",
+                  "well pronounced","great accent","excellent accent","perfect accent",
+                  "sounded great","sounded perfect","very clear","beautifully said",
+                  "well said","that was perfect","spot on","nailed it"]
+    _praise_pt = ["ótima pronúncia","excelente pronúncia","pronúncia perfeita",
+                  "pronunciou muito bem","sotaque ótimo","muito claro","ficou perfeito",
+                  "perfeito","mandou bem","muito bem pronunciado"]
+    _reply_low = reply.lower()
+    _good = any(p in _reply_low for p in _praise_en + _praise_pt)
+    st.session_state["_vm_good_pronunciation"] = _good
+
     # Gera TTS para o modo voz
     tts_b64 = ""
     tts_bytes = None
@@ -1618,7 +1634,7 @@ header[data-testid="stHeader"],div[data-testid="stDecoration"],
 
     # Frames do avatar
     frames    = get_avatar_frames()
-    has_anim  = bool(frames["base"] and frames["closed"] and frames["mid"] and frames["open"])
+    has_anim  = bool(frames["normal"])
 
     # Serializa dados para JS
     history_js  = json.dumps(history)
@@ -1630,13 +1646,21 @@ header[data-testid="stHeader"],div[data-testid="stDecoration"],
     speaking_   = json.dumps(t("speaking_ai",  lang))
     proc_       = json.dumps(t("processing",   lang))
 
-    av_b64_js   = json.dumps(frames["base"])
-    avc_js      = json.dumps(frames["closed"])
-    avm_js      = json.dumps(frames["mid"])
-    avo_js      = json.dumps(frames["open"])
-    has_anim_js = "true" if has_anim else "false"
-    photo_js    = json.dumps(get_tati_mini_b64() or get_photo_b64())
-    prof_name_js = json.dumps(PROF_NAME)
+    av_normal_js     = json.dumps(frames["normal"])
+    av_meio_js       = json.dumps(frames["meio"])
+    av_aberta_js     = json.dumps(frames["aberta"])
+    av_bem_aberta_js = json.dumps(frames["bem_aberta"])
+    av_ouvindo_js    = json.dumps(frames["ouvindo"])
+    av_piscando_js   = json.dumps(frames["piscando"])
+    av_surpresa_js   = json.dumps(frames["surpresa"])
+    has_anim_js      = "true" if has_anim else "false"
+    photo_js         = json.dumps(get_tati_mini_b64() or get_photo_b64())
+    prof_name_js     = json.dumps(PROF_NAME)
+
+    good_pronunc_js = json.dumps(bool(
+        st.session_state.get("_vm_good_pronunciation", False)
+    ))
+    st.session_state.pop("_vm_good_pronunciation", None)
 
     components.html(f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
@@ -1886,198 +1910,310 @@ input[type=range].ctrl-range::-moz-range-thumb{{
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script>
 (function(){{
-// ── Dados do Python ──
-var TTS_B64    = {tts_js};
-var REPLY      = {reply_js};
-var HISTORY    = {history_js};
-var VM_ERROR   = {err_js};
-var TAP_SPEAK  = {tap_speak};
-var TAP_STOP   = {tap_stop};
-var SPEAKING   = {speaking_};
-var HAS_ANIM   = {has_anim_js};
-var AV_BASE    = {av_b64_js};
-var AV_CLOSED  = {avc_js};
-var AV_MID     = {avm_js};
-var AV_OPEN    = {avo_js};
-var PHOTO      = {photo_js};
-var PROF_NAME  = {prof_name_js};
+// ══════════════════════════════════════════════════════════════════════════════
+// DADOS DO PYTHON
+// ══════════════════════════════════════════════════════════════════════════════
+var TTS_B64      = {tts_js};
+var REPLY        = {reply_js};
+var HISTORY      = {history_js};
+var VM_ERROR     = {err_js};
+var TAP_SPEAK    = {tap_speak};
+var TAP_STOP     = {tap_stop};
+var SPEAKING     = {speaking_};
+var HAS_ANIM     = {has_anim_js};
+var GOOD_PRONUNC = {good_pronunc_js};
+var PHOTO        = {photo_js};
+var PROF_NAME    = {prof_name_js};
 
-// ── Elementos ──
-var micBtn   = document.getElementById('micBtn');
-var micHint  = document.getElementById('micHint');
-var statusTxt= document.getElementById('statusTxt');
-var errBox   = document.getElementById('errBox');
-var ring     = document.getElementById('ring');
-var avImg    = document.getElementById('avImg');
-var avEmoji  = document.getElementById('avEmoji');
-var histWrap = document.getElementById('historyWrap');
-var profName = document.getElementById('profName');
+// 7 frames
+var F_NORMAL     = {av_normal_js};
+var F_MEIO       = {av_meio_js};
+var F_ABERTA     = {av_aberta_js};
+var F_BEM_ABERTA = {av_bem_aberta_js};
+var F_OUVINDO    = {av_ouvindo_js};
+var F_PISCANDO   = {av_piscando_js};
+var F_SURPRESA   = {av_surpresa_js};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ELEMENTOS
+// ══════════════════════════════════════════════════════════════════════════════
+var micBtn    = document.getElementById('micBtn');
+var micHint   = document.getElementById('micHint');
+var statusTxt = document.getElementById('statusTxt');
+var errBox    = document.getElementById('errBox');
+var ring      = document.getElementById('ring');
+var avImg     = document.getElementById('avImg');
+var avEmoji   = document.getElementById('avEmoji');
+var histWrap  = document.getElementById('historyWrap');
+var profName  = document.getElementById('profName');
 
 profName.textContent = PROF_NAME;
 micHint.textContent  = TAP_SPEAK;
 
-// ── Avatar ──
-var photoSrc = HAS_ANIM ? AV_BASE : (PHOTO || AV_BASE);
-if(photoSrc){{ avImg.src=photoSrc; avImg.style.display='block'; avEmoji.style.display='none'; }}
-
-// ── Animação boca ──
-var mouthTimer=null, analyser=null, audioCtx=null, mouthIdx=0;
-function stopMouthAnim(){{
-    if(mouthTimer){{ clearInterval(mouthTimer); mouthTimer=null; }}
-    if(HAS_ANIM && avImg.src !== AV_BASE) avImg.src=AV_BASE;
+// ══════════════════════════════════════════════════════════════════════════════
+// CONTROLE DE FRAME
+// ══════════════════════════════════════════════════════════════════════════════
+var _lastFrame = '';
+function setFrame(src){{
+    if(!src || src === _lastFrame) return;
+    _lastFrame = src;
+    avImg.src  = src;
+    avImg.style.display   = 'block';
+    avEmoji.style.display = 'none';
 }}
-function startMouthAnim(audioEl){{
+setFrame(HAS_ANIM ? F_NORMAL : (PHOTO || F_NORMAL));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MÁQUINA DE ESTADOS:  idle | listening | processing | speaking
+// ══════════════════════════════════════════════════════════════════════════════
+var _state      = 'idle';
+var _blinkTimer = null;
+var _mouthTimer = null;
+var _analyser   = null;
+var _audioCtx   = null;
+var _mouthFallbackIdx = 0;
+
+function _stopAllTimers(){{
+    if(_blinkTimer){{ clearTimeout(_blinkTimer); clearInterval(_blinkTimer); _blinkTimer = null; }}
+    if(_mouthTimer){{ clearInterval(_mouthTimer); _mouthTimer = null; }}
+}}
+
+// ── IDLE: normal + piscar natural (3-5s, 150ms fechado) ──────────────────────
+function enterIdle(){{
+    _stopAllTimers();
+    _state = 'idle';
+    setFrame(F_NORMAL);
+    ring.classList.remove('active');
+    statusTxt.textContent = '● Online';
+    function scheduleBlink(){{
+        var delay = 3000 + Math.random() * 2000;
+        _blinkTimer = setTimeout(function(){{
+            if(_state !== 'idle') return;
+            setFrame(F_PISCANDO);
+            setTimeout(function(){{
+                if(_state !== 'idle') return;
+                setFrame(F_NORMAL);
+                scheduleBlink();
+            }}, 150);
+        }}, delay);
+    }}
+    scheduleBlink();
+}}
+
+// ── LISTENING: ouvindo fixo enquanto mic está ativo ──────────────────────────
+function enterListening(){{
+    _stopAllTimers();
+    _state = 'listening';
+    setFrame(F_OUVINDO);
+    ring.classList.remove('active');
+    statusTxt.textContent = '🎙 Ouvindo…';
+}}
+
+// ── PROCESSING: normal com piscada lenta enquanto Claude pensa ───────────────
+function enterProcessing(){{
+    _stopAllTimers();
+    _state = 'processing';
+    setFrame(F_NORMAL);
+    ring.classList.remove('active');
+    statusTxt.textContent = '⏳ Processando…';
+    _blinkTimer = setInterval(function(){{
+        if(_state !== 'processing') return;
+        setFrame(F_PISCANDO);
+        setTimeout(function(){{
+            if(_state !== 'processing') return;
+            setFrame(F_NORMAL);
+        }}, 180);
+    }}, 2200);
+}}
+
+// ── SPEAKING: sincronização labial via Web Audio API ─────────────────────────
+// silêncio → normal | suave → meio | normal → aberta | intenso → bem_aberta
+// início (0-8%) → surpresa
+function enterSpeaking(audioEl){{
+    _stopAllTimers();
+    _state = 'speaking';
+    ring.classList.add('active');
+    statusTxt.textContent = SPEAKING;
     if(!HAS_ANIM) return;
     try{{
-        if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-        if(!analyser){{
-            analyser=audioCtx.createAnalyser(); analyser.fftSize=256;
-            var src=audioCtx.createMediaElementSource(audioEl);
-            src.connect(analyser); analyser.connect(audioCtx.destination);
+        if(!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if(!_analyser){{
+            _analyser = _audioCtx.createAnalyser();
+            _analyser.fftSize = 256;
+            _analyser.smoothingTimeConstant = 0.75;
+            var src = _audioCtx.createMediaElementSource(audioEl);
+            src.connect(_analyser);
+            _analyser.connect(_audioCtx.destination);
         }}
-        var buf=new Uint8Array(analyser.frequencyBinCount);
-        mouthTimer=setInterval(function(){{
-            analyser.getByteFrequencyData(buf);
-            var vol=buf.reduce(function(a,b){{return a+b;}},0)/buf.length/128;
-            if(vol<0.05) avImg.src=AV_BASE;
-            else if(vol<0.2) avImg.src=AV_CLOSED;
-            else if(vol<0.5) avImg.src=AV_MID;
-            else avImg.src=AV_OPEN;
-        }},80);
+        var buf        = new Uint8Array(_analyser.frequencyBinCount);
+        var frameCount = 0;
+        var dur        = 0;
+        audioEl.addEventListener('loadedmetadata', function(){{ dur = audioEl.duration || 0; }}, {{once:true}});
+        _mouthTimer = setInterval(function(){{
+            if(_state !== 'speaking') return;
+            _analyser.getByteFrequencyData(buf);
+            var sum = 0, n = Math.min(80, buf.length);
+            for(var i = 8; i < n; i++) sum += buf[i] * buf[i];
+            var rms      = Math.sqrt(sum / (n - 8)) / 128;
+            var progress = dur > 0 ? audioEl.currentTime / dur : 0;
+            var frame;
+            if(progress < 0.08 && frameCount < 6)       frame = F_SURPRESA || F_BEM_ABERTA;
+            else if(rms < 0.04)                          frame = F_NORMAL;
+            else if(rms < 0.20)                          frame = F_MEIO;
+            else if(rms < 0.55)                          frame = F_ABERTA;
+            else                                         frame = F_BEM_ABERTA;
+            setFrame(frame);
+            frameCount++;
+        }}, 80);
     }}catch(e){{
-        mouthTimer=setInterval(function(){{
-            mouthIdx=(mouthIdx+1)%4;
-            avImg.src=[AV_BASE,AV_CLOSED,AV_MID,AV_OPEN][mouthIdx];
-        }},200);
+        // fallback sem Web Audio: ciclo fixo
+        var cycle = [F_NORMAL, F_MEIO, F_ABERTA, F_BEM_ABERTA, F_ABERTA, F_MEIO];
+        _mouthFallbackIdx = 0;
+        _mouthTimer = setInterval(function(){{
+            if(_state !== 'speaking') return;
+            setFrame(cycle[_mouthFallbackIdx % cycle.length]);
+            _mouthFallbackIdx++;
+        }}, 160);
     }}
 }}
 
-// ── Áudio global ──
-var currentAudio=null, lastB64=null;
-function getVol(){{ return parseFloat(document.getElementById('vol-slider').value)||1; }}
-function getSpd(){{ return parseFloat(document.getElementById('spd-slider').value)||1; }}
+// ── Fim da fala ───────────────────────────────────────────────────────────────
+function onSpeakingEnded(goodPronunc){{
+    _stopAllTimers();
+    if(goodPronunc && F_BEM_ABERTA){{
+        // Pronúncia excelente: reação de aprovação por 1.2s
+        setFrame(F_BEM_ABERTA);
+        setTimeout(function(){{ enterIdle(); }}, 1200);
+    }} else {{
+        enterIdle();
+    }}
+}}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ÁUDIO GLOBAL
+// ══════════════════════════════════════════════════════════════════════════════
+var currentAudio = null, lastB64 = null;
+function getVol(){{ return parseFloat(document.getElementById('vol-slider').value) || 1; }}
+function getSpd(){{ return parseFloat(document.getElementById('spd-slider').value) || 1; }}
 
 function playTTS(b64, onEndCallback){{
-    if(currentAudio){{ currentAudio.pause(); currentAudio=null; stopMouthAnim(); }}
+    if(currentAudio){{ currentAudio.pause(); currentAudio = null; }}
     if(!b64) return;
     lastB64 = b64;
-    ring.classList.add('active');
-    statusTxt.textContent=SPEAKING;
-    var audio=new Audio('data:audio/mp3;base64,'+b64);
-    audio.volume=getVol(); audio.playbackRate=getSpd(); audio._srcB64=b64;
-    currentAudio=audio;
-    audio.onplay=function(){{ startMouthAnim(audio); updateGlobalBtn(true); }};
-    audio.onended=function(){{
-        stopMouthAnim(); ring.classList.remove('active');
-        statusTxt.textContent='Online'; currentAudio=null;
-        updateGlobalBtn(false);
+    var audio = new Audio('data:audio/mp3;base64,' + b64);
+    audio.volume = getVol(); audio.playbackRate = getSpd(); audio._srcB64 = b64;
+    currentAudio = audio;
+    audio.onplay   = function(){{ enterSpeaking(audio); updateGlobalBtn(true); }};
+    audio.onended  = function(){{
+        currentAudio = null; updateGlobalBtn(false);
+        onSpeakingEnded(GOOD_PRONUNC);
         if(onEndCallback) onEndCallback();
     }};
-    audio.onerror=function(){{ stopMouthAnim(); ring.classList.remove('active'); updateGlobalBtn(false); }};
-    audio.play().catch(function(){{ stopMouthAnim(); ring.classList.remove('active'); updateGlobalBtn(false); }});
+    audio.onerror  = function(){{ currentAudio = null; updateGlobalBtn(false); enterIdle(); }};
+    audio.play().catch(function(){{ currentAudio = null; updateGlobalBtn(false); enterIdle(); }});
 }}
 function stopTTS(){{
-    if(currentAudio){{ currentAudio.pause(); currentAudio=null; stopMouthAnim(); ring.classList.remove('active'); statusTxt.textContent='Online'; updateGlobalBtn(false); }}
+    if(currentAudio){{ currentAudio.pause(); currentAudio = null; }}
+    updateGlobalBtn(false); enterIdle();
 }}
 function updateGlobalBtn(playing){{
-    var btn=document.getElementById('global-play-btn');
+    var btn = document.getElementById('global-play-btn');
     if(!btn) return;
-    btn.textContent = playing ? '⏹ Parar' : '▶ Ouvir';
+    btn.textContent  = playing ? '⏹ Parar' : '▶ Ouvir';
     btn.style.background = playing ? '#8b2a2a' : '#1a2535';
 }}
 
-// ── Controles ──
-document.getElementById('global-play-btn').addEventListener('click',function(){{
-    if(currentAudio&&!currentAudio.paused) stopTTS();
-    else if(lastB64||TTS_B64) playTTS(lastB64||TTS_B64);
+document.getElementById('global-play-btn').addEventListener('click', function(){{
+    if(currentAudio && !currentAudio.paused) stopTTS();
+    else if(lastB64 || TTS_B64) playTTS(lastB64 || TTS_B64);
 }});
-document.getElementById('vol-slider').addEventListener('input',function(){{
-    document.getElementById('vol-val').textContent=Math.round(this.value*100)+'%';
-    if(currentAudio) currentAudio.volume=parseFloat(this.value);
+document.getElementById('vol-slider').addEventListener('input', function(){{
+    document.getElementById('vol-val').textContent = Math.round(this.value * 100) + '%';
+    if(currentAudio) currentAudio.volume = parseFloat(this.value);
 }});
-document.getElementById('spd-slider').addEventListener('input',function(){{
-    document.getElementById('spd-val').textContent=parseFloat(this.value).toFixed(1)+'x';
-    if(currentAudio) currentAudio.playbackRate=parseFloat(this.value);
+document.getElementById('spd-slider').addEventListener('input', function(){{
+    document.getElementById('spd-val').textContent = parseFloat(this.value).toFixed(1) + 'x';
+    if(currentAudio) currentAudio.playbackRate = parseFloat(this.value);
 }});
 
-// ── Renderiza bolhas com botão ▶ por bolha ──
+// ══════════════════════════════════════════════════════════════════════════════
+// BOLHAS DE HISTÓRICO
+// ══════════════════════════════════════════════════════════════════════════════
 function addBubble(role, text, b64){{
-    var label=document.createElement('div');
-    label.className='bubble-label'+(role==='user'?' right':'');
-    label.textContent=role==='user'?'Você':PROF_NAME;
-
-    var bub=document.createElement('div');
-    bub.className='bubble '+role;
-    bub.textContent=text;
-
+    var label = document.createElement('div');
+    label.className = 'bubble-label' + (role === 'user' ? ' right' : '');
+    label.textContent = role === 'user' ? 'Você' : PROF_NAME;
+    var bub = document.createElement('div');
+    bub.className = 'bubble ' + role;
+    bub.textContent = text;
     histWrap.appendChild(label);
     histWrap.appendChild(bub);
-
-    // Botão ▶ apenas para mensagens do bot COM áudio salvo
-    if(role==='bot'&&b64){{
-        var pbtn=document.createElement('button');
-        pbtn.className='bubble-play-btn';
-        pbtn.textContent='▶ Ouvir';
-        pbtn.addEventListener('click',function(){{
-            var isPlaying=currentAudio&&!currentAudio.paused&&currentAudio._srcB64===b64;
-            if(isPlaying){{
-                stopTTS(); pbtn.textContent='▶ Ouvir'; pbtn.classList.remove('playing');
-            }}else{{
-                // reseta todos os outros botões de bolha
+    if(role === 'bot' && b64){{
+        var pbtn = document.createElement('button');
+        pbtn.className = 'bubble-play-btn';
+        pbtn.textContent = '▶ Ouvir';
+        pbtn.addEventListener('click', function(){{
+            var isPlaying = currentAudio && !currentAudio.paused && currentAudio._srcB64 === b64;
+            if(isPlaying){{ stopTTS(); pbtn.textContent = '▶ Ouvir'; pbtn.classList.remove('playing'); }}
+            else{{
                 document.querySelectorAll('.bubble-play-btn').forEach(function(b){{
-                    b.textContent='▶ Ouvir'; b.classList.remove('playing');
+                    b.textContent = '▶ Ouvir'; b.classList.remove('playing');
                 }});
-                pbtn.textContent='⏹ Parar'; pbtn.classList.add('playing');
-                playTTS(b64, function(){{
-                    pbtn.textContent='▶ Ouvir'; pbtn.classList.remove('playing');
-                }});
+                pbtn.textContent = '⏹ Parar'; pbtn.classList.add('playing');
+                playTTS(b64, function(){{ pbtn.textContent = '▶ Ouvir'; pbtn.classList.remove('playing'); }});
             }}
         }});
         histWrap.appendChild(pbtn);
     }}
-    histWrap.scrollTop=histWrap.scrollHeight;
+    histWrap.scrollTop = histWrap.scrollHeight;
 }}
 
-// ── Renderiza estado atual ──
+// ══════════════════════════════════════════════════════════════════════════════
+// RENDERIZA ESTADO INICIAL
+// ══════════════════════════════════════════════════════════════════════════════
 if(VM_ERROR){{
-    errBox.textContent=VM_ERROR; errBox.style.display='block';
-}}else{{
-    errBox.style.display='none';
-    if(HISTORY&&HISTORY.length>0){{
+    errBox.textContent = VM_ERROR; errBox.style.display = 'block'; enterIdle();
+}} else {{
+    errBox.style.display = 'none';
+    if(HISTORY && HISTORY.length > 0){{
         HISTORY.forEach(function(msg){{
-            var role=msg.role==='user'?'user':'bot';
-            addBubble(role, msg.content, msg.tts_b64||'');
+            addBubble(msg.role === 'user' ? 'user' : 'bot', msg.content, msg.tts_b64 || '');
         }});
     }}
-    // Autoplay da resposta mais recente
-    if(TTS_B64) setTimeout(function(){{ playTTS(TTS_B64); }},300);
+    if(TTS_B64) setTimeout(function(){{ playTTS(TTS_B64); }}, 300);
+    else        enterIdle();
 }}
 
-// ── Mic ──
-var recording=false;
+// ══════════════════════════════════════════════════════════════════════════════
+// MICROFONE
+// ══════════════════════════════════════════════════════════════════════════════
+var recording = false;
 function getRealMicBtn(){{
-    var doc=window.parent.document;
-    var ai=doc.querySelector('[data-testid="stAudioInput"]');
+    var doc = window.parent.document;
+    var ai  = doc.querySelector('[data-testid="stAudioInput"]');
     if(!ai) return null;
-    return ai.querySelector('button')||ai.querySelector('[data-testid="stAudioInputRecordButton"]');
+    return ai.querySelector('button') || ai.querySelector('[data-testid="stAudioInputRecordButton"]');
 }}
-micBtn.addEventListener('click',function(){{
-    var realBtn=getRealMicBtn();
+micBtn.addEventListener('click', function(){{
+    var realBtn = getRealMicBtn();
     if(!realBtn) return;
     if(recording){{
+        recording = false;
         micBtn.classList.remove('recording');
-        micBtn.innerHTML='<i class="fa-solid fa-microphone"></i>';
-        micHint.textContent=TAP_SPEAK;
         micBtn.classList.add('processing');
-        recording=false;
+        micBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        micHint.textContent = TAP_SPEAK;
+        enterProcessing();
         realBtn.click();
-    }}else{{
-        if(currentAudio){{ currentAudio.pause(); currentAudio=null; stopMouthAnim(); ring.classList.remove('active'); }}
+    }} else {{
+        if(currentAudio){{ currentAudio.pause(); currentAudio = null; }}
         if(window.parent.speechSynthesis) window.parent.speechSynthesis.cancel();
+        recording = true;
+        micBtn.classList.remove('processing');
         micBtn.classList.add('recording');
-        micBtn.innerHTML='<i class="fa-solid fa-stop"></i>';
-        micHint.textContent=TAP_STOP;
-        recording=true;
+        micBtn.innerHTML = '<i class="fa-solid fa-stop"></i>';
+        micHint.textContent = TAP_STOP;
+        enterListening();
         realBtn.click();
     }}
 }});
