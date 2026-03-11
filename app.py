@@ -1580,7 +1580,7 @@ header[data-testid="stHeader"],div[data-testid="stDecoration"],
 <style>
 .vm-close-btn {
     position: fixed;
-    top: 12px;
+    top: 14px;
     right: 16px;
     z-index: 9999;
 }
@@ -1602,7 +1602,7 @@ header[data-testid="stHeader"],div[data-testid="stDecoration"],
 
     with st.container():
         st.markdown('<div class="vm-close-btn">', unsafe_allow_html=True)
-        if st.button("✕ Chat", key="vm_close_btn"):
+        if st.button("✕ Close", key="vm_close_btn"):
             st.session_state.voice_mode = False
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
