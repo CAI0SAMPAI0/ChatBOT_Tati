@@ -167,13 +167,11 @@ def show_chat() -> None:
     if st.session_state.voice_mode:
         show_voice(); return
 
-    # Injeta cores
     _ac = profile.get("accent_color", "#f0a500")
     _ub = profile.get("user_bubble_color", "#2d6a4f")
     _ab = profile.get("ai_bubble_color", "#1a1f2e")
     _inject_colors(_ac, _ub, _ab)
 
-    # CSS do chat
     st.markdown("""<style>
 [data-testid="stChatInput"] textarea{max-height:120px!important;min-height:44px!important;font-size:.88rem!important;}
 [data-testid="stChatInputContainer"]{padding:6px 10px!important;}
@@ -191,6 +189,7 @@ def show_chat() -> None:
 .msg-ouvir-row{padding:2px 0 0 40px;}
 .msg-ouvir-btn{background:none;border:1px solid #30363d;border-radius:16px;color:#8b949e;font-size:.68rem;padding:2px 10px;cursor:pointer;transition:all .15s;white-space:nowrap;font-family:inherit;}
 .msg-ouvir-btn:hover{border-color:#f0a500;color:#f0a500;}
+.conv-picker{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:6px 8px;margin:2px 0 6px 0;}
 @media(max-width:768px){.msg-bubble{max-width:88%!important;font-size:.82rem!important;}}
 </style>""", unsafe_allow_html=True)
 
@@ -204,7 +203,9 @@ def show_chat() -> None:
                 </div></div></div>""", unsafe_allow_html=True)
 
         if st.button(t("new_conv", ui_lang), use_container_width=True, key="btn_new"):
-            st.session_state.conv_id = new_conversation(username); st.rerun()
+            st.session_state.conv_id = new_conversation(username)
+            st.session_state.pop("_conv_pick", None)
+            st.rerun()
         if st.button(t("voice_mode", ui_lang), use_container_width=True, key="btn_voice"):
             st.session_state.voice_mode = True; st.rerun()
 
@@ -216,15 +217,14 @@ def show_chat() -> None:
 
         for c in convs:
             is_active = c["id"] == conv_id
+            is_picked = st.session_state.get("_conv_pick") == c["id"]
             label     = ("▶ " if is_active else "") + c["title"]
 
-            # ── Linha da conversa: título + lixeira ───────────────────────
             col_conv, col_del = st.columns([5, 1])
             with col_conv:
                 if st.button(label, key=f"conv_{c['id']}", use_container_width=True):
-                    # Ao clicar na conversa, mostra opção Chat ou Voz
-                    if st.session_state.get("_conv_pick") == c["id"]:
-                        # Segunda vez clicando: fecha o picker
+                    if is_picked:
+                        # segundo clique fecha o picker
                         st.session_state.pop("_conv_pick", None)
                     else:
                         st.session_state["_conv_pick"] = c["id"]
@@ -237,15 +237,15 @@ def show_chat() -> None:
                     st.session_state.pop("_conv_pick", None)
                     st.rerun()
 
-            st.markdown(f'<div style="font-size:.62rem;color:#6e7681;margin:-10px 0 2px 6px;">{c["date"]} · {c["count"]} msg</div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div style="font-size:.62rem;color:#6e7681;margin:-10px 0 2px 6px;">'
+                f'{c["date"]} · {c["count"]} msg</div>',
+                unsafe_allow_html=True,
+            )
 
-            # ── Picker Chat / Voz (aparece abaixo da conversa selecionada) ─
-            if st.session_state.get("_conv_pick") == c["id"]:
-                st.markdown(
-                    '<div style="background:#161b22;border:1px solid #30363d;border-radius:8px;'
-                    'padding:6px 8px;margin:2px 0 6px 0;display:flex;flex-direction:column;gap:4px;">',
-                    unsafe_allow_html=True,
-                )
+            # ── Picker Chat / Voz ─────────────────────────────────────────
+            if is_picked:
+                st.markdown('<div class="conv-picker">', unsafe_allow_html=True)
                 pc1, pc2 = st.columns(2)
                 with pc1:
                     if st.button("💬 Chat", key=f"pick_chat_{c['id']}", use_container_width=True):
@@ -257,13 +257,12 @@ def show_chat() -> None:
                     if st.button("🎙 Voz", key=f"pick_voice_{c['id']}", use_container_width=True):
                         st.session_state.conv_id    = c["id"]
                         st.session_state.voice_mode = True
-                        # Limpa histórico do modo voz para recarregar do banco
                         st.session_state.pop("_vm_history", None)
                         st.session_state.pop("_conv_pick", None)
                         st.rerun()
                 st.markdown('</div>', unsafe_allow_html=True)
 
-        # Rodapé sidebar
+        # ── Rodapé sidebar ────────────────────────────────────────────────
         user_msgs   = len([m for m in messages if m["role"] == "user"])
         uav_sidebar = user_avatar_html(username, size=34)
         st.markdown("<hr style='border-color:#21262d;margin:8px 0 0'>", unsafe_allow_html=True)
@@ -305,7 +304,8 @@ def show_chat() -> None:
     _tati_mini   = get_tati_mini_b64()
     tati_av_html = (
         f'<div class="msg-av" style="background:url({_tati_mini}) center top/cover no-repeat;"></div>'
-        if _tati_mini else '<div class="msg-av"><div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:14px;">🧑‍🏫</div></div>'
+        if _tati_mini else
+        '<div class="msg-av"><div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:14px;">🧑‍🏫</div></div>'
     )
 
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
@@ -322,8 +322,9 @@ def show_chat() -> None:
                 f'<div class="msg-time">{msg_time}</div></div></div>',
                 unsafe_allow_html=True)
             if tts_b64:
-                components.html(render_audio_player(tts_b64, msg_time, f"msg_{i}_{conv_id}"),
-                                height=44, scrolling=False)
+                components.html(
+                    render_audio_player(tts_b64, msg_time, f"msg_{i}_{conv_id}"),
+                    height=44, scrolling=False)
             elif not is_file:
                 clean_text = (html.escape(msg["content"])
                     .replace("\n", " ").replace("*", "").replace("#", ""))[:600]
@@ -442,7 +443,7 @@ def show_chat() -> None:
                 staged_list.append({"raw": raw, "name": uf.name, "kind": result["kind"]})
             st.session_state.staged_file = staged_list; st.rerun()
 
-    # ── Botões TTS via Web Speech API ─────────────────────────────────────────
+    # Botões TTS via Web Speech API
     components.html("""<!DOCTYPE html><html><head>
 <style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;}</style>
 </head><body><script>
@@ -474,18 +475,13 @@ def show_chat() -> None:
 })();
 </script></body></html>""", height=1)
 
-    # ── Botões mic e clipe — injetados via JS no DOM pai ──────────────────────
-    # IMPORTANTE: lê o arquivo e passa o conteúdo diretamente para components.html
-    # para evitar que o Streamlit renderize o texto do arquivo como markdown no chat
+    # Botões mic e clipe
     _btn_css  = Path("static/pav_buttons.css")
     _btn_html = Path("static/pav_buttons.html")
-
     if _btn_css.exists():
         st.markdown(f"<style>{_btn_css.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
-
     if _btn_html.exists():
-        _btn_content = _btn_html.read_text(encoding="utf-8")
-        components.html(_btn_content, height=1, scrolling=False)
+        components.html(_btn_html.read_text(encoding="utf-8"), height=1, scrolling=False)
 
 
 def _inject_colors(ac: str, ub: str, ab: str) -> None:
