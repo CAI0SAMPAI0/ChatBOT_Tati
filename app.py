@@ -2488,6 +2488,9 @@ def _logout() -> None:
 
 def show_chat() -> None:
     """Tela principal do chat — sidebar com histórico + área de mensagens."""
+    lang = st.session_state.user.get("profile", {}).get("language", "pt-BR")
+    t_play = t("listen", lang, default="Ouvir")
+    t_stop = t("pause", lang, default="Pausar")
     user     = st.session_state.user
     username = user["username"]
     profile  = user.get("profile", {})
@@ -2727,38 +2730,69 @@ section[data-testid="stMain"] { transition: margin-left 0.3s, width 0.3s ease !i
                     '<div class="msg-av"><div class="av-emoji">🧑‍🏫</div></div>')
 
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
-    for i, msg in enumerate(messages):
-        content  = msg["content"].replace("\n", "<br>")
-        msg_time = msg.get("time", "")
+    for i, msg in enumerate(st.session_state.messages):
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
         if msg["role"] == "assistant":
-            tts_b64 = msg.get("tts_b64", "")
-            is_file = msg.get("is_file", False)
-            st.markdown(
-                f'<div class="msg-row bot-row">'
-                f'{tati_av_html}'
-                f'<div>'
-                f'<div class="msg-bubble bot">{content}</div>'
-                f'<div class="msg-time">{msg_time}</div>'
-                f'</div></div>',
-                unsafe_allow_html=True)
-            if tts_b64:
-                components.html(render_audio_player(tts_b64, t, f"msg_{i}_{conv_id}"),
-                                height=44, scrolling=False)
+            
+            # --- SE A MENSAGEM TEM ÁUDIO B64 SALVO NO BANCO ---
+            if msg.get("tts_b64"):
+                audio_html = f"""
+                <div style="margin-top: 8px;">
+                    <audio id="audio-app-{i}" src="data:audio/mp3;base64,{msg['tts_b64']}" style="display:none;"></audio>
+                    <button onclick="
+                        var aud = document.getElementById('audio-app-{i}');
+                        if(aud.paused) {{ 
+                            aud.play(); 
+                            this.innerHTML = '⏹ {t_stop}'; 
+                            this.style.color = '#e05c2a';
+                            this.style.borderColor = 'rgba(224,92,42,.5)';
+                        }} else {{ 
+                            aud.pause(); 
+                            aud.currentTime = 0;
+                            this.innerHTML = '▶ {t_play}'; 
+                            this.style.color = '#3a6a8a';
+                            this.style.borderColor = '#1a2535';
+                        }}
+                        aud.onended = () => {{ 
+                            this.innerHTML = '▶ {t_play}'; 
+                            this.style.color = '#3a6a8a';
+                            this.style.borderColor = '#1a2535';
+                        }};
+                    " style="
+                        background: transparent; border: 1px solid #1a2535; 
+                        color: #3a6a8a; border-radius: 8px; 
+                        padding: 4px 12px; cursor: pointer; font-size: 0.75rem;
+                        transition: all 0.15s; font-family: sans-serif;
+                    ">
+                        ▶ {t_play}
+                    </button>
+                </div>
+                """
+                st.markdown(audio_html, unsafe_allow_html=True)
+                
+            # --- SE NÃO TEM B64, MAS NÃO É ARQUIVO (Usa o TTS antigo do navegador) ---
             elif not is_file:
                 clean_text = (msg["content"]
                     .replace("\\", "").replace("`", "")
                     .replace('"', "&quot;").replace("'", "&#39;")
                     .replace("\n", " ").replace("\r", "")
                     .replace("*", "").replace("#", ""))[:600]
+                
+                # APROVEITEI E TRADUZI ESSE BOTÃO TAMBÉM (▶ {t_play})
                 st.markdown(
                     f'<div class="msg-ouvir-row">'
-                    f'<button class="msg-ouvir-btn" data-pav-tts data-text="{clean_text}">▶ Ouvir</button>'
+                    f'<button class="msg-ouvir-btn" data-pav-tts data-text="{clean_text}">▶ {t_play}</button>'
                     f'</div>',
                     unsafe_allow_html=True)
+                    
+            # --- SE FOR ARQUIVO ---
             else:
                 st.markdown(f'<div class="msg-time" style="margin-left:40px;">{msg_time}</div>',
                             unsafe_allow_html=True)
+                            
+        # --- SE A MENSAGEM FOR DO USUÁRIO ---
         else:
             is_audio = msg.get("audio", False)
             extra    = " audio-msg" if is_audio else ""
@@ -2769,7 +2803,6 @@ section[data-testid="stMain"] { transition: margin-left 0.3s, width 0.3s ease !i
                 f'<div class="msg-time">{msg_time}</div>'
                 f'</div></div>',
                 unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Indicador "digitando" — aparece enquanto Claude processa ────
     if st.session_state.get("speaking"):
