@@ -1565,34 +1565,47 @@ section[data-testid="stMain"]>div,.main .block-container{padding:0!important;mar
 div[data-testid="stVerticalBlock"],div[data-testid="stVerticalBlockBorderWrapper"],div[data-testid="element-container"]{gap:0!important;padding:0!important;margin:0!important;}
 html,body{overflow:hidden!important;}
 /* Remove barra azul/header do Streamlit */
-/* Esconde apenas o conteúdo do header, não o header inteiro */
-[data-testid="stDecoration"],
-div[data-testid="stDecoration"],
-#MainMenu, footer,
-[data-testid="stToolbar"] { display:none!important; }
-/* Zera a altura visível do header, mas mantém o botão de toggle */
-header[data-testid="stHeader"] {
-    background: transparent !important;
-    border: none !important;
-    height: auto !important;
-}
-/* Oculta tudo dentro do header, exceto o botão de colapso */
-header[data-testid="stHeader"] > *:not([data-testid="collapsedControl"]) {
-    display: none !important;
-}
-/* Posiciona o toggle no canto superior esquerdo quando sidebar está fechada */
-[data-testid="collapsedControl"] {
-    position: fixed !important;
-    top: 8px !important;
-    left: 8px !important;
-    z-index: 9999 !important;
-}
+[data-testid="stHeader"],[data-testid="stDecoration"],
+header[data-testid="stHeader"],div[data-testid="stDecoration"],
+#MainMenu,footer,header{display:none!important;height:0!important;visibility:hidden!important;}
+[data-testid="stToolbar"]{display:none!important;}
 /* Garante que o app começa do topo sem espaço reservado para o header */
 .stApp>[data-testid="stAppViewContainer"]{padding-top:0!important;}
 [data-testid="stAppViewContainer"]{padding-top:0!important;margin-top:0!important;}
 </style>""", unsafe_allow_html=True)
 
     conv_id = get_or_create_conv(username)
+
+    st.markdown("""
+<style>
+.vm-close-btn {
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    z-index: 9999;
+}
+.vm-close-btn button {
+    background: rgba(255,255,255,0.08) !important;
+    border: 1px solid rgba(255,255,255,0.15) !important;
+    color: #ccc !important;
+    border-radius: 8px !important;
+    font-size: 0.78rem !important;
+    padding: 4px 12px !important;
+    cursor: pointer !important;
+}
+.vm-close-btn button:hover {
+    background: rgba(255,255,255,0.15) !important;
+    color: #fff !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+    with st.container():
+        st.markdown('<div class="vm-close-btn">', unsafe_allow_html=True)
+        if st.button("✕ Chat", key="vm_close_btn"):
+            st.session_state.voice_mode = False
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # Carrega histórico do banco se _vm_history estiver vazio
     if not st.session_state.get("_vm_history") and conv_id:
