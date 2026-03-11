@@ -2239,7 +2239,7 @@ def show_chat() -> None:
 
     # Redireciona para o modo voz se ativo
     if st.session_state.voice_mode:
-        show_voice_mode()
+        show_voice()
         return
 
     # ── Injeta cor de destaque do usuário no Streamlit principal ────────
