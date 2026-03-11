@@ -523,13 +523,6 @@ div[data-testid="stButton"] button {
     div.prof-header { padding: 10px 8px !important; }
     .bav-s, .bav-u { display: none !important; }
 }
-/* Quando sidebar está fechada, move o toggle para o canto esquerdo */
-[data-testid="collapsedControl"] {
-    position: fixed !important;
-    top: 10px !important;
-    left: 10px !important;
-    z-index: 99999 !important;
-}
 </style>""", unsafe_allow_html=True)
 
 
