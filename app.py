@@ -2212,6 +2212,7 @@ function getSpd(){{ return parseFloat(document.getElementById('spd-slider').valu
 
 function playTTS(b64, onEndCallback){{
     if(currentAudio){{ currentAudio.pause(); currentAudio = null; }}
+    _analyser = null;
     if(!b64) return;
     lastB64 = b64;
     var audio = new Audio('data:audio/mp3;base64,' + b64);
@@ -2228,6 +2229,7 @@ function playTTS(b64, onEndCallback){{
 }}
 function stopTTS(){{
     if(currentAudio){{ currentAudio.pause(); currentAudio = null; }}
+    _analyser = null;
     updateGlobalBtn(false); enterIdle();
 }}
 function updateGlobalBtn(playing){{
