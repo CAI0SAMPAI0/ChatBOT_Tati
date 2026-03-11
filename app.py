@@ -1986,7 +1986,7 @@ function enterIdle(){{
     ring.classList.remove('active');
     statusTxt.textContent = '● Online';
     function scheduleBlink(){{
-        var delay = 3000 + Math.random() * 2000;
+        var delay = 3210 + Math.random() * 2000;
         _blinkTimer = setTimeout(function(){{
             if(_state !== 'idle') return;
             setFrame(F_PISCANDO);
@@ -2029,14 +2029,20 @@ function enterProcessing(){{
 // ── SPEAKING: sincronização labial via Web Audio API ─────────────────────────
 // silêncio → normal | suave → meio | normal → aberta | intenso → bem_aberta
 // início (0-8%) → surpresa
+// ── SPEAKING: sincronização labial via Web Audio API ─────────────────────────
+// Apenas 2 frames: normal (silêncio/pausa) e meio (qualquer fala)
 function enterSpeaking(audioEl){{
     _stopAllTimers();
     _state = 'speaking';
     ring.classList.add('active');
     statusTxt.textContent = SPEAKING;
-    if(!HAS_ANIM) return;
+
+    if(!HAS_ANIM){{ return; }}
+
     try{{
-        if(!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if(!_audioCtx){{
+            _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }}
         if(!_analyser){{
             _analyser = _audioCtx.createAnalyser();
             _analyser.fftSize = 256;
@@ -2045,35 +2051,25 @@ function enterSpeaking(audioEl){{
             src.connect(_analyser);
             _analyser.connect(_audioCtx.destination);
         }}
-        var buf        = new Uint8Array(_analyser.frequencyBinCount);
-        var frameCount = 0;
-        var dur        = 0;
-        audioEl.addEventListener('loadedmetadata', function(){{ dur = audioEl.duration || 0; }}, {{once:true}});
+
+        var buf = new Uint8Array(_analyser.frequencyBinCount);
         _mouthTimer = setInterval(function(){{
             if(_state !== 'speaking') return;
             _analyser.getByteFrequencyData(buf);
             var sum = 0, n = Math.min(80, buf.length);
             for(var i = 8; i < n; i++) sum += buf[i] * buf[i];
-            var rms      = Math.sqrt(sum / (n - 8)) / 128;
-            var progress = dur > 0 ? audioEl.currentTime / dur : 0;
-            var frame;
-            if(progress < 0.08 && frameCount < 6)       frame = F_SURPRESA || F_BEM_ABERTA;
-            else if(rms < 0.04)                          frame = F_NORMAL;
-            else if(rms < 0.20)                          frame = F_MEIO;
-            else if(rms < 0.55)                          frame = F_ABERTA;
-            else                                         frame = F_BEM_ABERTA;
-            setFrame(frame);
-            frameCount++;
+            var rms = Math.sqrt(sum / (n - 8)) / 128;
+            setFrame(rms < 0.04 ? F_NORMAL : F_MEIO);
         }}, 80);
+
     }}catch(e){{
-        // fallback sem Web Audio: ciclo fixo
-        var cycle = [F_NORMAL, F_MEIO, F_ABERTA, F_BEM_ABERTA, F_ABERTA, F_MEIO];
+        // Fallback sem Web Audio: alterna normal↔meio
         _mouthFallbackIdx = 0;
         _mouthTimer = setInterval(function(){{
             if(_state !== 'speaking') return;
-            setFrame(cycle[_mouthFallbackIdx % cycle.length]);
+            setFrame(_mouthFallbackIdx % 2 === 0 ? F_MEIO : F_NORMAL);
             _mouthFallbackIdx++;
-        }}, 160);
+        }}, 300);
     }}
 }}
 
