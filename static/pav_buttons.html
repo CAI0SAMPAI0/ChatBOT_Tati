@@ -1,192 +1,37 @@
-<!DOCTYPE html><html><head>
-<style>html,body{margin:0;padding:0;overflow:hidden;}</style>
-</head><body>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-<script>
+<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;}</style></head><body><script>
 (function(){
-  var doc = window.parent.document;
-
-  function _btnStyle() {
-    return [
-      'pointer-events:auto',
-      'width:38px',
-      'height:38px',
-      'border-radius:50%',
-      'border:1px solid #30363d',
-      'background:#0d1117',
-      'color:#8b949e',
-      'font-size:15px',
-      'display:flex',
-      'align-items:center',
-      'justify-content:center',
-      'cursor:pointer',
-      'box-shadow:0 2px 8px rgba(0,0,0,.4)',
-      '-webkit-tap-highlight-color:transparent',
-      'touch-action:manipulation',
-      'flex-shrink:0',
-      'transition:background .15s,color .15s,border-color .15s',
-      'outline:none',
-    ].join(';');
+  var doc=window.parent.document;
+  function s(){return['pointer-events:auto','width:38px','height:38px','border-radius:50%','border:1px solid #30363d','background:#0d1117','color:#8b949e','font-size:15px','display:flex','align-items:center','justify-content:center','cursor:pointer','box-shadow:0 2px 8px rgba(0,0,0,.4)','-webkit-tap-highlight-color:transparent','touch-action:manipulation','flex-shrink:0','transition:background .15s,color .15s,border-color .15s','outline:none'].join(';');}
+  function inject(){
+    if(doc.getElementById('pav-bar'))return;
+    var bar=doc.createElement('div');bar.id='pav-bar';
+    bar.style.cssText='position:fixed;z-index:99999;display:flex;align-items:center;gap:4px;pointer-events:none;bottom:0;left:0;';
+    var cl=doc.createElement('button');cl.id='pav-clip-btn';cl.title='Attach file';cl.innerHTML='<i class="fa-solid fa-paperclip"></i>';cl.style.cssText=s();
+    var mi=doc.createElement('button');mi.id='pav-mic-btn';mi.title='Record audio';mi.innerHTML='<i class="fa-solid fa-microphone"></i>';mi.style.cssText=s();
+    bar.appendChild(cl);bar.appendChild(mi);doc.body.appendChild(bar);
+    cl.addEventListener('click',function(){var inp=doc.querySelector('[data-testid="stFileUploader"] input[type="file"]');if(inp)inp.click();});
+    var rec=false;
+    function getRb(){var ai=doc.querySelector('[data-testid="stAudioInput"]');if(!ai)return null;var bs=ai.querySelectorAll('button');for(var i=0;i<bs.length;i++){if((bs[i].getAttribute('aria-label')||'').toLowerCase().indexOf('download')>=0)continue;return bs[i];}return bs[0]||null;}
+    mi.addEventListener('click',function(){var rb=getRb();if(!rb)return;if(rec){rec=false;mi.innerHTML='<i class="fa-solid fa-microphone"></i>';mi.style.background='#0d1117';mi.style.borderColor='#30363d';mi.style.color='#8b949e';rb.click();}else{rec=true;mi.innerHTML='<i class="fa-solid fa-stop"></i>';mi.style.background='#e05c2a';mi.style.borderColor='#e05c2a';mi.style.color='#fff';rb.click();}});
+    var _lai=null;setInterval(function(){var ai=doc.querySelector('[data-testid="stAudioInput"]');if(ai!==_lai){_lai=ai;if(rec){rec=false;mi.innerHTML='<i class="fa-solid fa-microphone"></i>';mi.style.background='#0d1117';mi.style.borderColor='#30363d';mi.style.color='#8b949e';}}},500);
   }
-
-  // ── Injeta botões apenas uma vez ─────────────────────────────────────────
-  function injectBar() {
-    if (doc.getElementById('pav-bar')) return;
-
-    var bar = doc.createElement('div');
-    bar.id = 'pav-bar';
-    bar.style.cssText = [
-      'position:fixed',
-      'z-index:99999',
-      'display:flex',
-      'align-items:center',
-      'gap:4px',
-      'pointer-events:none',
-      'bottom:0',
-      'left:0',
-    ].join(';');
-
-    var clipBtn = doc.createElement('button');
-    clipBtn.id        = 'pav-clip-btn';
-    clipBtn.title     = 'Attach file';
-    clipBtn.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
-    clipBtn.style.cssText = _btnStyle();
-
-    var micBtn = doc.createElement('button');
-    micBtn.id        = 'pav-mic-btn';
-    micBtn.title     = 'Record audio';
-    micBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-    micBtn.style.cssText = _btnStyle();
-
-    bar.appendChild(clipBtn);
-    bar.appendChild(micBtn);
-    doc.body.appendChild(bar);
-
-    // ── Clipe ─────────────────────────────────────────────────────────────
-    clipBtn.addEventListener('click', function() {
-      var inp = doc.querySelector('[data-testid="stFileUploader"] input[type="file"]');
-      if (inp) inp.click();
-    });
-
-    // ── Mic ───────────────────────────────────────────────────────────────
-    var _recording = false;
-
-    function getRealMicBtn() {
-      var ai = doc.querySelector('[data-testid="stAudioInput"]');
-      if (!ai) return null;
-      var btns = ai.querySelectorAll('button');
-      for (var i = 0; i < btns.length; i++) {
-        var lbl = (btns[i].getAttribute('aria-label') || '').toLowerCase();
-        if (lbl.indexOf('download') >= 0) continue;
-        return btns[i];
-      }
-      return btns[0] || null;
-    }
-
-    micBtn.addEventListener('click', function() {
-      var rb = getRealMicBtn();
-      if (!rb) return;
-      if (_recording) {
-        _recording = false;
-        micBtn.innerHTML         = '<i class="fa-solid fa-microphone"></i>';
-        micBtn.style.background  = '#0d1117';
-        micBtn.style.borderColor = '#30363d';
-        micBtn.style.color       = '#8b949e';
-        rb.click();
-      } else {
-        _recording = true;
-        micBtn.innerHTML         = '<i class="fa-solid fa-stop"></i>';
-        micBtn.style.background  = '#e05c2a';
-        micBtn.style.borderColor = '#e05c2a';
-        micBtn.style.color       = '#fff';
-        rb.click();
-      }
-    });
-
-    // Reseta estado ao rerun do Streamlit
-    var _lastAI = null;
-    setInterval(function() {
-      var ai = doc.querySelector('[data-testid="stAudioInput"]');
-      if (ai !== _lastAI) {
-        _lastAI = ai;
-        if (_recording) {
-          _recording = false;
-          micBtn.innerHTML         = '<i class="fa-solid fa-microphone"></i>';
-          micBtn.style.background  = '#0d1117';
-          micBtn.style.borderColor = '#30363d';
-          micBtn.style.color       = '#8b949e';
-        }
-      }
-    }, 500);
+  function pos(){
+    var bar=doc.getElementById('pav-bar');if(!bar)return;
+    var sb=doc.querySelector('[data-testid="stChatInputSubmitButton"]');
+    var cb=doc.querySelector('[data-testid="stChatInputContainer"]');
+    var ref=sb||cb;if(!ref)return;
+    var r=ref.getBoundingClientRect();
+    var vpH=window.parent.innerHeight;
+    var mid=r.top+r.height/2;
+    bar.style.bottom=Math.max(4,vpH-mid-19)+'px';
+    var refLeft=sb?sb.getBoundingClientRect().left:r.right;
+    bar.style.left=Math.max(4,refLeft-86)+'px';
+    bar.style.top='auto';
   }
-
-  // ── Posiciona os botões à esquerda do botão ↑ de enviar ─────────────────
-  function positionBar() {
-    var bar = doc.getElementById('pav-bar');
-    if (!bar) return;
-
-    // Botão de enviar (seta ↑) do Streamlit
-    var sendBtn = doc.querySelector('[data-testid="stChatInputSubmitButton"]');
-    // Fallback: container do chat input
-    var chatBox = doc.querySelector('[data-testid="stChatInputContainer"]');
-
-    var ref = sendBtn || chatBox;
-    if (!ref) return;
-
-    var r   = ref.getBoundingClientRect();
-    var vpH = window.parent.innerHeight;
-
-    // Centraliza verticalmente com o botão de enviar
-    var btnH    = 38;
-    var refMidY = r.top + r.height / 2;           // centro vertical do ref
-    var barBottom = vpH - refMidY - btnH / 2;      // bottom equivalente
-
-    // Posiciona à esquerda do botão de enviar com 8px de folga
-    // (cada botão tem 38px + gap 4px entre eles)
-    var barLeft = r.left - (38 + 4 + 38) - 8;
-    if (sendBtn) {
-      // se temos o sendBtn exato, fica colado à esquerda dele
-      barLeft = sendBtn.getBoundingClientRect().left - (38 + 4 + 38) - 6;
-    }
-
-    bar.style.bottom = Math.max(4, barBottom) + 'px';
-    bar.style.left   = Math.max(4, barLeft)   + 'px';
-    bar.style.top    = 'auto';
-  }
-
-  function init() {
-    injectBar();
-    positionBar();
-  }
-
-  init();
-  setTimeout(init, 200);
-  setTimeout(init, 600);
-  setTimeout(init, 1200);
-
-  try {
-    window.parent.addEventListener('resize', positionBar);
-    if (window.parent.visualViewport) {
-      window.parent.visualViewport.addEventListener('resize', positionBar);
-    }
-  } catch(e) {}
-
-  // Reposiciona nos primeiros 15s esperando o Streamlit terminar de renderizar
-  var _ticks = 0;
-  var _iv = setInterval(function() {
-    positionBar();
-    if (++_ticks > 30) clearInterval(_iv);
-  }, 500);
-
-  try {
-    var obs = new MutationObserver(function() {
-      injectBar();
-      positionBar();
-    });
-    obs.observe(doc.body, { childList: true, subtree: true });
-    setTimeout(function() { obs.disconnect(); }, 20000);
-  } catch(e) {}
-
+  function init(){inject();pos();}
+  init();setTimeout(init,300);setTimeout(init,800);setTimeout(init,1500);
+  try{window.parent.addEventListener('resize',pos);if(window.parent.visualViewport)window.parent.visualViewport.addEventListener('resize',pos);}catch(e){}
+  var tk=0,iv=setInterval(function(){pos();if(++tk>30)clearInterval(iv);},500);
+  try{var ob=new MutationObserver(function(){inject();pos();});ob.observe(doc.body,{childList:true,subtree:true});setTimeout(function(){ob.disconnect();},20000);}catch(e){}
 })();
-</script>
-</body></html>
+</script></body></html>

@@ -213,20 +213,55 @@ def show_chat() -> None:
         convs = list_conversations(username)
         if not convs:
             st.markdown('<div style="font-size:.78rem;color:#8b949e;padding:6px 4px;">Nenhuma conversa ainda.</div>', unsafe_allow_html=True)
+
         for c in convs:
             is_active = c["id"] == conv_id
             label     = ("▶ " if is_active else "") + c["title"]
+
+            # ── Linha da conversa: título + lixeira ───────────────────────
             col_conv, col_del = st.columns([5, 1])
             with col_conv:
                 if st.button(label, key=f"conv_{c['id']}", use_container_width=True):
-                    st.session_state.conv_id = c["id"]; st.rerun()
+                    # Ao clicar na conversa, mostra opção Chat ou Voz
+                    if st.session_state.get("_conv_pick") == c["id"]:
+                        # Segunda vez clicando: fecha o picker
+                        st.session_state.pop("_conv_pick", None)
+                    else:
+                        st.session_state["_conv_pick"] = c["id"]
+                    st.rerun()
             with col_del:
                 if st.button("🗑", key=f"del_{c['id']}"):
                     delete_conversation(username, c["id"])
                     if st.session_state.conv_id == c["id"]:
                         st.session_state.conv_id = None
+                    st.session_state.pop("_conv_pick", None)
                     st.rerun()
+
             st.markdown(f'<div style="font-size:.62rem;color:#6e7681;margin:-10px 0 2px 6px;">{c["date"]} · {c["count"]} msg</div>', unsafe_allow_html=True)
+
+            # ── Picker Chat / Voz (aparece abaixo da conversa selecionada) ─
+            if st.session_state.get("_conv_pick") == c["id"]:
+                st.markdown(
+                    '<div style="background:#161b22;border:1px solid #30363d;border-radius:8px;'
+                    'padding:6px 8px;margin:2px 0 6px 0;display:flex;flex-direction:column;gap:4px;">',
+                    unsafe_allow_html=True,
+                )
+                pc1, pc2 = st.columns(2)
+                with pc1:
+                    if st.button("💬 Chat", key=f"pick_chat_{c['id']}", use_container_width=True):
+                        st.session_state.conv_id    = c["id"]
+                        st.session_state.voice_mode = False
+                        st.session_state.pop("_conv_pick", None)
+                        st.rerun()
+                with pc2:
+                    if st.button("🎙 Voz", key=f"pick_voice_{c['id']}", use_container_width=True):
+                        st.session_state.conv_id    = c["id"]
+                        st.session_state.voice_mode = True
+                        # Limpa histórico do modo voz para recarregar do banco
+                        st.session_state.pop("_vm_history", None)
+                        st.session_state.pop("_conv_pick", None)
+                        st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
 
         # Rodapé sidebar
         user_msgs   = len([m for m in messages if m["role"] == "user"])
@@ -275,7 +310,6 @@ def show_chat() -> None:
 
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
     for i, msg in enumerate(messages):
-        # Escapa HTML para prevenir XSS
         safe_content = html.escape(msg["content"]).replace("\n", "<br>")
         msg_time     = msg.get("time", "")
 
@@ -408,8 +442,10 @@ def show_chat() -> None:
                 staged_list.append({"raw": raw, "name": uf.name, "kind": result["kind"]})
             st.session_state.staged_file = staged_list; st.rerun()
 
-    # Botões ouvir via Web Speech API
-    components.html("""<!DOCTYPE html><html><body><script>
+    # ── Botões TTS via Web Speech API ─────────────────────────────────────────
+    components.html("""<!DOCTYPE html><html><head>
+<style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;}</style>
+</head><body><script>
 (function(){
   var par=window.parent?window.parent.document:document;
   var cur=null;
@@ -438,18 +474,23 @@ def show_chat() -> None:
 })();
 </script></body></html>""", height=1)
 
-    # Botões mic e clipe
+    # ── Botões mic e clipe — injetados via JS no DOM pai ──────────────────────
+    # IMPORTANTE: lê o arquivo e passa o conteúdo diretamente para components.html
+    # para evitar que o Streamlit renderize o texto do arquivo como markdown no chat
     _btn_css  = Path("static/pav_buttons.css")
     _btn_html = Path("static/pav_buttons.html")
+
     if _btn_css.exists():
-        st.markdown(f"<style>{_btn_css.read_text()}</style>", unsafe_allow_html=True)
+        st.markdown(f"<style>{_btn_css.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
+
     if _btn_html.exists():
-        components.html(_btn_html.read_text(), height=1)
+        _btn_content = _btn_html.read_text(encoding="utf-8")
+        components.html(_btn_content, height=1, scrolling=False)
 
 
 def _inject_colors(ac: str, ub: str, ab: str) -> None:
     components.html(f"""<!DOCTYPE html><html><head>
-<style>html,body{{margin:0;padding:0;overflow:hidden;}}</style>
+<style>html,body{{margin:0;padding:0;overflow:hidden;background:transparent;}}</style>
 </head><body><script>
 (function(){{
   function hexToRgb(h){{h=h.replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];var n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255].join(',');}}
