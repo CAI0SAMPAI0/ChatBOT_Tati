@@ -2728,129 +2728,48 @@ section[data-testid="stMain"] { transition: margin-left 0.3s, width 0.3s ease !i
 
     st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
     for i, msg in enumerate(messages):
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+        content  = msg["content"].replace("\n", "<br>")
+        msg_time = msg.get("time", "")
 
         if msg["role"] == "assistant":
+            tts_b64 = msg.get("tts_b64", "")
             is_file = msg.get("is_file", False)
-            lang = st.session_state.user.get("profile", {}).get("language", "pt-BR")
-            is_en = "en" in lang.lower()
-            lbl_play = "Listen" if is_en else "Ouvir"
-            lbl_stop = "Pause" if is_en else "Pausar"
-            
-            # --- SE A MENSAGEM TEM ÁUDIO B64 SALVO NO BANCO ---
-            if msg.get("tts_b64"):
-                b64_data = msg["tts_b64"]
-                audio_html = f"""
-                <div class="msg-ouvir-row" style="margin-top: 4px; margin-bottom: 8px;">
-                    <audio id="audio-app-{i}" src="data:audio/mp3;base64,{b64_data}" style="display:none;"></audio>
-                    <button onclick="
-                        var btn = this;
-                        var aud = document.getElementById('audio-app-{i}');
-                        
-                        if(aud.paused) {{ 
-                            aud.play(); 
-                            btn.innerHTML = '⏹ {lbl_stop}'; 
-                            btn.style.color = '#e05c2a';
-                            btn.style.borderColor = 'rgba(224,92,42,.5)';
-                        }} else {{ 
-                            aud.pause(); 
-                            aud.currentTime = 0;
-                            btn.innerHTML = '▶ {lbl_play}'; 
-                            btn.style.color = '#3a6a8a';
-                            btn.style.borderColor = '#1a2535';
-                        }}
-                        aud.onended = () => {{ 
-                            btn.innerHTML = '▶ {lbl_play}'; 
-                            btn.style.color = '#3a6a8a';
-                            btn.style.borderColor = '#1a2535';
-                        }};
-                    " style="
-                        background: transparent; border: 1px solid #1a2535; 
-                        color: #3a6a8a; border-radius: 8px; 
-                        padding: 4px 12px; cursor: pointer; font-size: 0.75rem;
-                        transition: all 0.15s; font-family: sans-serif;
-                    ">
-                        ▶ {lbl_play}
-                    </button>
-                </div>
-                """
-                st.markdown(audio_html, unsafe_allow_html=True)
-                
-            # --- SE NÃO TEM B64, MAS NÃO É ARQUIVO (Usa o TTS antigo do navegador) ---
+            st.markdown(
+                f'<div class="msg-row bot-row">'
+                f'{tati_av_html}'
+                f'<div>'
+                f'<div class="msg-bubble bot">{content}</div>'
+                f'<div class="msg-time">{msg_time}</div>'
+                f'</div></div>',
+                unsafe_allow_html=True)
+            if tts_b64:
+                components.html(render_audio_player(tts_b64, t, f"msg_{i}_{conv_id}"),
+                                height=44, scrolling=False)
             elif not is_file:
-
-                # Limpa o texto para o leitor de voz do navegador (fallback)
                 clean_text = (msg["content"]
-                    .replace("\\", "\\\\").replace("`", "")
-                    .replace('"', '&quot;').replace("'", "&#39;")
+                    .replace("\\", "").replace("`", "")
+                    .replace('"', "&quot;").replace("'", "&#39;")
                     .replace("\n", " ").replace("\r", "")
                     .replace("*", "").replace("#", ""))[:600]
-                
-                has_b64 = bool(msg.get("tts_b64"))
-                b64_data = msg.get("tts_b64", "")
-                
-                # 2. Renderiza o botão no estilo do voice.py com a lógica universal
-                audio_html = f"""
-                <div class="msg-ouvir-row" style="margin-top: 4px; margin-bottom: 8px;">
-                    <audio id="audio-app-{i}" src="data:audio/mp3;base64,{b64_data}" style="display:none;"></audio>
-                    <button onclick="
-                        var btn = this;
-                        var aud = document.getElementById('audio-app-{i}');
-                        var has_b64 = {'true' if has_b64 else 'false'};
-                        
-                        if(has_b64) {{
-                            // Se tem áudio gerado pelo Claude/API, toca ele
-                            if(aud.paused) {{ 
-                                aud.play(); 
-                                btn.innerHTML = '⏹ {lbl_stop}'; 
-                                btn.style.color = '#e05c2a';
-                                btn.style.borderColor = 'rgba(224,92,42,.5)';
-                            }} else {{ 
-                                aud.pause(); 
-                                aud.currentTime = 0;
-                                btn.innerHTML = '▶ {lbl_play}'; 
-                                btn.style.color = '#3a6a8a';
-                                btn.style.borderColor = '#1a2535';
-                            }}
-                            aud.onended = () => {{ 
-                                btn.innerHTML = '▶ {lbl_play}'; 
-                                btn.style.color = '#3a6a8a';
-                                btn.style.borderColor = '#1a2535';
-                            }};
-                        }} else {{
-                            // Se NÃO tem áudio, usa a voz do navegador do usuário
-                            if (window.speechSynthesis.speaking) {{
-                                window.speechSynthesis.cancel();
-                                btn.innerHTML = '▶ {lbl_play}';
-                                btn.style.color = '#3a6a8a';
-                                btn.style.borderColor = '#1a2535';
-                            }} else {{
-                                var textToSpeak = '{clean_text}';
-                                var u = new SpeechSynthesisUtterance(textToSpeak);
-                                u.lang = 'en-US'; // Lê o texto com sotaque americano
-                                u.onend = function() {{
-                                    btn.innerHTML = '▶ {lbl_play}';
-                                    btn.style.color = '#3a6a8a';
-                                    btn.style.borderColor = '#1a2535';
-                                }};
-                                window.speechSynthesis.speak(u);
-                                btn.innerHTML = '⏹ {lbl_stop}';
-                                btn.style.color = '#e05c2a';
-                                btn.style.borderColor = 'rgba(224,92,42,.5)';
-                            }}
-                        }}
-                    " style="
-                        background: transparent; border: 1px solid #1a2535; 
-                        color: #3a6a8a; border-radius: 8px; 
-                        padding: 4px 12px; cursor: pointer; font-size: 0.75rem;
-                        transition: all 0.15s; font-family: sans-serif;
-                    ">
-                        ▶ {lbl_play}
-                    </button>
-                </div>
-                """
-                st.markdown(audio_html, unsafe_allow_html=True)
+                st.markdown(
+                    f'<div class="msg-ouvir-row">'
+                    f'<button class="msg-ouvir-btn" data-pav-tts data-text="{clean_text}">▶ Ouvir</button>'
+                    f'</div>',
+                    unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="msg-time" style="margin-left:40px;">{msg_time}</div>',
+                            unsafe_allow_html=True)
+        else:
+            is_audio = msg.get("audio", False)
+            extra    = " audio-msg" if is_audio else ""
+            st.markdown(
+                f'<div class="msg-row user-row">'
+                f'<div>'
+                f'<div class="msg-bubble user{extra}">{content}</div>'
+                f'<div class="msg-time">{msg_time}</div>'
+                f'</div></div>',
+                unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Indicador "digitando" — aparece enquanto Claude processa ────
     if st.session_state.get("speaking"):
