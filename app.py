@@ -511,6 +511,13 @@ div[data-testid="stButton"] button {
     div.prof-header { padding: 10px 8px !important; }
     .bav-s, .bav-u { display: none !important; }
 }
+/* Quando sidebar está fechada, move o toggle para o canto esquerdo */
+[data-testid="collapsedControl"] {
+    position: fixed !important;
+    top: 10px !important;
+    left: 10px !important;
+    z-index: 99999 !important;
+}
 </style>""", unsafe_allow_html=True)
 
 
@@ -1529,13 +1536,6 @@ def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
 
     st.session_state["_vm_reply"]   = reply
     st.session_state["_vm_tts_b64"] = tts_b64
-
-    # Gera vídeo Wav2Lip se disponível
-    st.session_state["_vm_video_b64"] = ""
-    if _WAV2LIP_LOADED and wav2lip_available() and tts_bytes:
-        video_b64 = generate_talking_video(tts_bytes)
-        if video_b64:
-            st.session_state["_vm_video_b64"] = video_b64
 
     # Persiste no histórico da conversa atual
     append_message(username, conv_id, "user",      txt,   audio=True)
