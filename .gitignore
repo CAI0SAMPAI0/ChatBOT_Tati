@@ -1,16 +1,15 @@
 # ── Segredos ──────────────────────────────────────────────────────────
 .env
 .streamlit/secrets.toml
-ngrok_recovery_codes.txt
 
-# ── Dados locais (não sobem pro servidor) ─────────────────────────────
+# ── Dados locais ──────────────────────────────────────────────────────
 data/app.db
 data/conversations/
 data/history/
 data/generated/
 data/students.json
 
-# ── Avatars de usuários (gerados dinamicamente) ───────────────────────
+# ── Avatars gerados dinamicamente ─────────────────────────────────────
 data/avatars/
 
 # ── Cache e compilados Python ─────────────────────────────────────────
@@ -23,20 +22,10 @@ __pycache__/
 .venv/
 venv/
 
-# ── Arquivos temporários / testes ─────────────────────────────────────
-teste_jessica.mp3
-streamlit.txt
-
-# ── Modelos de ML locais ──────────────────────────────────────────────
+# ── Modelos ML locais ─────────────────────────────────────────────────
 faster_whisper_models/
 ~/.cache/huggingface/
 
-# ── SadTalker (substituído pelo avatar CSS) ───────────────────────────
-SadTalker_TeacherTati.ipynb
-sadtalker_colab.py
-sadtalker_avatar.py
-wav2lip_colab.ipynb
-
-
-roadmap.md
-app1.py
+# ── Arquivos temporários ──────────────────────────────────────────────
+*.mp3
+streamlit.txt
