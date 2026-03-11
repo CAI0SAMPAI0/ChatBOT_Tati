@@ -1022,7 +1022,7 @@ def show_login() -> None:
     st.markdown("""<style>
 [data-testid='stSidebar']{display:none!important;}
 #MainMenu,footer,header{display:none!important;}
-[data-testid="stToolbar"]{display:none!important;}
+[data-testid="stToolbar"],[data-testid="stHeader"],[data-testid="stDecoration"]{display:none!important;}
 .stApp{background:#060a10!important;}
 section[data-testid="stMain"],
 section[data-testid="stMain"]>div,
@@ -1572,6 +1572,14 @@ body,.stApp,[data-testid="stAppViewContainer"],[data-testid="stMain"]{background
 section[data-testid="stMain"]>div,.main .block-container{padding:0!important;margin:0!important;overflow:hidden!important;max-height:100vh!important;}
 div[data-testid="stVerticalBlock"],div[data-testid="stVerticalBlockBorderWrapper"],div[data-testid="element-container"]{gap:0!important;padding:0!important;margin:0!important;}
 html,body{overflow:hidden!important;}
+/* Remove barra azul/header do Streamlit */
+[data-testid="stHeader"],[data-testid="stDecoration"],
+header[data-testid="stHeader"],div[data-testid="stDecoration"],
+#MainMenu,footer,header{display:none!important;height:0!important;visibility:hidden!important;}
+[data-testid="stToolbar"]{display:none!important;}
+/* Garante que o app começa do topo sem espaço reservado para o header */
+.stApp>[data-testid="stAppViewContainer"]{padding-top:0!important;}
+[data-testid="stAppViewContainer"]{padding-top:0!important;margin-top:0!important;}
 </style>""", unsafe_allow_html=True)
 
     conv_id = get_or_create_conv(username)
@@ -1599,7 +1607,7 @@ html,body{overflow:hidden!important;}
         for k in ["_vm_reply", "_vm_tts_b64", "_vm_user_said", "_vm_error"]:
             st.session_state.pop(k, None)
         with st.spinner(t("processing", lang)):
-            process_voice(audio_val.read(), conv_id)
+            _vm_process_audio(audio_val.read(), lang, conv_id)
         st.session_state.audio_key += 1
         st.rerun()
 
@@ -2239,7 +2247,7 @@ def show_chat() -> None:
 
     # Redireciona para o modo voz se ativo
     if st.session_state.voice_mode:
-        show_voice()
+        show_voice_mode()
         return
 
     # ── Injeta cor de destaque do usuário no Streamlit principal ────────
