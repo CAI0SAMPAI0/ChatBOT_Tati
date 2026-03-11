@@ -1007,7 +1007,7 @@ def render_audio_player(tts_b64: str, msg_time: str, player_id: str) -> str:
 <style>
 *{{box-sizing:border-box;margin:0;padding:0;}}
 html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;}}
-.player{{display:flex;align-items:center;gap:8px;padding:3px 0;flex-wrap:wrap;}}
+.player{{display:flex;align-items:center;gap:8px;padding:3px 0;flex-wrap:nowrap;}}
 .tl{{font-size:.62rem;color:#8b949e;font-family:'JetBrains Mono',monospace;flex-shrink:0;}}
 .pb{{background:none;border:1px solid #30363d;border-radius:20px;color:#f0a500;font-size:.75rem;
      padding:2px 10px;cursor:pointer;transition:background .15s,border-color .15s;white-space:nowrap;flex-shrink:0;}}
