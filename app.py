@@ -428,7 +428,7 @@ def get_tati_mini_b64() -> str:
     return get_photo_b64() or ""
 
 # ── Cache dos 4 frames do avatar animado do modo voz ─────────────────────────
-@st.cache_data(show_spinner=False)
+@st.cache_resource
 def get_avatar_frames() -> dict:
     """Carrega os frames do avatar animado uma única vez."""
     _base = Path(__file__).parent
