@@ -170,12 +170,53 @@ _STRINGS = {
         "new_password":       "Nova senha",
         "confirm_password":   "Confirmar senha",
         "speaking":           "🗣 Falando...",
+        "speaking_ai":        "🗣 Falando...",
         "listening":          "🎙 Ouvindo...",
         "processing":         "⏳ Processando...",
         "tap_to_speak":       "Toque no microfone para falar",
         "tap_to_record":      "Toque para gravar",
         "tap_to_stop":        "Toque para parar",
         "wait":               "Aguarde...",
+        "conv_accent":        "Cor de destaque",
+        "user_bubble":        "Balão do usuário",
+        "ai_bubble":          "Balão da IA",
+        "custom_instructions":"Instruções personalizadas para a IA",
+        "custom_placeholder": "ex: Sempre me corrija quando eu errar o Past Simple.",
+        "your_account":       "Sua Conta",
+        "profile_photo":      "Foto de Perfil",
+        "change_photo":       "Alterar foto — JPG, PNG ou WEBP (máx 15 MB)",
+        "account_info":       "Informações da Conta",
+        "username_label":     "Username:",
+        "created_at":         "Conta criada em:",
+        "change_pw_title":    "Alterar Senha",
+        "pw_too_short":       "Senha muito curta.",
+        "pw_mismatch":        "As senhas não coincidem.",
+        "pw_changed":         "✅ Senha alterada!",
+        "saved_ok":           "✅ Salvo!",
+        "photo_saved":        "✅ Foto salva!",
+        "photo_removed":      "Foto removida.",
+        "photo_too_large":    "❌ Foto muito grande. Máximo 15 MB.",
+        "appearance":         "Aparência",
+        "voice_settings":     "Voz",
+        "about_you":          "Sobre Você",
+        "ai_style_title":     "Estilo da IA",
+        "conversations":      "Conversas",
+        "no_convs":           "Nenhuma conversa ainda.",
+        "msgs":               "msgs",
+        "online":             "● Online",
+        "students":           "Alunos",
+        "messages":           "Mensagens",
+        "corrections":        "Correções",
+        "active_today":       "Ativos Hoje",
+        "no_students":        "Nenhum aluno ainda.",
+        "level":              "Nível",
+        "last_access":        "Último Acesso",
+        "fill_fields":        "Preencha todos os campos.",
+        "invalid_email":      "E-mail inválido.",
+        "pw_min":             "Senha muito curta (mínimo 6 caracteres).",
+        "wrong_credentials":  "Usuário ou senha incorretos.",
+        "back_dashboard":     "← Voltar ao Dashboard",
+        "back_chat":          "← Voltar ao Chat",
     },
     "en-US": {
         "type_message":       "Type a message…",
@@ -216,12 +257,53 @@ _STRINGS = {
         "new_password":       "New password",
         "confirm_password":   "Confirm password",
         "speaking":           "🗣 Speaking...",
+        "speaking_ai":        "🗣 Speaking...",
         "listening":          "🎙 Listening...",
         "processing":         "⏳ Processing...",
         "tap_to_speak":       "Tap the mic to speak",
         "tap_to_record":      "Tap to record",
         "tap_to_stop":        "Tap to stop",
         "wait":               "Please wait...",
+        "conv_accent":        "Accent color",
+        "user_bubble":        "User bubble",
+        "ai_bubble":          "AI bubble",
+        "custom_instructions":"Custom AI instructions",
+        "custom_placeholder": "e.g. Always correct me when I get the Past Simple wrong.",
+        "your_account":       "Your Account",
+        "profile_photo":      "Profile Photo",
+        "change_photo":       "Change photo — JPG, PNG or WEBP (max 15 MB)",
+        "account_info":       "Account Information",
+        "username_label":     "Username:",
+        "created_at":         "Account created on:",
+        "change_pw_title":    "Change Password",
+        "pw_too_short":       "Password too short.",
+        "pw_mismatch":        "Passwords do not match.",
+        "pw_changed":         "✅ Password changed!",
+        "saved_ok":           "✅ Saved!",
+        "photo_saved":        "✅ Photo saved!",
+        "photo_removed":      "Photo removed.",
+        "photo_too_large":    "❌ Photo too large. Maximum 15 MB.",
+        "appearance":         "Appearance",
+        "voice_settings":     "Voice",
+        "about_you":          "About You",
+        "ai_style_title":     "AI Style",
+        "conversations":      "Conversations",
+        "no_convs":           "No conversations yet.",
+        "msgs":               "msgs",
+        "online":             "● Online",
+        "students":           "Students",
+        "messages":           "Messages",
+        "corrections":        "Corrections",
+        "active_today":       "Active Today",
+        "no_students":        "No students yet.",
+        "level":              "Level",
+        "last_access":        "Last Access",
+        "fill_fields":        "Please fill in all fields.",
+        "invalid_email":      "Invalid email address.",
+        "pw_min":             "Password too short (minimum 6 characters).",
+        "wrong_credentials":  "Incorrect username or password.",
+        "back_dashboard":     "← Back to Dashboard",
+        "back_chat":          "← Back to Chat",
     },
     "en-UK": {
         "type_message":       "Type a message…",
@@ -262,12 +344,53 @@ _STRINGS = {
         "new_password":       "New password",
         "confirm_password":   "Confirm password",
         "speaking":           "🗣 Speaking...",
+        "speaking_ai":        "🗣 Speaking...",
         "listening":          "🎙 Listening...",
         "processing":         "⏳ Processing...",
         "tap_to_speak":       "Tap the mic to speak",
         "tap_to_record":      "Tap to record",
         "tap_to_stop":        "Tap to stop",
         "wait":               "Please wait...",
+        "conv_accent":        "Accent colour",
+        "user_bubble":        "User bubble",
+        "ai_bubble":          "AI bubble",
+        "custom_instructions":"Custom AI instructions",
+        "custom_placeholder": "e.g. Always correct me when I get the Past Simple wrong.",
+        "your_account":       "Your Account",
+        "profile_photo":      "Profile Photo",
+        "change_photo":       "Change photo — JPG, PNG or WEBP (max 15 MB)",
+        "account_info":       "Account Information",
+        "username_label":     "Username:",
+        "created_at":         "Account created on:",
+        "change_pw_title":    "Change Password",
+        "pw_too_short":       "Password too short.",
+        "pw_mismatch":        "Passwords do not match.",
+        "pw_changed":         "✅ Password changed!",
+        "saved_ok":           "✅ Saved!",
+        "photo_saved":        "✅ Photo saved!",
+        "photo_removed":      "Photo removed.",
+        "photo_too_large":    "❌ Photo too large. Maximum 15 MB.",
+        "appearance":         "Appearance",
+        "voice_settings":     "Voice",
+        "about_you":          "About You",
+        "ai_style_title":     "AI Style",
+        "conversations":      "Conversations",
+        "no_convs":           "No conversations yet.",
+        "msgs":               "msgs",
+        "online":             "● Online",
+        "students":           "Students",
+        "messages":           "Messages",
+        "corrections":        "Corrections",
+        "active_today":       "Active Today",
+        "no_students":        "No students yet.",
+        "level":              "Level",
+        "last_access":        "Last Access",
+        "fill_fields":        "Please fill in all fields.",
+        "invalid_email":      "Invalid e-mail address.",
+        "pw_min":             "Password too short (minimum 6 characters).",
+        "wrong_credentials":  "Incorrect username or password.",
+        "back_dashboard":     "← Back to Dashboard",
+        "back_chat":          "← Back to Chat",
     },
 }
 
@@ -304,10 +427,10 @@ def get_tati_mini_b64() -> str:
             return f"data:image/{_mime};base64,{base64.b64encode(_p.read_bytes()).decode()}"
     return get_photo_b64() or ""
 
-# ── Cache dos 7 frames do avatar animado do modo voz ─────────────────────────
+# ── Cache dos 4 frames do avatar animado do modo voz ─────────────────────────
 @st.cache_data(show_spinner=False)
 def get_avatar_frames() -> dict:
-    """Carrega todos os frames do avatar animado uma única vez."""
+    """Carrega os frames do avatar animado uma única vez."""
     _base = Path(__file__).parent
     def _load(candidates):
         for p in candidates:
@@ -317,14 +440,14 @@ def get_avatar_frames() -> dict:
         return ""
     return {
         # ── Fala da IA ──────────────────────────────────────────────────────
-        "normal":    _load([_base/"assets"/"avatar_tati_normal.png",     "assets/avatar_tati_normal.png"]),
-        "meio":      _load([_base/"assets"/"avatar_tati_meio.png",       "assets/avatar_tati_meio.png"]),
-        "aberta":    _load([_base/"assets"/"avatar_tati_aberta.png",     "assets/avatar_tati_aberta.png"]),
-        "bem_aberta":_load([_base/"assets"/"avatar_tati_bem_aberta.png", "assets/avatar_tati_bem_aberta.png"]),
+        "normal":     _load([_base/"assets"/"avatar_tati_normal.png",     "assets/avatar_tati_normal.png"]),
+        "meio":       _load([_base/"assets"/"avatar_tati_meio.png",       "assets/avatar_tati_meio.png"]),
+        "aberta":     _load([_base/"assets"/"avatar_tati_aberta.png",     "assets/avatar_tati_aberta.png"]),
+        "bem_aberta": _load([_base/"assets"/"avatar_tati_bem_aberta.png", "assets/avatar_tati_bem_aberta.png"]),
         # ── Estados especiais ────────────────────────────────────────────────
-        "ouvindo":   _load([_base/"assets"/"avatar_tati_ouvindo.png",    "assets/avatar_tati_ouvindo.png"]),
-        "piscando":  _load([_base/"assets"/"tati_piscando.png",          "assets/tati_piscando.png"]),
-        "surpresa":  _load([_base/"assets"/"tati_surpresa.png",          "assets/tati_surpresa.png"]),
+        "ouvindo":    _load([_base/"assets"/"avatar_tati_ouvindo.png",    "assets/avatar_tati_ouvindo.png"]),
+        "piscando":   _load([_base/"assets"/"tati_piscando.png",          "assets/tati_piscando.png"]),
+        "surpresa":   _load([_base/"assets"/"tati_surpresa.png",          "assets/tati_surpresa.png"]),
     }
 
 # ── Avatares individuais dos alunos ───────────────────────────────────────────
@@ -655,9 +778,6 @@ def js_clear_session() -> None:
         height=1,
     )
 
-# Auto-login via token movido para dentro do show_login()
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # HELPERS DE CONVERSA / CLAUDE
 # ══════════════════════════════════════════════════════════════════════════════
@@ -715,7 +835,7 @@ def send_to_claude(username: str, user: dict, conv_id: str,
     # Mais tokens para pedidos de atividade/arquivo
     is_activity = any(w in text.lower() for w in [
         "pdf", "word", "docx", "atividade", "exercício", "exercicio",
-        "worksheet", "activity", "exercise", "generate", "criar arquivo", "crie um", "make a"
+        "worksheet", "activity", "exercise", "generate", "criar arquivo", "crie um", "make a", "gere um"
     ])
     max_tok = 2000 if is_activity else 400
 
@@ -1506,7 +1626,6 @@ def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
     st.session_state["_vm_history"] = history
 
     # ── Detecta pronúncia excelente no reply ─────────────────────────────────
-    # Claude costuma usar phrases de aprovação explícita quando a pronúncia é boa
     _praise_en = ["great pronunciation","excellent pronunciation","perfect pronunciation",
                   "well pronounced","great accent","excellent accent","perfect accent",
                   "sounded great","sounded perfect","very clear","beautifully said",
@@ -1658,7 +1777,6 @@ header[data-testid="stHeader"],div[data-testid="stDecoration"],
     photo_js         = json.dumps(get_tati_mini_b64() or get_photo_b64())
     prof_name_js     = json.dumps(PROF_NAME)
 
-    # Passa ao JS se há pronuncia boa detectada no último reply
     good_pronunc_js = json.dumps(bool(
         st.session_state.get("_vm_good_pronunciation", False)
     ))
@@ -1953,67 +2071,56 @@ profName.textContent = PROF_NAME;
 micHint.textContent  = TAP_SPEAK;
 
 // ══════════════════════════════════════════════════════════════════════════════
-// CONTROLE DE FRAME ATUAL
+// CONTROLE DE FRAME
 // ══════════════════════════════════════════════════════════════════════════════
 var _lastFrame = '';
 function setFrame(src){{
     if(!src || src === _lastFrame) return;
     _lastFrame = src;
     avImg.src  = src;
-    avImg.style.display  = 'block';
+    avImg.style.display   = 'block';
     avEmoji.style.display = 'none';
 }}
-
-// Inicializa avatar
 setFrame(HAS_ANIM ? F_NORMAL : (PHOTO || F_NORMAL));
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ESTADO GLOBAL DA MÁQUINA DE ESTADOS
-// Estados: idle | listening | processing | speaking | blinking
+// MÁQUINA DE ESTADOS:  idle | listening | processing | speaking
 // ══════════════════════════════════════════════════════════════════════════════
-var _state       = 'idle';
-var _blinkTimer  = null;
-var _mouthTimer  = null;
-var _analyser    = null;
-var _audioCtx    = null;
+var _state      = 'idle';
+var _blinkTimer = null;
+var _mouthTimer = null;
+var _analyser   = null;
+var _audioCtx   = null;
 var _mouthFallbackIdx = 0;
 
-// ── Para todos os timers de animação ─────────────────────────────────────────
 function _stopAllTimers(){{
-    if(_blinkTimer){{ clearInterval(_blinkTimer); _blinkTimer = null; }}
+    if(_blinkTimer){{ clearTimeout(_blinkTimer); clearInterval(_blinkTimer); _blinkTimer = null; }}
     if(_mouthTimer){{ clearInterval(_mouthTimer); _mouthTimer = null; }}
 }}
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ESTADOS DO AVATAR
-// ══════════════════════════════════════════════════════════════════════════════
-
-// ── IDLE: normal piscando ─────────────────────────────────────────────────────
-// Alterna normal → piscando → normal a cada 3-5s (natural)
+// ── IDLE: normal + piscar natural (3-5s, 150ms fechado) ──────────────────────
 function enterIdle(){{
     _stopAllTimers();
     _state = 'idle';
     setFrame(F_NORMAL);
     ring.classList.remove('active');
     statusTxt.textContent = '● Online';
-
-    // Piscar natural: olhos abertos 3.2-5.2s, fechados 150ms
     function scheduleBlink(){{
-        var delay = 3200 + Math.random() * 2000; // 3.2–5.2 segundos
+        var delay = 3210 + Math.random() * 2000;
         _blinkTimer = setTimeout(function(){{
             if(_state !== 'idle') return;
             setFrame(F_PISCANDO);
             setTimeout(function(){{
                 if(_state !== 'idle') return;
                 setFrame(F_NORMAL);
-                scheduleBlink(); // agenda próximo piscar
+                scheduleBlink();
             }}, 150);
         }}, delay);
     }}
     scheduleBlink();
 }}
 
-// ── LISTENING: ouvindo enquanto o mic está ativo ───────────────────────────────
+// ── LISTENING: ouvindo fixo enquanto mic está ativo ──────────────────────────
 function enterListening(){{
     _stopAllTimers();
     _state = 'listening';
@@ -2022,14 +2129,13 @@ function enterListening(){{
     statusTxt.textContent = '🎙 Ouvindo…';
 }}
 
-// ── PROCESSING: spinner no micBtn, normal com piscada lenta ──────────────────
+// ── PROCESSING: normal com piscada lenta enquanto Claude pensa ───────────────
 function enterProcessing(){{
     _stopAllTimers();
     _state = 'processing';
     setFrame(F_NORMAL);
     ring.classList.remove('active');
     statusTxt.textContent = '⏳ Processando…';
-    // Piscada lenta enquanto "pensa"
     _blinkTimer = setInterval(function(){{
         if(_state !== 'processing') return;
         setFrame(F_PISCANDO);
@@ -2056,7 +2162,7 @@ function enterSpeaking(audioEl){{
         }}
         if(!_analyser){{
             _analyser = _audioCtx.createAnalyser();
-            _analyser.fftSize = 512;
+            _analyser.fftSize = 1024;
             _analyser.smoothingTimeConstant = 0.1; // reage rápido ao volume real
             var src = _audioCtx.createMediaElementSource(audioEl);
             src.connect(_analyser);
@@ -2085,11 +2191,11 @@ function enterSpeaking(audioEl){{
     }}
 }}
 
-// ── Ao terminar de falar ──────────────────────────────────────────────────────
+// ── Fim da fala ───────────────────────────────────────────────────────────────
 function onSpeakingEnded(goodPronunc){{
     _stopAllTimers();
     if(goodPronunc && F_BEM_ABERTA){{
-        // Pronúncia excelente: mostra bem_aberta (reação de aprovação) por 1.2s
+        // Pronúncia excelente: reação de aprovação por 1.2s
         setFrame(F_BEM_ABERTA);
         setTimeout(function(){{ enterIdle(); }}, 1200);
     }} else {{
@@ -2109,42 +2215,21 @@ function playTTS(b64, onEndCallback){{
     if(!b64) return;
     lastB64 = b64;
     var audio = new Audio('data:audio/mp3;base64,' + b64);
-    audio.volume = getVol();
-    audio.playbackRate = getSpd();
-    audio._srcB64 = b64;
-    currentAudio  = audio;
-
-    audio.onplay = function(){{
-        enterSpeaking(audio);
-        updateGlobalBtn(true);
-    }};
-    audio.onended = function(){{
-        currentAudio = null;
-        updateGlobalBtn(false);
+    audio.volume = getVol(); audio.playbackRate = getSpd(); audio._srcB64 = b64;
+    currentAudio = audio;
+    audio.onplay   = function(){{ enterSpeaking(audio); updateGlobalBtn(true); }};
+    audio.onended  = function(){{
+        currentAudio = null; updateGlobalBtn(false);
         onSpeakingEnded(GOOD_PRONUNC);
         if(onEndCallback) onEndCallback();
     }};
-    audio.onerror = function(){{
-        currentAudio = null;
-        updateGlobalBtn(false);
-        enterIdle();
-    }};
-    audio.play().catch(function(){{
-        currentAudio = null;
-        updateGlobalBtn(false);
-        enterIdle();
-    }});
+    audio.onerror  = function(){{ currentAudio = null; updateGlobalBtn(false); enterIdle(); }};
+    audio.play().catch(function(){{ currentAudio = null; updateGlobalBtn(false); enterIdle(); }});
 }}
-
 function stopTTS(){{
-    if(currentAudio){{
-        currentAudio.pause();
-        currentAudio = null;
-    }}
-    updateGlobalBtn(false);
-    enterIdle();
+    if(currentAudio){{ currentAudio.pause(); currentAudio = null; }}
+    updateGlobalBtn(false); enterIdle();
 }}
-
 function updateGlobalBtn(playing){{
     var btn = document.getElementById('global-play-btn');
     if(!btn) return;
@@ -2152,7 +2237,6 @@ function updateGlobalBtn(playing){{
     btn.style.background = playing ? '#8b2a2a' : '#1a2535';
 }}
 
-// ── Controles de volume / velocidade ─────────────────────────────────────────
 document.getElementById('global-play-btn').addEventListener('click', function(){{
     if(currentAudio && !currentAudio.paused) stopTTS();
     else if(lastB64 || TTS_B64) playTTS(lastB64 || TTS_B64);
@@ -2173,40 +2257,24 @@ function addBubble(role, text, b64){{
     var label = document.createElement('div');
     label.className = 'bubble-label' + (role === 'user' ? ' right' : '');
     label.textContent = role === 'user' ? 'Você' : PROF_NAME;
-
     var bub = document.createElement('div');
     bub.className = 'bubble ' + role;
-    bub.innerHTML = text
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g,'<em>$1</em>')
-        .replace(/__(.+?)__/g,'<u>$1</u>')
-        .replace(/_(.+?)_/g,'<em>$1</em>')
-        .replace(/\n/g,'<br>');
-
+    bub.textContent = text;
     histWrap.appendChild(label);
     histWrap.appendChild(bub);
-
     if(role === 'bot' && b64){{
         var pbtn = document.createElement('button');
         pbtn.className = 'bubble-play-btn';
         pbtn.textContent = '▶ Ouvir';
         pbtn.addEventListener('click', function(){{
             var isPlaying = currentAudio && !currentAudio.paused && currentAudio._srcB64 === b64;
-            if(isPlaying){{
-                stopTTS();
-                pbtn.textContent = '▶ Ouvir';
-                pbtn.classList.remove('playing');
-            }} else {{
+            if(isPlaying){{ stopTTS(); pbtn.textContent = '▶ Ouvir'; pbtn.classList.remove('playing'); }}
+            else{{
                 document.querySelectorAll('.bubble-play-btn').forEach(function(b){{
                     b.textContent = '▶ Ouvir'; b.classList.remove('playing');
                 }});
-                pbtn.textContent = '⏹ Parar';
-                pbtn.classList.add('playing');
-                playTTS(b64, function(){{
-                    pbtn.textContent = '▶ Ouvir';
-                    pbtn.classList.remove('playing');
-                }});
+                pbtn.textContent = '⏹ Parar'; pbtn.classList.add('playing');
+                playTTS(b64, function(){{ pbtn.textContent = '▶ Ouvir'; pbtn.classList.remove('playing'); }});
             }}
         }});
         histWrap.appendChild(pbtn);
@@ -2218,9 +2286,7 @@ function addBubble(role, text, b64){{
 // RENDERIZA ESTADO INICIAL
 // ══════════════════════════════════════════════════════════════════════════════
 if(VM_ERROR){{
-    errBox.textContent = VM_ERROR;
-    errBox.style.display = 'block';
-    enterIdle();
+    errBox.textContent = VM_ERROR; errBox.style.display = 'block'; enterIdle();
 }} else {{
     errBox.style.display = 'none';
     if(HISTORY && HISTORY.length > 0){{
@@ -2228,12 +2294,8 @@ if(VM_ERROR){{
             addBubble(msg.role === 'user' ? 'user' : 'bot', msg.content, msg.tts_b64 || '');
         }});
     }}
-    if(TTS_B64){{
-        // Autoplay da resposta mais recente
-        setTimeout(function(){{ playTTS(TTS_B64); }}, 300);
-    }} else {{
-        enterIdle();
-    }}
+    if(TTS_B64) setTimeout(function(){{ playTTS(TTS_B64); }}, 300);
+    else        enterIdle();
 }}
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2244,16 +2306,12 @@ function getRealMicBtn(){{
     var doc = window.parent.document;
     var ai  = doc.querySelector('[data-testid="stAudioInput"]');
     if(!ai) return null;
-    return ai.querySelector('button') ||
-           ai.querySelector('[data-testid="stAudioInputRecordButton"]');
+    return ai.querySelector('button') || ai.querySelector('[data-testid="stAudioInputRecordButton"]');
 }}
-
 micBtn.addEventListener('click', function(){{
     var realBtn = getRealMicBtn();
     if(!realBtn) return;
-
     if(recording){{
-        // ── Parou de gravar → processa ──────────────────────────────────────
         recording = false;
         micBtn.classList.remove('recording');
         micBtn.classList.add('processing');
@@ -2262,11 +2320,8 @@ micBtn.addEventListener('click', function(){{
         enterProcessing();
         realBtn.click();
     }} else {{
-        // ── Começou a gravar ────────────────────────────────────────────────
-        // Para qualquer áudio em curso
         if(currentAudio){{ currentAudio.pause(); currentAudio = null; }}
         if(window.parent.speechSynthesis) window.parent.speechSynthesis.cancel();
-
         recording = true;
         micBtn.classList.remove('processing');
         micBtn.classList.add('recording');
