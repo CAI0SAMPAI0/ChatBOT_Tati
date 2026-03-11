@@ -2780,12 +2780,7 @@ section[data-testid="stMain"] { transition: margin-left 0.3s, width 0.3s ease !i
                 
             # --- SE NÃO TEM B64, MAS NÃO É ARQUIVO (Usa o TTS antigo do navegador) ---
             elif not is_file:
-                # 1. Força a tradução diretamente lendo o perfil do usuário
-                lang = st.session_state.user.get("profile", {}).get("language", "pt-BR")
-                is_en = "en" in lang.lower()
-                lbl_play = "Listen" if is_en else "Ouvir"
-                lbl_stop = "Pause" if is_en else "Pausar"
-
+                
                 # Limpa o texto para o leitor de voz do navegador (fallback)
                 clean_text = (msg["content"]
                     .replace("\\", "\\\\").replace("`", "")
