@@ -23,14 +23,6 @@ from transcriber import transcribe_bytes
 from tts import text_to_speech, tts_available
 from file_reader import extract_file
 
-# ── Wav2Lip (avatar realista — opcional, requer Colab rodando) ────────────────
-try:
-    from wav2lip_avatar import generate_talking_video, wav2lip_available
-    _WAV2LIP_LOADED = True
-except ImportError:
-    _WAV2LIP_LOADED = False
-    def wav2lip_available(): return False
-    def generate_talking_video(_): return None
 
 # ── Font Awesome (ícones de anexo, etc.) ─────────────────────────────────────
 st.markdown(
@@ -1573,10 +1565,21 @@ section[data-testid="stMain"]>div,.main .block-container{padding:0!important;mar
 div[data-testid="stVerticalBlock"],div[data-testid="stVerticalBlockBorderWrapper"],div[data-testid="element-container"]{gap:0!important;padding:0!important;margin:0!important;}
 html,body{overflow:hidden!important;}
 /* Remove barra azul/header do Streamlit */
-[data-testid="stHeader"],[data-testid="stDecoration"],
-header[data-testid="stHeader"],div[data-testid="stDecoration"],
-#MainMenu,footer,header{display:none!important;height:0!important;visibility:hidden!important;}
-[data-testid="stToolbar"]{display:none!important;}
+/* Esconde apenas o conteúdo do header, não o header inteiro */
+[data-testid="stDecoration"],
+div[data-testid="stDecoration"],
+#MainMenu, footer,
+[data-testid="stToolbar"] { display:none!important; }
+/* Zera a altura visível do header, mas mantém o botão de toggle */
+header[data-testid="stHeader"] {
+    background: transparent !important;
+    border: none !important;
+    height: auto !important;
+}
+/* Oculta tudo dentro do header, exceto o botão de colapso */
+header[data-testid="stHeader"] > *:not([data-testid="collapsedControl"]) {
+    display: none !important;
+}
 /* Garante que o app começa do topo sem espaço reservado para o header */
 .stApp>[data-testid="stAppViewContainer"]{padding-top:0!important;}
 [data-testid="stAppViewContainer"]{padding-top:0!important;margin-top:0!important;}
