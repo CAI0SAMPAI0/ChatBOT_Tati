@@ -36,6 +36,7 @@ st.markdown("""<script>
     function fixLayout(){
         var sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
         var main    = window.parent.document.querySelector('[data-testid="stMain"]');
+        var toggle  = window.parent.document.querySelector('[data-testid="collapsedControl"]');
         if(!sidebar || !main) return;
         var collapsed = sidebar.getAttribute('aria-expanded') === 'false'
                      || sidebar.classList.contains('st-emotion-cache-collapsed')
@@ -49,8 +50,14 @@ st.markdown("""<script>
             main.style.marginLeft = '';
             main.style.width = '';
         }
+        // Move o toggle para o canto superior esquerdo
+        if(toggle){
+            toggle.style.position = 'fixed';
+            toggle.style.top      = '10px';
+            toggle.style.left     = '10px';
+            toggle.style.zIndex   = '99999';
+        }
     }
-    // Observa mudanças na sidebar (collapse/expand)
     var obs = new MutationObserver(fixLayout);
     function init(){
         var sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
@@ -62,11 +69,12 @@ st.markdown("""<script>
         }
     }
     init();
-    // também escuta o botão de colapso
     window.parent.document.addEventListener('click', function(e){
         var btn = e.target.closest('[data-testid="collapsedControl"], [data-testid="stSidebarCollapseButton"]');
         if(btn) setTimeout(fixLayout, 350);
     }, true);
+    // Garante que aplica mesmo após reruns do Streamlit
+    setInterval(fixLayout, 1000);
 })();
 </script>""", unsafe_allow_html=True)
 
@@ -2543,7 +2551,7 @@ section[data-testid="stMain"] { transition: margin-left 0.3s, width 0.3s ease !i
                 unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # ── Indicador "digitando" — aparece enquanto Claude processa ─────────────
+    # ── Indicador "digitando" — aparece enquanto Claude processa ────
     if st.session_state.get("speaking"):
         components.html("""<!DOCTYPE html><html><head>
 <style>
