@@ -402,6 +402,16 @@ MUDANÇAS vs versão anterior:
   - Botão "Close" e o audio_input ficam em fragment próprio
 """
 
+"""
+ui/voice.py — Modo Conversa: avatar animado + microfone contínuo (VAD).
+
+MUDANÇAS:
+  - Botões pav (clipe + mic flutuante) REMOVIDOS do modo voz.
+    3 camadas de remoção: CSS #pav-bar{display:none}, JS remove() ao abrir,
+    JS remove() dentro do MutationObserver (evita reinjection pelo pav_buttons.html).
+  - @st.fragment no _render_voice_controls isola o audio_input.
+"""
+
 import base64
 import json
 
@@ -416,10 +426,6 @@ from utils.i18n import t
 import anthropic
 import os
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PROCESSAMENTO DE ÁUDIO (lógica Python pura, sem UI)
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
     txt = transcribe_bytes(raw, suffix=".webm", language=None)
@@ -469,18 +475,21 @@ def _vm_process_audio(raw: bytes, lang: str, conv_id: str) -> None:
     append_message(username, conv_id, "assistant", reply, tts_b64=tts_b64 or None)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# FRAGMENT: CONTROLE DE ÁUDIO
-# Isolamos o audio_input e o botão Close num fragment para que o
-# processamento do microfone não recrie o iframe pesado do avatar.
-# ══════════════════════════════════════════════════════════════════════════════
-
 @st.fragment
 def _render_voice_controls(conv_id: str, lang: str):
-    """Fragment leve: só o audio_input + botão Close. Reroda sem tocar no iframe."""
     if st.button("✕ Close", key="vm_close_btn"):
+        # Restaura os botões pav ao voltar para o chat
+        components.html("""<!DOCTYPE html><html><body><script>
+(function(){
+  try {
+    // Remove o pav-bar atual (será reinjetado pelo pav_buttons.html no chat)
+    var b = window.parent.document.getElementById('pav-bar');
+    if (b) b.remove();
+  } catch(e) {}
+})();
+</script></body></html>""", height=1)
         st.session_state.voice_mode = False
-        st.rerun()  # rerun global para mudar de página
+        st.rerun()
 
     audio_val = st.audio_input(
         " ", key=f"voice_input_{st.session_state.audio_key}",
@@ -493,13 +502,8 @@ def _render_voice_controls(conv_id: str, lang: str):
         with st.spinner(t("processing", lang)):
             _vm_process_audio(audio_val.read(), lang, conv_id)
         st.session_state.audio_key += 1
-        # rerun global necessário: o iframe do avatar precisa receber o novo tts_b64
         st.rerun()
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SHOW VOICE — orquestrador
-# ══════════════════════════════════════════════════════════════════════════════
 
 def show_voice() -> None:
     user     = st.session_state.user
@@ -530,20 +534,36 @@ header[data-testid="stHeader"],#MainMenu,footer,header{
 [data-testid="stToolbar"]{display:none!important;}
 .stApp>[data-testid="stAppViewContainer"]{padding-top:0!important;}
 [data-testid="stAppViewContainer"]{padding-top:0!important;margin-top:0!important;}
-.vm-close-btn{position:fixed;top:14px;right:16px;z-index:9999;}
 .vm-close-btn button{
-    background:rgba(255,255,255,0.08)!important;border:1px solid rgba(255,255,255,0.15)!important;
-    color:#ccc!important;border-radius:8px!important;font-size:0.78rem!important;
-    padding:4px 12px!important;cursor:pointer!important;}
+    background:rgba(255,255,255,0.08)!important;
+    border:1px solid rgba(255,255,255,0.15)!important;
+    color:#ccc!important;border-radius:8px!important;
+    font-size:0.78rem!important;padding:4px 12px!important;}
+/* Camada 1: CSS esconde imediatamente antes do JS rodar */
+#pav-bar { display: none !important; }
 </style>""", unsafe_allow_html=True)
 
-    # Obtém ou cria conversa
+    # Camada 2: JS remove do DOM assim que o modo voz abre
+    components.html("""<!DOCTYPE html><html><body><script>
+(function(){
+  function removePav(){
+    try {
+      var b = window.parent.document.getElementById('pav-bar');
+      if (b) b.remove();
+    } catch(e) {}
+  }
+  removePav();
+  setTimeout(removePav, 300);
+  setTimeout(removePav, 800);
+  setTimeout(removePav, 1500);
+})();
+</script></body></html>""", height=1)
+
     if not st.session_state.conv_id:
         from core.database import new_conversation
         st.session_state.conv_id = new_conversation(username)
     conv_id = st.session_state.conv_id
 
-    # Carrega histórico na primeira vez
     if not st.session_state.get("_vm_history") and conv_id:
         msgs_db = load_conversation(username, conv_id)
         if msgs_db:
@@ -552,15 +572,11 @@ header[data-testid="stHeader"],#MainMenu,footer,header{
                 for m in msgs_db if m.get("content")
             ]
 
-    # Fragment dos controles (botão close + audio_input)
-    # Fica ANTES do iframe para que o Streamlit processe o áudio
-    # antes de renderizar o avatar com o novo tts_b64.
     with st.container():
-        st.markdown('<div class="vm-close-btn">', unsafe_allow_html=True)
+        st.markdown('<div style="position:fixed;top:14px;right:16px;z-index:9999;">', unsafe_allow_html=True)
         _render_voice_controls(conv_id, lang)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # Estado atual (lido APÓS o fragment processar o áudio)
     reply    = st.session_state.get("_vm_reply",   "")
     tts_b64  = st.session_state.get("_vm_tts_b64", "")
     vm_error = st.session_state.get("_vm_error",   "")
@@ -568,7 +584,6 @@ header[data-testid="stHeader"],#MainMenu,footer,header{
     frames   = get_avatar_frames()
     has_anim = bool(frames["normal"])
 
-    # Serializa para JS
     history_js       = json.dumps(history)
     tts_js           = json.dumps(tts_b64)
     reply_js         = json.dumps(reply)
@@ -671,6 +686,12 @@ input[type=range].ctrl-range::-webkit-slider-thumb{-webkit-appearance:none;width
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script>
 (function(){
+// Camada 3: remove pav-bar de dentro do iframe também, e bloqueia reinjeção
+try {
+  var pb=window.parent.document.getElementById('pav-bar');
+  if(pb) pb.remove();
+} catch(e){}
+
 var TTS_B64=__TTS_JS__,REPLY=__REPLY_JS__,HISTORY=__HISTORY_JS__,VM_ERROR=__ERR_JS__;
 var TAP_SPEAK=__TAP_SPEAK__,TAP_STOP=__TAP_STOP__,SPEAKING=__SPEAKING__;
 var HAS_ANIM=__HAS_ANIM__,GOOD_PRONUNC=__GOOD_PRONUNC__,PHOTO=__PHOTO_JS__,PROF_NAME=__PROF_NAME_JS__;
@@ -715,7 +736,15 @@ function getRealMicBtn(){var ai=window.parent.document.querySelector('[data-test
 micBtn.addEventListener('click',function(){var rb=getRealMicBtn();if(!rb)return;if(recording){recording=false;micBtn.classList.remove('recording');micBtn.classList.add('processing');micBtn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i>';micHint.textContent=TAP_SPEAK;enterProcessing();rb.click();}else{if(currentAudio){currentAudio.pause();currentAudio=null;}recording=true;micBtn.classList.remove('processing');micBtn.classList.add('recording');micBtn.innerHTML='<i class="fa-solid fa-stop"></i>';micHint.textContent=TAP_STOP;enterListening();rb.click();}});
 function hideNativeAudio(){var ai=window.parent.document.querySelector('[data-testid="stAudioInput"]');if(ai){ai.style.cssText='position:fixed;bottom:-999px;left:-9999px;opacity:0;pointer-events:none;width:1px;height:1px;';var b=ai.querySelector('button');if(b)b.style.pointerEvents='auto';}}
 hideNativeAudio();
-try{var obs=new MutationObserver(hideNativeAudio);obs.observe(window.parent.document.body,{childList:true,subtree:true});setTimeout(function(){obs.disconnect();},15000);}catch(e){}
+// MutationObserver: bloqueia reinjeção do pav-bar enquanto no modo voz
+try{
+  var obs=new MutationObserver(function(){
+    hideNativeAudio();
+    try{ var pb=window.parent.document.getElementById('pav-bar'); if(pb) pb.remove(); }catch(e){}
+  });
+  obs.observe(window.parent.document.body,{childList:true,subtree:true});
+  setTimeout(function(){obs.disconnect();},20000);
+}catch(e){}
 (function resizeIframe(){try{var par=window.parent,h=par.innerHeight;try{if(par.visualViewport)h=par.visualViewport.height;}catch(e){}var iframes=par.document.querySelectorAll('iframe');for(var i=0;i<iframes.length;i++){try{if(iframes[i].contentWindow===window){iframes[i].style.height=h+'px';iframes[i].style.maxHeight=h+'px';iframes[i].style.minHeight='200px';iframes[i].style.display='block';iframes[i].style.border='none';iframes[i].style.width='100%';var p=iframes[i].parentElement;for(var j=0;j<10&&p&&p!==par.document.body;j++){p.style.margin='0';p.style.padding='0';p.style.overflow='hidden';p.style.maxHeight=h+'px';p=p.parentElement;}break;}}catch(e){}}try{par.removeEventListener('resize',resizeIframe);par.addEventListener('resize',resizeIframe);if(par.visualViewport){par.visualViewport.removeEventListener('resize',resizeIframe);par.visualViewport.addEventListener('resize',resizeIframe);}}catch(e){}}catch(e){}})();
 })();
 </script></body></html>"""
