@@ -1,9 +1,9 @@
 /* Estilos base — posicionamento agora é 100% no pav_buttons.html */
 #pav-bar {
   position: fixed;
-  bottom: 14px;
-  right: 52px;
-  z-index: 99999;
+  bottom: 18px;
+  right: 58px;
+  z-index: 2147483647;
   display: flex;
   align-items: center;
   gap: 4px;

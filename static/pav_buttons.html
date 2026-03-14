@@ -1,22 +1,36 @@
-<!DOCTYPE html><html><head>
-<style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;}</style>
-</head><body><script>
-(function(){
-  var doc = window.parent.document;
+<!DOCTYPE html>
+<html>
 
-  function inject(){
-    if(doc.getElementById('pav-bar')) return;
+<head>
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: transparent;
+    }
+  </style>
+</head>
 
-    // Injeta CSS fixo no head do pai — sem JS de posicionamento
-    if(!doc.getElementById('pav-bar-style')){
-      var s = doc.createElement('style');
-      s.id = 'pav-bar-style';
-      s.textContent = `
+<body>
+  <script>
+    (function () {
+      var doc = window.parent.document;
+
+      function inject() {
+        if (doc.getElementById('pav-bar')) return;
+
+        // Injeta CSS fixo no head do pai — sem JS de posicionamento
+        if (!doc.getElementById('pav-bar-style')) {
+          var s = doc.createElement('style');
+          s.id = 'pav-bar-style';
+          s.textContent = `
         #pav-bar {
           position: fixed;
-          bottom: 14px;
-          right: 52px;
-          z-index: 99999;
+          bottom: 18px;
+          right: 58px;
+          z-index: 2147483647;
           display: flex;
           align-items: center;
           gap: 4px;
@@ -63,79 +77,92 @@
           #pav-mic-btn, #pav-clip-btn { width: 34px; height: 34px; font-size: 14px; }
         }
       `;
-      doc.head.appendChild(s);
-    }
+          doc.head.appendChild(s);
+        }
 
-    var bar = doc.createElement('div');
-    bar.id = 'pav-bar';
+        // Garante que o bar está no body do pai, não dentro de um iframe
+        try {
+          if (bar.ownerDocument !== doc) {
+            doc.body.appendChild(bar);
+          }
+        } catch (e) { }
 
-    var cl = doc.createElement('button');
-    cl.id = 'pav-clip-btn';
-    cl.title = 'Attach file';
-    cl.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
+        // Força o bar para fora de qualquer overflow:hidden
+        bar.style.cssText = 'position:fixed!important;bottom:18px!important;right:58px!important;z-index:2147483647!important;display:flex!important;align-items:center!important;gap:4px!important;pointer-events:none!important;';
 
-    var mi = doc.createElement('button');
-    mi.id = 'pav-mic-btn';
-    mi.title = 'Record audio';
-    mi.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+        var bar = doc.createElement('div');
+        bar.id = 'pav-bar';
 
-    bar.appendChild(cl);
-    bar.appendChild(mi);
-    doc.body.appendChild(bar);
+        var cl = doc.createElement('button');
+        cl.id = 'pav-clip-btn';
+        cl.title = 'Attach file';
+        cl.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
 
-    // Clipe
-    cl.addEventListener('click', function(){
-      var inp = doc.querySelector('[data-testid="stFileUploader"] input[type="file"]');
-      if(inp) inp.click();
-    });
-
-    // Mic
-    var rec = false;
-    function getRb(){
-      var ai = doc.querySelector('[data-testid="stAudioInput"]');
-      if(!ai) return null;
-      var bs = ai.querySelectorAll('button');
-      for(var i=0;i<bs.length;i++){
-        if((bs[i].getAttribute('aria-label')||'').toLowerCase().indexOf('download')>=0) continue;
-        return bs[i];
-      }
-      return bs[0]||null;
-    }
-
-    mi.addEventListener('click', function(){
-      var rb = getRb(); if(!rb) return;
-      if(rec){
-        rec = false;
+        var mi = doc.createElement('button');
+        mi.id = 'pav-mic-btn';
+        mi.title = 'Record audio';
         mi.innerHTML = '<i class="fa-solid fa-microphone"></i>';
-        mi.classList.remove('recording');
-        rb.click();
-      } else {
-        rec = true;
-        mi.innerHTML = '<i class="fa-solid fa-stop"></i>';
-        mi.classList.add('recording');
-        rb.click();
+
+        bar.appendChild(cl);
+        bar.appendChild(mi);
+        doc.body.appendChild(bar);
+
+        // Clipe
+        cl.addEventListener('click', function () {
+          var inp = doc.querySelector('[data-testid="stFileUploader"] input[type="file"]');
+          if (inp) inp.click();
+        });
+
+        // Mic
+        var rec = false;
+        function getRb() {
+          var ai = doc.querySelector('[data-testid="stAudioInput"]');
+          if (!ai) return null;
+          var bs = ai.querySelectorAll('button');
+          for (var i = 0; i < bs.length; i++) {
+            if ((bs[i].getAttribute('aria-label') || '').toLowerCase().indexOf('download') >= 0) continue;
+            return bs[i];
+          }
+          return bs[0] || null;
+        }
+
+        mi.addEventListener('click', function () {
+          var rb = getRb(); if (!rb) return;
+          if (rec) {
+            rec = false;
+            mi.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+            mi.classList.remove('recording');
+            rb.click();
+          } else {
+            rec = true;
+            mi.innerHTML = '<i class="fa-solid fa-stop"></i>';
+            mi.classList.add('recording');
+            rb.click();
+          }
+        });
+
+        // Reset visual quando Streamlit recria o audio_input
+        var _lastAi = null;
+        setInterval(function () {
+          var ai = doc.querySelector('[data-testid="stAudioInput"]');
+          if (ai !== _lastAi) { _lastAi = ai; if (rec) { rec = false; mi.innerHTML = '<i class="fa-solid fa-microphone"></i>'; mi.classList.remove('recording'); } }
+        }, 500);
       }
-    });
 
-    // Reset visual quando Streamlit recria o audio_input
-    var _lastAi = null;
-    setInterval(function(){
-      var ai = doc.querySelector('[data-testid="stAudioInput"]');
-      if(ai !== _lastAi){ _lastAi = ai; if(rec){ rec=false; mi.innerHTML='<i class="fa-solid fa-microphone"></i>'; mi.classList.remove('recording'); }}
-    }, 500);
-  }
+      inject();
+      setTimeout(inject, 300);
+      setTimeout(inject, 800);
 
-  inject();
-  setTimeout(inject, 300);
-  setTimeout(inject, 800);
+      // Reinjecta se o DOM remover o bar (troca de página)
+      try {
+        var ob = new MutationObserver(function () {
+          if (!doc.getElementById('pav-bar')) inject();
+        });
+        ob.observe(doc.body, { childList: true, subtree: false });
+        setTimeout(function () { ob.disconnect(); }, 30000);
+      } catch (e) { }
+    })();
+  </script>
+</body>
 
-  // Reinjecta se o DOM remover o bar (troca de página)
-  try{
-    var ob = new MutationObserver(function(){
-      if(!doc.getElementById('pav-bar')) inject();
-    });
-    ob.observe(doc.body, {childList:true, subtree:false});
-    setTimeout(function(){ ob.disconnect(); }, 30000);
-  }catch(e){}
-})();
-</script></body></html>
+</html>
