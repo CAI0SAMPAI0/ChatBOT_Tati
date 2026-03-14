@@ -1,37 +1,141 @@
-<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;}</style></head><body><script>
+<!DOCTYPE html><html><head>
+<style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;}</style>
+</head><body><script>
 (function(){
-  var doc=window.parent.document;
-  function s(){return['pointer-events:auto','width:38px','height:38px','border-radius:50%','border:1px solid #30363d','background:#0d1117','color:#8b949e','font-size:15px','display:flex','align-items:center','justify-content:center','cursor:pointer','box-shadow:0 2px 8px rgba(0,0,0,.4)','-webkit-tap-highlight-color:transparent','touch-action:manipulation','flex-shrink:0','transition:background .15s,color .15s,border-color .15s','outline:none'].join(';');}
+  var doc = window.parent.document;
+
   function inject(){
-    if(doc.getElementById('pav-bar'))return;
-    var bar=doc.createElement('div');bar.id='pav-bar';
-    bar.style.cssText='position:fixed;z-index:99999;display:flex;align-items:center;gap:4px;pointer-events:none;bottom:0;left:0;';
-    var cl=doc.createElement('button');cl.id='pav-clip-btn';cl.title='Attach file';cl.innerHTML='<i class="fa-solid fa-paperclip"></i>';cl.style.cssText=s();
-    var mi=doc.createElement('button');mi.id='pav-mic-btn';mi.title='Record audio';mi.innerHTML='<i class="fa-solid fa-microphone"></i>';mi.style.cssText=s();
-    bar.appendChild(cl);bar.appendChild(mi);doc.body.appendChild(bar);
-    cl.addEventListener('click',function(){var inp=doc.querySelector('[data-testid="stFileUploader"] input[type="file"]');if(inp)inp.click();});
-    var rec=false;
-    function getRb(){var ai=doc.querySelector('[data-testid="stAudioInput"]');if(!ai)return null;var bs=ai.querySelectorAll('button');for(var i=0;i<bs.length;i++){if((bs[i].getAttribute('aria-label')||'').toLowerCase().indexOf('download')>=0)continue;return bs[i];}return bs[0]||null;}
-    mi.addEventListener('click',function(){var rb=getRb();if(!rb)return;if(rec){rec=false;mi.innerHTML='<i class="fa-solid fa-microphone"></i>';mi.style.background='#0d1117';mi.style.borderColor='#30363d';mi.style.color='#8b949e';rb.click();}else{rec=true;mi.innerHTML='<i class="fa-solid fa-stop"></i>';mi.style.background='#e05c2a';mi.style.borderColor='#e05c2a';mi.style.color='#fff';rb.click();}});
-    var _lai=null;setInterval(function(){var ai=doc.querySelector('[data-testid="stAudioInput"]');if(ai!==_lai){_lai=ai;if(rec){rec=false;mi.innerHTML='<i class="fa-solid fa-microphone"></i>';mi.style.background='#0d1117';mi.style.borderColor='#30363d';mi.style.color='#8b949e';}}},500);
+    if(doc.getElementById('pav-bar')) return;
+
+    // Injeta CSS fixo no head do pai — sem JS de posicionamento
+    if(!doc.getElementById('pav-bar-style')){
+      var s = doc.createElement('style');
+      s.id = 'pav-bar-style';
+      s.textContent = `
+        #pav-bar {
+          position: fixed;
+          bottom: 14px;
+          right: 52px;
+          z-index: 99999;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          pointer-events: none;
+        }
+        #pav-mic-btn, #pav-clip-btn {
+          pointer-events: auto;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          border: 1px solid #30363d;
+          background: #0d1117;
+          color: #8b949e;
+          font-size: 15px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+          transition: background .15s, color .15s, border-color .15s;
+          outline: none;
+        }
+        #pav-mic-btn:hover, #pav-clip-btn:hover {
+          background: #1c2128;
+          color: #e6edf3;
+          border-color: #484f58;
+        }
+        #pav-mic-btn.recording {
+          background: #e05c2a;
+          border-color: #e05c2a;
+          color: #fff;
+          animation: pav-mic-pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes pav-mic-pulse {
+          0%   { box-shadow: 0 0 0 0 rgba(224,92,42,0.6); }
+          70%  { box-shadow: 0 0 0 8px rgba(224,92,42,0); }
+          100% { box-shadow: 0 0 0 0 rgba(224,92,42,0); }
+        }
+        /* Ajuste fino por breakpoint */
+        @media(max-width: 768px){
+          #pav-bar { bottom: 12px; right: 48px; }
+          #pav-mic-btn, #pav-clip-btn { width: 34px; height: 34px; font-size: 14px; }
+        }
+      `;
+      doc.head.appendChild(s);
+    }
+
+    var bar = doc.createElement('div');
+    bar.id = 'pav-bar';
+
+    var cl = doc.createElement('button');
+    cl.id = 'pav-clip-btn';
+    cl.title = 'Attach file';
+    cl.innerHTML = '<i class="fa-solid fa-paperclip"></i>';
+
+    var mi = doc.createElement('button');
+    mi.id = 'pav-mic-btn';
+    mi.title = 'Record audio';
+    mi.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+
+    bar.appendChild(cl);
+    bar.appendChild(mi);
+    doc.body.appendChild(bar);
+
+    // Clipe
+    cl.addEventListener('click', function(){
+      var inp = doc.querySelector('[data-testid="stFileUploader"] input[type="file"]');
+      if(inp) inp.click();
+    });
+
+    // Mic
+    var rec = false;
+    function getRb(){
+      var ai = doc.querySelector('[data-testid="stAudioInput"]');
+      if(!ai) return null;
+      var bs = ai.querySelectorAll('button');
+      for(var i=0;i<bs.length;i++){
+        if((bs[i].getAttribute('aria-label')||'').toLowerCase().indexOf('download')>=0) continue;
+        return bs[i];
+      }
+      return bs[0]||null;
+    }
+
+    mi.addEventListener('click', function(){
+      var rb = getRb(); if(!rb) return;
+      if(rec){
+        rec = false;
+        mi.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+        mi.classList.remove('recording');
+        rb.click();
+      } else {
+        rec = true;
+        mi.innerHTML = '<i class="fa-solid fa-stop"></i>';
+        mi.classList.add('recording');
+        rb.click();
+      }
+    });
+
+    // Reset visual quando Streamlit recria o audio_input
+    var _lastAi = null;
+    setInterval(function(){
+      var ai = doc.querySelector('[data-testid="stAudioInput"]');
+      if(ai !== _lastAi){ _lastAi = ai; if(rec){ rec=false; mi.innerHTML='<i class="fa-solid fa-microphone"></i>'; mi.classList.remove('recording'); }}
+    }, 500);
   }
-  function pos(){
-    var bar=doc.getElementById('pav-bar');if(!bar)return;
-    var sb=doc.querySelector('[data-testid="stChatInputSubmitButton"]');
-    var cb=doc.querySelector('[data-testid="stChatInputContainer"]');
-    var ref=sb||cb;if(!ref)return;
-    var r=ref.getBoundingClientRect();
-    var vpH=window.parent.innerHeight;
-    var mid=r.top+r.height/2;
-    bar.style.bottom=Math.max(4,vpH-mid-19)+'px';
-    var refLeft=sb?sb.getBoundingClientRect().left:r.right;
-    bar.style.left=Math.max(4,refLeft-86)+'px';
-    bar.style.top='auto';
-  }
-  function init(){inject();pos();}
-  init();setTimeout(init,300);setTimeout(init,800);setTimeout(init,1500);
-  try{window.parent.addEventListener('resize',pos);if(window.parent.visualViewport)window.parent.visualViewport.addEventListener('resize',pos);}catch(e){}
-  var tk=0,iv=setInterval(function(){pos();if(++tk>30)clearInterval(iv);},500);
-  try{var ob=new MutationObserver(function(){inject();pos();});ob.observe(doc.body,{childList:true,subtree:true});setTimeout(function(){ob.disconnect();},20000);}catch(e){}
+
+  inject();
+  setTimeout(inject, 300);
+  setTimeout(inject, 800);
+
+  // Reinjecta se o DOM remover o bar (troca de página)
+  try{
+    var ob = new MutationObserver(function(){
+      if(!doc.getElementById('pav-bar')) inject();
+    });
+    ob.observe(doc.body, {childList:true, subtree:false});
+    setTimeout(function(){ ob.disconnect(); }, 30000);
+  }catch(e){}
 })();
 </script></body></html>
