@@ -924,8 +924,7 @@ def _render_inputs(user: dict, conv_id: str, ui_lang: str):
 
         # Invalida cache e reroda só o fragment de mensagens
         cached_load_conversation.clear()
-        st.rerun(scope="fragment")   # ← só o fragment de inputs reroda,
-                                      #   depois o de mensagens pega as novas
+        st.rerun()  
 
     # Gravador de áudio nativo
     audio_val = st.audio_input(
@@ -946,7 +945,7 @@ def _render_inputs(user: dict, conv_id: str, ui_lang: str):
             st.session_state.speaking = False
             st.session_state.audio_key += 1
             cached_load_conversation.clear()
-            st.rerun(scope="fragment")
+            st.rerun()
         elif txt:
             st.error(txt)
 
