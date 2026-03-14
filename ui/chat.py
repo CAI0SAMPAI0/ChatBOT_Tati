@@ -1064,6 +1064,25 @@ def show_chat() -> None:
 .conv-picker{background:#161b22;border:1px solid #30363d;border-radius:8px;
     padding:6px 8px;margin:2px 0 6px 0;}
 @media(max-width:768px){.msg-bubble{max-width:88%!important;font-size:.82rem!important;}}
+@media(max-width:768px){
+    [data-testid="stChatInputContainer"]{
+        position:fixed!important;bottom:0!important;left:0!important;right:0!important;
+        z-index:9999!important;padding:8px 12px!important;
+        background:#0d1117!important;border-top:1px solid #21262d!important;
+        box-shadow:0 -4px 16px rgba(0,0,0,.4)!important;
+    }
+    [data-testid="stChatInput"] textarea{
+        font-size:16px!important;
+        min-height:44px!important;
+        max-height:100px!important;
+        border-radius:22px!important;
+        padding:10px 96px 10px 16px!important;
+    }
+    .main .block-container{padding-bottom:80px!important;}
+    [data-testid="stChatInputSubmitButton"]{width:40px!important;height:40px!important;}
+    #pav-bar{position:fixed!important;bottom:12px!important;right:56px!important;left:auto!important;}
+    #pav-mic-btn,#pav-clip-btn{width:36px!important;height:36px!important;flex-shrink:0!important;}
+}
 </style>""", unsafe_allow_html=True)
 
     # ── Sidebar com seu próprio fragment ─────────────────────────────────────
