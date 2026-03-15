@@ -1,16 +1,11 @@
-"""
-ui/login.py — Tela de login e registro do Teacher Tati.
-"""
-
 import os
-
 import streamlit as st
 import streamlit.components.v1 as components
-
 from core.database import authenticate, register_student, create_session
 from core.auth import is_rate_limited, register_attempt, clear_attempts, remaining_attempts
 from utils.helpers import get_photo_b64, PROF_NAME
 from utils.i18n import t
+
 
 PHOTO_PATH = os.getenv("PROFESSOR_PHOTO", "assets/tati.png")
 

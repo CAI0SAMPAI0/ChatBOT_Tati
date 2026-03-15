@@ -29,3 +29,5 @@ faster_whisper_models/
 # ── Arquivos temporários ──────────────────────────────────────────────
 *.mp3
 streamlit.txt
+
+.streamlit/

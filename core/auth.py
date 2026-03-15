@@ -1,10 +1,5 @@
-"""
-core/auth.py — Autenticação segura com rate limiting por username.
-"""
-
 import time
 from collections import defaultdict
-
 import streamlit as st
 
 # Controle de tentativas em memória (por processo)

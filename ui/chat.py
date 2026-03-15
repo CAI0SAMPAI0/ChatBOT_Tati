@@ -685,7 +685,7 @@ def _render_sidebar(user: dict, conv_id: str, messages: list, ui_lang: str):
         st.session_state.conv_id = new_conversation(username)
         st.session_state.pop("_conv_pick", None)
         # rerun do fragment não recarrega o chat
-        st.rerun(scope="fragment")
+        st.rerun()
 
     if st.button(t("voice_mode", ui_lang), use_container_width=True, key="btn_voice"):
         st.session_state.voice_mode = True
@@ -900,7 +900,7 @@ def _render_inputs(user: dict, conv_id: str, ui_lang: str):
         if st.button(t("remove_attachment", ui_lang), key="remove_staged"):
             st.session_state.staged_file = None
             st.session_state.pop("_last_files_key", None)
-            st.rerun(scope="fragment")
+            st.rerun()
 
     # Chat input — principal ponto de entrada
     prompt = st.chat_input(t("type_message", ui_lang))
@@ -935,7 +935,6 @@ def _render_inputs(user: dict, conv_id: str, ui_lang: str):
         st.session_state["_last_audio"] = audio_val
         with st.spinner("Transcrevendo..."):
             txt = transcribe_bytes(audio_val.read(), ".wav", None)
-        if txt and not txt.startswith("❌") and not txt.startswith("⚠️"):
             append_message(username, conv_id, "user", txt, audio=True)
             st.session_state.speaking = True
             try:
@@ -966,7 +965,7 @@ def _render_inputs(user: dict, conv_id: str, ui_lang: str):
                 result = extract_file(raw, uf.name)
                 staged_list.append({"raw": raw, "name": uf.name, "kind": result["kind"]})
             st.session_state.staged_file = staged_list
-            st.rerun(scope="fragment")
+            st.rerun()
 
     # Web Speech API para os botões "Ouvir" inline
     components.html("""<!DOCTYPE html><html><head>
