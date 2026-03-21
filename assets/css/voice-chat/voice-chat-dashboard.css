@@ -1,0 +1,166 @@
+.metric-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  text-align: center;
+  transition: var(--transition-fast);
+}
+
+.metric-card:hover {
+  border-color: var(--border-medium);
+}
+
+.metric-icon {
+  font-size: 1.6rem;
+}
+
+.metric-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.metric-label {
+  font-size: .7rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.section-label {
+  color: var(--text-secondary);
+  font-size: .85rem;
+  letter-spacing: .5px;
+  margin-bottom: .5rem;
+  text-transform: uppercase;
+}
+
+/* ── Stat Card ────────────────────────────────────────────────── */
+.stat-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  text-align: center;
+  transition: all var(--transition-fast);
+}
+
+.stat-card:hover {
+  border-color: var(--border-medium);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.stat-card .val {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.stat-card .lbl {
+  font-size: .75rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+/* ── Badge ────────────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: .7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+
+.badge-blue {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-green {
+  background: rgba(45, 106, 79, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(45, 106, 79, 0.5);
+}
+
+.badge-gold {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  border: 1px solid rgba(240, 165, 0, 0.3);
+}
+
+/* ── Dashboard Table ──────────────────────────────────────────── */
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.dash-table thead tr {
+  background: var(--bg-input);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.dash-table thead th {
+  padding: 12px;
+  text-align: left;
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+
+.dash-table tbody tr {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--transition-fast);
+}
+
+.dash-table tbody tr:hover {
+  background: var(--bg-input);
+}
+
+.dash-table tbody td {
+  padding: 12px;
+  font-size: .85rem;
+  color: var(--text-primary);
+}
+
+.dash-table tbody td:first-child {
+  font-weight: 600;
+}
+
+/* ── Prof Header ──────────────────────────────────────────────– */
+.prof-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 0;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.prof-info h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.prof-info p {
+  margin: 4px 0 0;
+  font-size: .8rem;
+  color: var(--text-secondary);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  margin-right: 4px;
+}

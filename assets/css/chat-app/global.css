@@ -1,0 +1,19 @@
+/* Prefix específico para evitar conflitos */
+.chat-app {
+  --bg-primary:         #060a10;
+  --bg-secondary:       #0f1824;
+  /* ... resto das variáveis */
+}
+
+/* Aplicar apenas dentro de .chat-app */
+.chat-app #MainMenu, 
+.chat-app footer, 
+.chat-app header {
+  display: none !important;
+}
+
+.chat-app section[data-testid="stMain"] > div,
+.chat-app .main .block-container {
+  max-width: 100% !important;
+  padding: 0 !important;
+}

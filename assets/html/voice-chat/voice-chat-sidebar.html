@@ -1,0 +1,46 @@
+<!-- ── Sidebar Navigation ── -->
+<div class="sidebar-nav">
+    <!-- Botão de sair (logout) será adicionado dinamicamente -->
+    <nav id="nav-buttons">
+        <!-- Botões de navegação com st.button vão aqui no Streamlit -->
+    </nav>
+
+    <!-- Espaço para crescer -->
+    <div style="flex: 1;"></div>
+
+    <!-- Seção do usuário (footer) -->
+    <div class="sb-user-row">
+        <div class="avatar-ring">
+            <!-- Foto do usuário será adicionada dinamicamente -->
+            <img 
+                id="sb-user-avatar" 
+                class="avatar-img"
+                src=""
+                alt="Seu avatar"
+                style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid #8b5cf6; object-fit: cover;"
+            />
+        </div>
+        <p id="sb-user-name" style="font-size: 0.75rem; color: #8b949e; margin-top: 4px;">User</p>
+    </div>
+</div>
+
+<style>
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 0;
+}
+
+#nav-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sb-user-row {
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+    text-align: center;
+}
+</style>

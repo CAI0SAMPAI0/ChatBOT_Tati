@@ -1,7 +1,3 @@
-"""
-ui/dashboard.py — Painel administrativo da professora.
-"""
-
 from datetime import datetime
 
 import streamlit as st

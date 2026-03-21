@@ -15,6 +15,9 @@ from core.database import (
 from utils.helpers import _avatar_circle_html, get_user_avatar_b64, _bump_avatar_version, PROF_NAME
 from utils.i18n import t
 
+_DASHBOARD_ROLES = ("professor", "professora", "programador")
+_LANG_OPTS       = ["pt-BR", "en-US"]
+
 
 def show_profile() -> None:
     user     = st.session_state.user
@@ -37,7 +40,7 @@ def show_profile() -> None:
     st.markdown("## ⚙️ Configurações do Perfil")
     st.markdown("---")
 
-    is_prof    = user.get("role") == "professor"
+    is_prof    = user.get("role") in _DASHBOARD_ROLES
     level_opts = ["Beginner", "Pre-Intermediate", "Intermediate", "Business English", "Advanced", "Native"]
     focus_opts = ["General Conversation", "Business English", "Travel", "Academic",
                   "Pronunciation", "Grammar", "Vocabulary", "Exam Prep"]
@@ -53,36 +56,45 @@ def show_profile() -> None:
         st.markdown("### Aparência")
         col1, col2 = st.columns(2)
         with col1:
-            lang = st.selectbox(t("interface_lang", ui_lang), ["pt-BR", "en-US", "en-UK"],
-                index=safe_index(["pt-BR", "en-US", "en-UK"], profile.get("language", "pt-BR")), key="pf_lang")
+            lang = st.selectbox(
+                t("interface_lang", ui_lang),
+                _LANG_OPTS,
+                index=safe_index(_LANG_OPTS, profile.get("language", "pt-BR")),
+                key="pf_lang",
+            )
         with col2:
-            accent = st.color_picker("Cor de destaque",
-                value=profile.get("accent_color", "#f0a500"), key="pf_accent")
+            accent = st.color_picker(
+                "Cor de destaque",
+                value=profile.get("accent_color", "#f0a500"),
+                key="pf_accent",
+            )
+
         col5, col6 = st.columns(2)
         with col5:
-            user_bubble_color = st.color_picker("Balão do usuário",
-                value=profile.get("user_bubble_color", "#2d6a4f"), key="pf_user_bubble")
+            user_bubble_color = st.color_picker(
+                "Balão do usuário",
+                value=profile.get("user_bubble_color", "#2d6a4f"),
+                key="pf_user_bubble",
+            )
         with col6:
-            ai_bubble_color = st.color_picker("Balão da IA",
-                value=profile.get("ai_bubble_color", "#1a1f2e"), key="pf_ai_bubble")
-        st.markdown("### Voz")
-        col3, col4 = st.columns(2)
-        with col3:
-            voice_lang = st.selectbox(t("transcription_lang", ui_lang),
-                ["auto (pt+en)", "en", "pt", "es", "fr", "de"],
-                index=safe_index(["auto (pt+en)", "en", "pt", "es", "fr", "de"],
-                                 profile.get("voice_lang", "auto (pt+en)")), key="pf_vlang")
-        with col4:
-            speech_lang = st.selectbox(t("tts_accent", ui_lang), ["en-US", "en-UK", "pt-BR"],
-                index=safe_index(["en-US", "en-UK", "pt-BR"], profile.get("speech_lang", "en-US")), key="pf_slang")
+            ai_bubble_color = st.color_picker(
+                "Balão da IA",
+                value=profile.get("ai_bubble_color", "#1a1f2e"),
+                key="pf_ai_bubble",
+            )
+
+        # Seção Voz removida (Whisper lang e TTS accent foram removidos)
+
         if st.button(t("save_general", ui_lang), key="save_geral"):
             update_profile(username, {
-                "language": lang, "accent_color": accent,
-                "user_bubble_color": user_bubble_color, "ai_bubble_color": ai_bubble_color,
-                "voice_lang": voice_lang, "speech_lang": speech_lang,
+                "language":          lang,
+                "accent_color":      accent,
+                "user_bubble_color": user_bubble_color,
+                "ai_bubble_color":   ai_bubble_color,
             })
             u = load_students().get(username, {})
             st.session_state.user = {"username": username, **u}
+            st.session_state.user["profile"]["language"] = lang
             st.success("✅ Settings saved!")
 
     # ── Aba Personalização ────────────────────────────────────────────────────
@@ -91,13 +103,23 @@ def show_profile() -> None:
         col1, col2 = st.columns(2)
         with col1:
             nickname   = st.text_input(t("nickname", ui_lang), value=profile.get("nickname", ""), key="pf_nick")
-            occupation = st.text_input(t("occupation", ui_lang), value=profile.get("occupation", ""),
-                placeholder="ex: Professora, Desenvolvedor", key="pf_occ")
+            occupation = st.text_input(
+                t("occupation", ui_lang),
+                value=profile.get("occupation", ""),
+                placeholder="ex: Professora, Desenvolvedor",
+                key="pf_occ",
+            )
         with col2:
-            level = st.selectbox(t("english_level", ui_lang), level_opts,
-                index=safe_index(level_opts, user.get("level", "Beginner")), key="pf_level")
-            focus = st.selectbox(t("focus", ui_lang), focus_opts,
-                index=safe_index(focus_opts, user.get("focus", "General Conversation")), key="pf_focus")
+            level = st.selectbox(
+                t("english_level", ui_lang), level_opts,
+                index=safe_index(level_opts, user.get("level", "Beginner")),
+                key="pf_level",
+            )
+            focus = st.selectbox(
+                t("focus", ui_lang), focus_opts,
+                index=safe_index(focus_opts, user.get("focus", "General Conversation")),
+                key="pf_focus",
+            )
 
         if not is_prof:
             st.markdown("### Estilo da IA")
@@ -105,15 +127,24 @@ def show_profile() -> None:
             ai_style_opts = ["Warm & Encouraging", "Formal & Professional", "Fun & Casual", "Strict & Direct"]
             ai_tone_opts  = ["Teacher", "Conversation Partner", "Tutor", "Business Coach"]
             with col3:
-                ai_style = st.selectbox(t("conv_tone", ui_lang), ai_style_opts,
-                    index=safe_index(ai_style_opts, profile.get("ai_style", "Warm & Encouraging")), key="pf_aistyle")
+                ai_style = st.selectbox(
+                    t("conv_tone", ui_lang), ai_style_opts,
+                    index=safe_index(ai_style_opts, profile.get("ai_style", "Warm & Encouraging")),
+                    key="pf_aistyle",
+                )
             with col4:
-                ai_tone = st.selectbox(t("ai_role", ui_lang), ai_tone_opts,
-                    index=safe_index(ai_tone_opts, profile.get("ai_tone", "Teacher")), key="pf_aitone")
-            custom = st.text_area("Instruções personalizadas para a IA",
+                ai_tone = st.selectbox(
+                    t("ai_role", ui_lang), ai_tone_opts,
+                    index=safe_index(ai_tone_opts, profile.get("ai_tone", "Teacher")),
+                    key="pf_aitone",
+                )
+            custom = st.text_area(
+                "Instruções personalizadas para a IA",
                 value=profile.get("custom_instructions", ""),
                 placeholder="ex: Sempre me corrija quando eu errar o Past Simple.",
-                height=100, key="pf_custom")
+                height=100,
+                key="pf_custom",
+            )
         else:
             ai_style = profile.get("ai_style", "Warm & Encouraging")
             ai_tone  = profile.get("ai_tone",  "Teacher")
@@ -121,9 +152,13 @@ def show_profile() -> None:
 
         if st.button(t("save_custom", ui_lang), key="save_pers"):
             update_profile(username, {
-                "nickname": nickname, "occupation": occupation,
-                "ai_style": ai_style, "ai_tone": ai_tone,
-                "custom_instructions": custom, "level": level, "focus": focus,
+                "nickname":            nickname,
+                "occupation":          occupation,
+                "ai_style":            ai_style,
+                "ai_tone":             ai_tone,
+                "custom_instructions": custom,
+                "level":               level,
+                "focus":               focus,
             })
             u = load_students().get(username, {})
             st.session_state.user = {"username": username, **u}
@@ -141,10 +176,16 @@ def show_profile() -> None:
 
         col_av, col_btns = st.columns([1, 3])
         with col_av:
-            st.markdown(_avatar_circle_html(cur_avatar, size=88) + '<div style="height:8px"></div>', unsafe_allow_html=True)
+            st.markdown(
+                _avatar_circle_html(cur_avatar, size=88) + '<div style="height:8px"></div>',
+                unsafe_allow_html=True,
+            )
         with col_btns:
-            photo_file = st.file_uploader("Alterar foto — JPG, PNG ou WEBP (máx 15 MB)",
-                type=["jpg", "jpeg", "png", "webp"], key="pf_photo_upload")
+            photo_file = st.file_uploader(
+                "Alterar foto — JPG, PNG ou WEBP (máx 15 MB)",
+                type=["jpg", "jpeg", "png", "webp"],
+                key="pf_photo_upload",
+            )
             if photo_file:
                 file_id = f"{photo_file.name}::{photo_file.size}"
                 if st.session_state.get("_last_photo_saved") != file_id:
@@ -187,7 +228,7 @@ def show_profile() -> None:
         st.markdown("### Alterar Senha")
         col3, col4 = st.columns(2)
         with col3:
-            new_pw  = st.text_input(t("new_password", ui_lang), type="password", key="pf_newpw")
+            new_pw  = st.text_input(t("new_password", ui_lang),     type="password", key="pf_newpw")
         with col4:
             conf_pw = st.text_input(t("confirm_password", ui_lang), type="password", key="pf_confpw")
         if st.button(t("change_password", ui_lang), key="save_pw"):
@@ -200,11 +241,11 @@ def show_profile() -> None:
                 st.success("✅ Senha alterada!")
 
     st.markdown("---")
-    is_prof   = user.get("role") == "professor"
     back_page = "dashboard" if is_prof else "chat"
     back_lbl  = "← Voltar ao Dashboard" if is_prof else "← Voltar ao Chat"
     if st.button(back_lbl, key="back_from_profile"):
-        st.session_state.page = back_page; st.rerun()
+        st.session_state.page = back_page
+        st.rerun()
 
 
 # ── Helper ────────────────────────────────────────────────────────────────────

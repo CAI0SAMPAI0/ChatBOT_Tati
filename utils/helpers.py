@@ -1,7 +1,3 @@
-"""
-utils/helpers.py — Funções auxiliares do Teacher Tati
-"""
-
 import base64
 import os
 from pathlib import Path

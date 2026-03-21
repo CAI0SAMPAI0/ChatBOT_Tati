@@ -1,0 +1,102 @@
+<!-- ── Dashboard Page ── -->
+<div class="voice-page">
+    <!-- ── Header ── -->
+    <div class="prof-header">
+        <img 
+            id="dashboard-avatar" 
+            class="avatar-img"
+            src=""
+            alt="Avatar"
+            style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #8b5cf6;"
+        />
+        <div class="prof-info">
+            <h1 id="dashboard-name">Bem-vindo</h1>
+            <p id="dashboard-status">
+                <span class="status-dot"></span>
+                Ativo agora
+            </p>
+        </div>
+    </div>
+
+    <!-- ── Cards de Métrica ── -->
+    <section style="margin-bottom: 2rem;">
+        <h2 class="section-label">📊 Estatísticas</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
+            <div class="stat-card">
+                <div class="val" id="stat-conversations">0</div>
+                <div class="lbl">Conversas</div>
+            </div>
+            <div class="stat-card">
+                <div class="val" id="stat-messages">0</div>
+                <div class="lbl">Mensagens</div>
+            </div>
+            <div class="stat-card">
+                <div class="val" id="stat-hours">0h</div>
+                <div class="lbl">Tempo Total</div>
+            </div>
+            <div class="stat-card">
+                <div class="val" id="stat-streak">0</div>
+                <div class="lbl">Sequência</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Tabela de Conversas Recentes ── -->
+    <section style="margin-bottom: 2rem;">
+        <h2 class="section-label">💬 Conversas Recentes</h2>
+        <table class="dash-table">
+            <thead>
+                <tr>
+                    <th>Conversa</th>
+                    <th>Data</th>
+                    <th>Mensagens</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="dashboard-conversations-table">
+                <!-- Linhas adicionadas dinamicamente -->
+                <tr>
+                    <td>Conversa exemplo</td>
+                    <td>Hoje</td>
+                    <td>5</td>
+                    <td><span class="badge badge-green">Ativo</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- ── Próximas ações ── -->
+    <section>
+        <h2 class="section-label">🎯 Próximas Ações</h2>
+        <ul style="list-style: none; padding: 0; margin: 0;">
+            <li style="padding: 10px 0; border-bottom: 1px solid #252d3d;">
+                ✓ Confira suas conversas guardadas
+            </li>
+            <li style="padding: 10px 0; border-bottom: 1px solid #252d3d;">
+                ✓ Configure suas preferências de voz
+            </li>
+            <li style="padding: 10px 0;">
+                ✓ Saiba mais sobre as novas funcionalidades
+            </li>
+        </ul>
+    </section>
+</div>
+
+<style>
+.prof-header,
+.stat-card,
+.dash-table {
+    animation: fadeInUp 0.3s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>

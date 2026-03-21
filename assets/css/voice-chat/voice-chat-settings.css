@@ -1,0 +1,136 @@
+/* ── Seção foto de perfil ─────────────────────────────────────– */
+#foto-de-perfil {
+    margin-left: 15px;
+}
+
+div[class="st-emotion-cache-137jl7i ey36t7e0"] {
+    margin-top: 12px;
+    margin-left: 15px;
+}
+
+/* ── Drop file photo ─────────────────────────────────────────── */
+div[data-testid="stFileUploaderDropzone"] {
+    width: 90%;
+    margin-left: auto;
+    margin-right: 19px;
+}
+
+/* ── Info conta ─────────────────────────────────────────────── */
+#informacoes-da-conta {
+    margin-left: auto;
+    margin-right: 19px;
+}
+
+[data-testid="stWidgetLabel"] {
+    margin-left: 15px;
+    margin-right: 19px;
+}
+
+[data-testid="stMarkdownContainer"] {
+    margin-bottom: auto;
+}
+
+/* ── Anel (color picker) ────────────────────────────────────── */
+[data-testid="stColorPickerBlock"] {
+    margin-left: 15px;
+}
+
+/* ── Balões de conversa ─────────────────────────────────────– */
+div[style="align-self: flex-end; background: rgb(145, 35, 36); color: rgb(255, 255, 255); padding: 7px 14px; border-radius: 16px 16px 4px; font-size: 0.75rem; max-width: 55%;"] {
+    margin-right: 659px;
+}
+
+div[style="align-self: flex-start; background: rgb(26, 31, 46); color: rgb(230, 237, 243); padding: 7px 14px; border-radius: 16px 16px 16px 4px; border: 1px solid rgb(37, 45, 61); font-size: 0.75rem; max-width: 55%;"] {
+    margin-left: 685px;
+    margin-top: -40px;
+}
+
+/* ── Title anel ────────────────────────────────────────────── */
+span[style="font-size: 12px;"] {
+    margin-top: 12px;
+    color: aliceblue;
+}
+
+/* ── Tabs e containers gerais ──────────────────────────────── */
+[data-testid="stTabs"] {
+    margin-top: 1rem;
+}
+
+[data-testid="stTabBar"] {
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+/* ── Form inputs ───────────────────────────────────────────– */
+[data-testid="stNumberInput"],
+[data-testid="stTextInput"],
+[data-testid="stPasswordInput"],
+[data-testid="stSelectbox"] {
+    margin-bottom: 1rem;
+}
+
+[data-testid="stTextInput"] input,
+[data-testid="stPasswordInput"] input,
+[data-testid="stNumberInput"] input {
+    background: var(--bg-input) !important;
+    border: 1px solid var(--border-subtle) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--radius-md) !important;
+}
+
+/* ── Buttons ───────────────────────────────────────────────– */
+.profile-btn-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 1.5rem;
+}
+
+.profile-btn-group > div {
+    flex: 1;
+}
+
+/* ── Text area ────────────────────────────────────────────── */
+[data-testid="stTextArea"] textarea {
+    background: var(--bg-input) !important;
+    border: 1px solid var(--border-subtle) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--radius-md) !important;
+}
+
+/* ── Color picker ──────────────────────────────────────────– */
+[data-testid="stColorPickerBlock"] {
+    margin: 1rem 0;
+}
+
+/* ── Alert boxes (success, error) ──────────────────────────– */
+[data-testid="stAlert"] {
+    border-radius: var(--radius-lg);
+}
+
+/* ── Labels ────────────────────────────────────────────────– */
+[data-testid="stWidgetLabel"] label {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* ── Selectbox dropdown ────────────────────────────────────– */
+div[data-baseweb="select"] {
+    background: var(--bg-input) !important;
+    border-color: var(--border-subtle) !important;
+}
+
+div[data-baseweb="select"] button {
+    color: var(--text-primary) !important;
+}
+
+/* ── File uploader ────────────────────────────────────────– */
+[data-testid="stFileUploaderDropzone"] {
+    background: var(--bg-input) !important;
+    border: 1px dashed var(--border-subtle) !important;
+    border-radius: var(--radius-lg) !important;
+}
+
+[data-testid="stFileUploaderDropzone"]:hover {
+    background: rgba(240, 165, 0, 0.05) !important;
+    border-color: var(--accent) !important;
+}

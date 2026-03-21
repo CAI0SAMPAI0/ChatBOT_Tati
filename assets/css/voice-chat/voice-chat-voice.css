@@ -1,0 +1,461 @@
+body,
+.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"] {
+    background: var(--bg-primary) !important;
+}
+
+section[data-testid="stMain"] > div,
+.main .block-container {
+    padding: 0 !important;
+    overflow: hidden !important;
+    max-height: 100vh !important;
+}
+
+div[data-testid="stVerticalBlock"],
+div[data-testid="stVerticalBlockBorderWrapper"],
+div[data-testid="element-container"] {
+    gap: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+html, body {
+    overflow: hidden !important;
+}
+
+/* ── Esconde microfone nativo ─────────────────────────────– */
+[data-testid="stAudioInput"],
+[data-testid="stAudioInput"] *,
+div:has(> [data-testid="stAudioInput"]) {
+    position: fixed !important;
+    bottom: -9999px !important;
+    left: -9999px !important;
+    width: 1px !important;
+    height: 1px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* ── App container ────────────────────────────────────────– */
+.voice-app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100vh;
+    height: 100dvh;
+    padding: 0 16px;
+    gap: 0;
+    overflow: hidden;
+}
+
+/* ── Seção do avatar ──────────────────────────────────────– */
+.avatar-section {
+    flex-shrink: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 0 8px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: linear-gradient(180deg, var(--bg-primary) 85%, transparent 100%);
+}
+
+.avatar-wrap {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    flex-shrink: 0;
+}
+
+/* Avatar menor em telas pequenas */
+@media (max-height: 700px) {
+    .avatar-wrap {
+        width: 130px;
+        height: 130px;
+    }
+    .avatar-img,
+    .avatar-emoji {
+        width: 130px !important;
+        height: 130px !important;
+    }
+    .avatar-section {
+        padding: 6px 0 4px;
+    }
+    .prof-name {
+        font-size: .85rem !important;
+    }
+}
+
+@media (max-width: 380px) {
+    .avatar-wrap {
+        width: 100px;
+        height: 100px;
+    }
+    .avatar-img,
+    .avatar-emoji {
+        width: 100px !important;
+        height: 100px !important;
+    }
+    .mic-btn {
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
+    }
+    .bubble {
+        font-size: .78rem;
+    }
+}
+
+/* ── Anel animado ──────────────────────────────────────────– */
+.avatar-ring {
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 2px solid rgba(240, 165, 0, 0.3);
+    animation: ring-pulse 2s ease-in-out infinite;
+}
+
+.avatar-ring.active {
+    border-color: var(--accent);
+    animation: ring-glow 1s ease-in-out infinite;
+}
+
+@keyframes ring-pulse {
+    0%, 100% {
+        opacity: .4;
+        transform: scale(1);
+    }
+    50% {
+        opacity: .8;
+        transform: scale(1.03);
+    }
+}
+
+@keyframes ring-glow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(240, 165, 0, 0.5);
+    }
+    70% {
+        box-shadow: 0 0 14px rgba(240, 165, 0, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(240, 165, 0, 0);
+    }
+}
+
+/* ── Avatar imagem/emoji ────────────────────────────────── */
+.avatar-img {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: top center;
+    border: 3px solid var(--accent);
+    box-shadow: 0 0 32px rgba(240, 165, 0, 0.25);
+}
+
+.avatar-emoji {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1a2535, #0f1824);
+    border: 3px solid var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 54px;
+}
+
+.prof-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-top: 6px;
+}
+
+.voice-status {
+    font-size: .68rem;
+    color: var(--accent);
+    margin-top: 1px;
+}
+
+/* ── Histórico de bolhas ───────────────────────────────── */
+.history-wrap {
+    width: 100%;
+    max-width: 860px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-subtle) transparent;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ── Bolhas de conversa ────────────────────────────────── */
+.bubble {
+    max-width: 82%;
+    padding: 10px 15px;
+    border-radius: var(--radius-lg);
+    font-size: .84rem;
+    line-height: 1.55;
+    word-break: break-word;
+    animation: bubble-in var(--transition-mid) ease both;
+}
+
+@keyframes bubble-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.bubble.user {
+    align-self: flex-end;
+    background: var(--success);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+
+.bubble.bot {
+    align-self: flex-start;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+    border-bottom-left-radius: 4px;
+}
+
+.bubble-label {
+    font-size: .6rem;
+    color: var(--text-muted);
+    margin: 2px 4px;
+}
+
+.bubble-label.right {
+    text-align: right;
+}
+
+/* ── Botão play por bolha ────────────────────────────── */
+.bubble-play-btn {
+    align-self: flex-start;
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    color: #3a6a8a;
+    font-size: .72rem;
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all var(--transition-fast);
+    margin-bottom: 4px;
+    min-height: 32px;
+}
+
+.bubble-play-btn:hover {
+    color: var(--accent);
+    border-color: rgba(240, 165, 0, 0.4);
+    background: var(--accent-subtle);
+}
+
+.bubble-play-btn.playing {
+    color: var(--danger);
+    border-color: rgba(224, 92, 42, 0.5);
+}
+
+/* ── Caixa de erro ────────────────────────────────────– */
+.voice-error {
+    background: var(--danger-subtle);
+    border: 1px solid rgba(224, 92, 42, 0.3);
+    border-radius: var(--radius-md);
+    padding: 8px 14px;
+    font-size: .78rem;
+    color: var(--danger);
+    max-width: 560px;
+    width: 100%;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+/* ── Rodapé do mic ────────────────────────────────────– */
+.mic-footer {
+    flex-shrink: 0;
+    width: 100%;
+    max-width: 620px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 0 max(16px, env(safe-area-inset-bottom));
+    background: linear-gradient(to top, var(--bg-primary) 70%, transparent);
+    position: sticky;
+    bottom: 0;
+}
+
+/* ── Controles de áudio ───────────────────────────────– */
+.audio-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+    min-height: 44px;
+}
+
+.audio-controls::-webkit-scrollbar {
+    display: none;
+}
+
+.ctrl-label {
+    font-size: .68rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.ctrl-val {
+    font-size: .68rem;
+    color: var(--text-secondary);
+    min-width: 28px;
+    flex-shrink: 0;
+}
+
+input[type="range"].ctrl-range {
+    -webkit-appearance: none;
+    flex-shrink: 0;
+    width: 60px;
+    height: 4px;
+    background: var(--border-subtle);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    touch-action: none;
+}
+
+@media (min-width: 480px) {
+    input[type="range"].ctrl-range {
+        width: 80px;
+    }
+}
+
+input[type="range"].ctrl-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+}
+
+input[type="range"].ctrl-range::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+}
+
+/* ── Botão play global ────────────────────────────────– */
+#global-play-btn {
+    background: var(--border-subtle);
+    color: var(--text-primary);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    padding: 5px 12px;
+    font-size: .78rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--transition-fast);
+    font-family: inherit;
+    flex-shrink: 0;
+    min-height: 32px;
+    touch-action: manipulation;
+}
+
+#global-play-btn:hover {
+    background: var(--border-medium);
+}
+
+/* ── Botão mic ────────────────────────────────────────– */
+.mic-btn {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    background: linear-gradient(135deg, var(--border-subtle), var(--bg-input));
+    color: var(--text-secondary);
+    font-size: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: all var(--transition-mid);
+    outline: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
+}
+
+@media (min-width: 600px) {
+    .mic-btn {
+        width: 80px;
+        height: 80px;
+        font-size: 32px;
+    }
+}
+
+.mic-btn:hover {
+    background: linear-gradient(135deg, #1e2f40, #182130);
+    color: var(--text-primary);
+}
+
+.mic-btn.recording {
+    background: linear-gradient(135deg, var(--danger), #c44a1a);
+    color: #fff;
+    animation: mic-pulse 1.2s ease-in-out infinite;
+}
+
+.mic-btn.processing {
+    background: linear-gradient(135deg, var(--accent), #c88800);
+    color: var(--bg-primary);
+    animation: none;
+}
+
+@keyframes mic-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(224, 92, 42, 0.6), 0 4px 20px rgba(224, 92, 42, 0.3);
+    }
+    70% {
+        box-shadow: 0 0 0 16px rgba(224, 92, 42, 0), 0 4px 20px rgba(224, 92, 42, 0.3);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(224, 92, 42, 0), 0 4px 20px rgba(224, 92, 42, 0.3);
+    }
+}
+
+.mic-hint {
+    font-size: .68rem;
+    color: var(--text-muted);
+    letter-spacing: .3px;
+}

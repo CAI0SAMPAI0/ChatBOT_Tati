@@ -1,17 +1,25 @@
 """
-core/database.py — Teacher Tati · Supabase (PostgreSQL) backend
-Criptografia: bcrypt (rounds=12) com migração automática de hashes SHA-256 legados.
-Sessões com expiração em 30 dias.
+core/database.py — Teacher Tati · Supabase (PostgreSQL) backend.
+
+Correções aplicadas vs versão anterior:
+  - load_students() não retorna senha por padrão (include_password=False)
+  - authenticate() faz query direta por username (sem SELECT * completo)
+  - authenticate() remove senha do retorno antes de chegar ao session_state
+  - Logging estruturado em vez de print()
+  - Sessões com expiração em 30 dias
 """
 
-import os
 import hashlib
+import logging
+import os
 import secrets
 from datetime import datetime, timedelta
 
 import bcrypt
 import streamlit as st
 from supabase import create_client, Client
+
+logger = logging.getLogger(__name__)
 
 AVATAR_BUCKET = "avatars"
 SESSION_DAYS  = 30
@@ -20,8 +28,8 @@ SESSION_DAYS  = 30
 # ── Cliente Supabase ──────────────────────────────────────────────────────────
 
 def get_client() -> Client:
-    url = os.getenv("SUPABASE_URL", "")
-    key = os.getenv("SUPABASE_KEY", "")
+    url = os.getenv("SUPABASE_URL", "").strip()
+    key = os.getenv("SUPABASE_KEY", "").strip()
     if not url or not key:
         raise RuntimeError("❌ SUPABASE_URL e SUPABASE_KEY não encontrados.")
     return create_client(url, key)
@@ -35,10 +43,7 @@ def hash_password(plain: str) -> str:
 
 
 def check_password(plain: str, hashed: str) -> bool:
-    """
-    Verifica senha aceitando bcrypt (novo) e SHA-256 (legado).
-    Não faz nenhum output — silencioso.
-    """
+    """Verifica senha aceitando bcrypt (novo) e SHA-256 hex (legado)."""
     if not plain or not hashed:
         return False
     if hashed.startswith("$2"):
@@ -46,7 +51,6 @@ def check_password(plain: str, hashed: str) -> bool:
             return bcrypt.checkpw(plain.encode(), hashed.encode())
         except Exception:
             return False
-    # Fallback SHA-256 legado (hex 64 chars)
     if len(hashed) == 64:
         sha = hashlib.sha256(plain.encode()).hexdigest()
         return secrets.compare_digest(sha, hashed)
@@ -61,18 +65,17 @@ def _migrate_password_to_bcrypt(username: str, plain: str) -> None:
             {"password": hash_password(plain)}
         ).eq("username", username).execute()
     except Exception:
-        pass
+        logger.warning("Falha ao migrar senha de '%s'", username, exc_info=True)
 
 
 # ── Init DB ───────────────────────────────────────────────────────────────────
 
-def init_db():
-    """Garante que os usuários padrão existem."""
+def init_db() -> None:
     db = get_client()
     _ensure_default_users(db)
 
 
-def _ensure_default_users(db: Client):
+def _ensure_default_users(db: Client) -> None:
     now = datetime.now().isoformat()
     defaults = [
         {
@@ -99,22 +102,29 @@ def _ensure_default_users(db: Client):
         },
     ]
     for u in defaults:
-        existing = db.table("users").select("username").eq("username", u["username"]).execute().data
+        existing = (
+            db.table("users").select("username").eq("username", u["username"]).execute().data
+        )
         if not existing:
             db.table("users").insert(u).execute()
 
 
 # ── Usuários ──────────────────────────────────────────────────────────────────
 
-def load_students() -> dict:
-    """Carrega usuários SEM retornar senhas."""
+def load_students(include_password: bool = False) -> dict:
+    """
+    Carrega usuários. Por padrão NÃO inclui hash de senha.
+    Use include_password=True apenas internamente no authenticate().
+    """
     db   = get_client()
-    rows = db.table("users").select(
-        "username, name, role, email, level, focus, created_at, profile"
-    ).execute().data or []
+    cols = "username, name, role, email, level, focus, created_at, profile"
+    if include_password:
+        cols = "*"
 
-    return {
-        r["username"]: {
+    rows = db.table("users").select(cols).execute().data or []
+    result: dict = {}
+    for r in rows:
+        entry = {
             "name":       r["name"],
             "role":       r["role"],
             "email":      r.get("email", ""),
@@ -123,60 +133,67 @@ def load_students() -> dict:
             "created_at": r["created_at"],
             "profile":    r.get("profile") or {},
         }
-        for r in rows
-    }
+        if include_password:
+            entry["password"] = r.get("password", "")
+        result[r["username"]] = entry
+    return result
 
 
 def authenticate(username: str, password: str) -> dict | None:
-    """Autentica usuário. Retorna dados sem senha, ou None."""
+    """
+    Autentica usuário com query direta (sem carregar todos os usuários).
+    Retorna dados do usuário SEM senha, ou None.
+    """
     db = get_client()
 
-    row = (
-        db.table("users")
-        .select("username, name, role, email, level, focus, created_at, profile, password")
-        .eq("username", username.lower())
-        .execute()
-        .data
-    )
-    if not row:
-        row = (
+    def _fetch(uname: str) -> dict | None:
+        rows = (
             db.table("users")
-            .select("username, name, role, email, level, focus, created_at, profile, password")
-            .eq("username", username)
+            .select("username, name, password, role, email, level, focus, created_at, profile")
+            .eq("username", uname)
+            .limit(1)
             .execute()
             .data
         )
+        return rows[0] if rows else None
+
+    # Tenta username exato, depois lowercase
+    row = _fetch(username) or _fetch(username.lower())
     if not row:
         return None
 
-    u = row[0]
-
-    if not check_password(password, u["password"]):
+    if not check_password(password, row["password"]):
         return None
 
-    # Migra SHA-256 → bcrypt automaticamente (silencioso)
-    if not u["password"].startswith("$2"):
-        _migrate_password_to_bcrypt(u["username"], password)
+    # Migração automática SHA-256 → bcrypt
+    if not row["password"].startswith("$2"):
+        _migrate_password_to_bcrypt(row["username"], password)
 
+    # Remove a senha antes de retornar — nunca vai para session_state
     return {
-        "_resolved_username": u["username"],
-        "name":       u["name"],
-        "role":       u["role"],
-        "email":      u.get("email", ""),
-        "level":      u["level"],
-        "focus":      u["focus"],
-        "created_at": u["created_at"],
-        "profile":    u.get("profile") or {},
+        "_resolved_username": row["username"],
+        "name":       row["name"],
+        "role":       row["role"],
+        "email":      row.get("email", ""),
+        "level":      row["level"],
+        "focus":      row["focus"],
+        "created_at": row["created_at"],
+        "profile":    row.get("profile") or {},
     }
 
 
 def register_student(
-    username: str, name: str, password: str,
-    email: str = "", level: str = "Beginner",
+    username: str,
+    name: str,
+    password: str,
+    email: str = "",
+    level: str = "Beginner",
     focus: str = "General Conversation",
 ) -> tuple[bool, str]:
     db = get_client()
-    existing = db.table("users").select("username").eq("username", username.lower()).execute().data
+    existing = (
+        db.table("users").select("username").eq("username", username.lower()).execute().data
+    )
     if existing:
         return False, "Username já existe."
 
@@ -203,25 +220,28 @@ def register_student(
 
 def update_profile(username: str, patch: dict) -> bool:
     db  = get_client()
-    row = db.table("users").select("profile, level, focus").eq("username", username).execute().data
+    row = (
+        db.table("users").select("profile, level, focus").eq("username", username).execute().data
+    )
     if not row:
         return False
 
-    top_fields = {}
+    top_fields: dict = {}
     for f in ("name", "email", "level", "focus"):
         if f in patch:
             top_fields[f] = patch.pop(f)
 
     profile = row[0].get("profile") or {}
     profile.update(patch)
-
     db.table("users").update({"profile": profile, **top_fields}).eq("username", username).execute()
     return True
 
 
 def update_password(username: str, new_pw: str) -> bool:
     db = get_client()
-    db.table("users").update({"password": hash_password(new_pw)}).eq("username", username).execute()
+    db.table("users").update(
+        {"password": hash_password(new_pw)}
+    ).eq("username", username).execute()
     return True
 
 
@@ -243,7 +263,7 @@ def create_session(username: str) -> str:
 
 
 def validate_session(token: str) -> dict | None:
-    """Valida token e atualiza last_seen. Retorna dados do usuário sem senha."""
+    """Valida token, atualiza last_seen. Retorna dados do usuário sem senha."""
     if not token:
         return None
     db  = get_client()
@@ -270,12 +290,14 @@ def validate_session(token: str) -> dict | None:
         if expires and datetime.fromisoformat(expires) < now:
             db.table("sessions").delete().eq("token", token).execute()
             return None
-        db.table("sessions").update({"last_seen": now.isoformat()}).eq("token", token).execute()
+        db.table("sessions").update(
+            {"last_seen": now.isoformat()}
+        ).eq("token", token).execute()
 
     return load_students().get(username)
 
 
-def delete_session(token: str):
+def delete_session(token: str) -> None:
     get_client().table("sessions").delete().eq("token", token).execute()
 
 
@@ -287,21 +309,24 @@ def new_conversation(username: str) -> str:
     db  = get_client()
     db.table("conversations").upsert(
         {"id": cid, "username": username, "created_at": now},
-        on_conflict="id,username", ignore_duplicates=True,
+        on_conflict="id,username",
+        ignore_duplicates=True,
     ).execute()
     return cid
 
 
-def delete_conversation(username: str, conv_id: str):
+def delete_conversation(username: str, conv_id: str) -> None:
     db = get_client()
     try:
-        db.rpc("delete_conversation", {"p_username": username, "p_conv_id": conv_id}).execute()
+        db.rpc("delete_conversation", {
+            "p_username": username, "p_conv_id": conv_id,
+        }).execute()
     except Exception:
         db.table("messages").delete().eq("username", username).eq("conv_id", conv_id).execute()
         db.table("conversations").delete().eq("username", username).eq("id", conv_id).execute()
 
 
-def list_conversations(username: str) -> list:
+def list_conversations(username: str) -> list[dict]:
     db = get_client()
     try:
         rows = db.rpc("list_conversations", {"p_username": username}).execute().data or []
@@ -319,14 +344,20 @@ def list_conversations(username: str) -> list:
             date = datetime.strptime(r["id"], "%Y%m%d_%H%M%S").strftime("%d/%m %H:%M")
         except Exception:
             date = r["id"][:13]
-        result.append({"id": r["id"], "title": title, "date": date, "count": r.get("msg_count", 0)})
+        result.append({
+            "id":    r["id"],
+            "title": title,
+            "date":  date,
+            "count": r.get("msg_count", 0),
+        })
     return result
 
 
-def _list_conversations_fallback(username: str, db: Client) -> list:
+def _list_conversations_fallback(username: str, db: Client) -> list[dict]:
     convs = (
         db.table("conversations").select("id, created_at")
-        .eq("username", username).order("created_at", desc=True).execute().data or []
+        .eq("username", username).order("created_at", desc=True)
+        .execute().data or []
     )
     result = []
     for c in convs:
@@ -352,10 +383,12 @@ def _list_conversations_fallback(username: str, db: Client) -> list:
     return result
 
 
-def load_conversation(username: str, conv_id: str) -> list:
+def load_conversation(username: str, conv_id: str) -> list[dict]:
     db = get_client()
     try:
-        rows = db.rpc("load_conversation", {"p_username": username, "p_conv_id": conv_id}).execute().data or []
+        rows = db.rpc("load_conversation", {
+            "p_username": username, "p_conv_id": conv_id,
+        }).execute().data or []
         for r in rows:
             if "msg_time" in r:
                 r["time"]      = r.pop("msg_time")
@@ -364,20 +397,26 @@ def load_conversation(username: str, conv_id: str) -> list:
     except Exception:
         rows = (
             db.table("messages").select("*")
-            .eq("username", username).eq("conv_id", conv_id).order("id").execute().data or []
+            .eq("username", username).eq("conv_id", conv_id).order("id")
+            .execute().data or []
         )
     return rows
 
 
 @st.cache_data(show_spinner=False, ttl=10)
-def cached_load_conversation(username: str, conv_id: str) -> list:
+def cached_load_conversation(username: str, conv_id: str) -> list[dict]:
     return load_conversation(username, conv_id)
 
 
 def append_message(
-    username: str, conv_id: str, role: str, content: str,
-    audio: bool = False, tts_b64: str = None, is_file: bool = False,
-):
+    username:  str,
+    conv_id:   str,
+    role:      str,
+    content:   str,
+    audio:     bool = False,
+    tts_b64:   str | None = None,
+    is_file:   bool = False,
+) -> None:
     now = datetime.now()
     db  = get_client()
     try:
@@ -396,7 +435,8 @@ def append_message(
     except Exception:
         db.table("conversations").upsert(
             {"id": conv_id, "username": username, "created_at": now.isoformat()},
-            on_conflict="id,username", ignore_duplicates=True,
+            on_conflict="id,username",
+            ignore_duplicates=True,
         ).execute()
         db.table("messages").insert({
             "conv_id":   conv_id,
@@ -423,11 +463,12 @@ def save_user_avatar_db(username: str, raw: bytes, mime: str) -> bool:
         except Exception:
             pass
         db.storage.from_(AVATAR_BUCKET).upload(
-            path, raw, file_options={"content-type": mime, "upsert": "true"},
+            path, raw,
+            file_options={"content-type": mime, "upsert": "true"},
         )
         return True
-    except Exception as e:
-        print(f"[avatar upload ERROR] {e}")
+    except Exception:
+        logger.error("Falha no upload de avatar para '%s'", username, exc_info=True)
         return False
 
 
@@ -453,12 +494,13 @@ def remove_user_avatar_db(username: str) -> bool:
         db.storage.from_(AVATAR_BUCKET).remove([path])
         return True
     except Exception:
+        logger.error("Falha ao remover avatar de '%s'", username, exc_info=True)
         return False
 
 
 # ── Stats do professor ─────────────────────────────────────────────────────────
 
-def get_all_students_stats() -> list:
+def get_all_students_stats() -> list[dict]:
     db = get_client()
     try:
         rows = db.rpc("get_students_stats").execute().data or []
@@ -479,7 +521,7 @@ def get_all_students_stats() -> list:
         return _get_students_stats_fallback(db)
 
 
-def _get_students_stats_fallback(db: Client) -> list:
+def _get_students_stats_fallback(db: Client) -> list[dict]:
     students = load_students()
     result   = []
     for username, data in students.items():
@@ -487,15 +529,27 @@ def _get_students_stats_fallback(db: Client) -> list:
             continue
         msgs  = db.table("messages").select("id", count="exact").eq("username", username).eq("role", "user").execute()
         total = msgs.count or 0
-        ai_msgs = db.table("messages").select("content").eq("username", username).eq("role", "assistant").execute().data or []
+        ai_msgs = (
+            db.table("messages").select("content")
+            .eq("username", username).eq("role", "assistant")
+            .execute().data or []
+        )
         keywords = ["Quick check", "we say", "instead of", "should be", "Try saying"]
         fixes = sum(1 for m in ai_msgs if any(kw in m["content"] for kw in keywords))
-        last_row = db.table("messages").select("date").eq("username", username).order("id", desc=True).limit(1).execute().data
+        last_row = (
+            db.table("messages").select("date")
+            .eq("username", username).order("id", desc=True).limit(1)
+            .execute().data
+        )
         last = last_row[0]["date"] if last_row else "---"
         result.append({
-            "username": username, "name": data["name"],
-            "level": data["level"], "focus": data["focus"],
-            "messages": total, "corrections": fixes,
-            "last_active": last, "created_at": data["created_at"][:10],
+            "username":    username,
+            "name":        data["name"],
+            "level":       data["level"],
+            "focus":       data["focus"],
+            "messages":    total,
+            "corrections": fixes,
+            "last_active": last,
+            "created_at":  data["created_at"][:10],
         })
     return result

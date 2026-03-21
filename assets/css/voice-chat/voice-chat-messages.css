@@ -1,0 +1,161 @@
+/* ── Chat Input Container ─────────────────────────────────────────── */
+[data-testid="stChatInput"] textarea {
+    max-height: 120px !important;
+    min-height: 44px !important;
+    font-size: .88rem !important;
+}
+
+[data-testid="stChatInputContainer"] {
+    padding: 6px 10px !important;
+}
+
+.main .block-container {
+    padding-bottom: 80px !important;
+}
+
+section[data-testid="stMain"] {
+    transition: margin-left 0.3s, width 0.3s ease !important;
+}
+
+/* ── Mensagens estilo ChatGPT ─────────────────────────────────────── */
+.msg-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    margin: 6px 0;
+}
+
+.msg-row.user-row {
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+}
+
+.msg-row.bot-row {
+    flex-direction: row;
+}
+
+.msg-row.user-row > div {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.msg-row.bot-row > div {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.msg-bubble {
+    padding: 10px 15px;
+    border-radius: 18px;
+    font-size: .88rem;
+    line-height: 1.6;
+    word-break: normal;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.msg-bubble.user {
+    max-width: 75%;
+    background: var(--user-bubble-bg, #2d6a4f);
+    color: var(--user-bubble-text, #d8f3dc);
+    border-bottom-right-radius: 4px;
+}
+
+.msg-bubble.bot {
+    max-width: 75%;
+    background: var(--ai-bubble-bg, #1a1f2e);
+    color: var(--ai-bubble-text, #e6edf3);
+    border: 1px solid var(--ai-bubble-border, #252d3d);
+    border-bottom-left-radius: 4px;
+}
+
+.msg-bubble.audio-msg {
+    font-style: italic;
+    opacity: .85;
+}
+
+.msg-av {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    margin-bottom: 2px;
+}
+
+.msg-av img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top;
+}
+
+.msg-av .av-emoji {
+    width: 100%;
+    height: 100%;
+    background: #1e2a3a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.msg-time {
+    font-size: .6rem;
+    color: #4a5a6a;
+    margin: 2px 4px 0;
+    text-align: right;
+}
+
+.bot-row .msg-time {
+    text-align: left;
+}
+
+/* ── Botão Ouvir inline ───────────────────────────────────────────── */
+.msg-ouvir-row {
+    padding: 2px 0 0 40px;
+}
+
+.msg-ouvir-btn {
+    background: none;
+    border: 1px solid #30363d;
+    border-radius: 16px;
+    color: #8b949e;
+    font-size: .68rem;
+    padding: 2px 10px;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+    font-family: inherit;
+}
+
+.msg-ouvir-btn:hover,
+.msg-ouvir-btn.speaking {
+    border-color: #f0a500;
+    color: #f0a500;
+}
+
+/* ── Picker de Conversa ──────────────────────────────────────────── */
+.conv-picker {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 6px 8px;
+    margin: 2px 0 6px 0;
+}
+
+/* ── Responsivo ───────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .msg-bubble {
+        max-width: 88% !important;
+        font-size: .82rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .msg-bubble {
+        max-width: 94% !important;
+    }
+}

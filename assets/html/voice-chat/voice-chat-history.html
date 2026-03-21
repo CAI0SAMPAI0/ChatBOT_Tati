@@ -1,0 +1,94 @@
+<!-- ── History Page ── -->
+<div class="voice-page">
+    <!-- ── Header ── -->
+    <div class="hist-header">
+        <h2>💬 Histórico</h2>
+        <div class="hist-count" id="history-count">0 conversas</div>
+    </div>
+
+    <!-- ── Lista de Conversas ── -->
+    <div id="conversations-list" style="display: flex; flex-direction: column; gap: 2px;">
+        <!-- Conversas adicionadas dinamicamente aqui -->
+        
+        <!-- Exemplo estático -->
+        <div class="hist-card">
+            <div class="hist-card-icon">💬</div>
+            <div class="hist-card-body">
+                <div class="hist-card-title">Conversa de Exemplo</div>
+                <div class="hist-card-meta">
+                    <span class="hist-meta-item">📅 Hoje às 14:30</span>
+                    <span class="hist-meta-dot"></span>
+                    <span class="hist-meta-item">5 mensagens</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Preview de Conversa (ao expandir) ── -->
+    <div id="conversation-preview-container" style="margin-top: 1rem; display: none;">
+        <div class="conv-preview" id="conversation-preview">
+            <!-- Bubbles de conversa vão aqui -->
+        </div>
+    </div>
+
+    <!-- ── Empty State ── -->
+    <div 
+        id="empty-state" 
+        style="
+            text-align: center; 
+            padding: 2rem; 
+            opacity: 0.6;
+            display: none;
+        "
+    >
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📭</div>
+        <p>Nenhuma conversa ainda</p>
+        <p style="font-size: 0.8rem; color: #4a5a6a;">
+            Comece uma nova conversa para aparecer aqui
+        </p>
+    </div>
+</div>
+
+<script>
+// Script para carregar histórico dinamicamente
+document.addEventListener('DOMContentLoaded', () => {
+    const conversationsList = document.getElementById('conversations-list');
+    
+    if (conversationsList) {
+        conversationsList.addEventListener('click', (e) => {
+            const card = e.target.closest('.hist-card');
+            if (card) {
+                const preview = document.getElementById('conversation-preview-container');
+                if (preview) {
+                    preview.style.display = 'block';
+                    // Aqui você carregaria o preview da conversa
+                }
+            }
+        });
+    }
+});
+</script>
+
+<style>
+.hist-card {
+    animation: slideIn 0.3s ease-out;
+    animation-fill-mode: both;
+}
+
+.hist-card:nth-child(1) { animation-delay: 0s; }
+.hist-card:nth-child(2) { animation-delay: 0.05s; }
+.hist-card:nth-child(3) { animation-delay: 0.1s; }
+.hist-card:nth-child(4) { animation-delay: 0.15s; }
+.hist-card:nth-child(5) { animation-delay: 0.2s; }
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+</style>

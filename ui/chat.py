@@ -516,6 +516,10 @@ MUDANÇAS vs versão anterior:
   - @st.fragment nos inputs   → mic/arquivo sem recarregar as mensagens
   - Resultado: reruns isolados por região, página ~3-4x mais responsiva
 """
+"""
+ui/chat.py — Tela principal de chat do Teacher Tati.
+Refatorado com st.fragment para eliminar reruns globais.
+"""
 
 import base64
 import html
@@ -666,8 +670,6 @@ html,body{{background:transparent;font-family:'Sora',sans-serif;overflow:hidden;
 
 # ══════════════════════════════════════════════════════════════════════════════
 # FRAGMENT: SIDEBAR
-# Rerenderiza sozinha quando o usuário troca de conversa.
-# Não recarrega o chat, não recarrega os inputs.
 # ══════════════════════════════════════════════════════════════════════════════
 
 @st.fragment
@@ -684,12 +686,11 @@ def _render_sidebar(user: dict, conv_id: str, messages: list, ui_lang: str):
     if st.button(t("new_conv", ui_lang), use_container_width=True, key="btn_new"):
         st.session_state.conv_id = new_conversation(username)
         st.session_state.pop("_conv_pick", None)
-        # rerun do fragment não recarrega o chat
         st.rerun()
 
     if st.button(t("voice_mode", ui_lang), use_container_width=True, key="btn_voice"):
         st.session_state.voice_mode = True
-        st.rerun()  # precisa rerun global para mudar de página
+        st.rerun()
 
     st.markdown(
         '<div style="font-size:.68rem;color:#8b949e;text-transform:uppercase;'
@@ -740,7 +741,6 @@ def _render_sidebar(user: dict, conv_id: str, messages: list, ui_lang: str):
                     st.session_state.conv_id    = c["id"]
                     st.session_state.voice_mode = False
                     st.session_state.pop("_conv_pick", None)
-                    # rerun global para atualizar o chat com nova conversa
                     st.rerun()
             with pc2:
                 if st.button("🎙 Voz", key=f"pick_voice_{c['id']}", use_container_width=True):
@@ -765,7 +765,7 @@ def _render_sidebar(user: dict, conv_id: str, messages: list, ui_lang: str):
         unsafe_allow_html=True,
     )
 
-    if user["role"] == "professor":
+    if user["role"] in ("professor", "professora", "programador"):
         col_a, col_b = st.columns(2)
         with col_a:
             if st.button(t("dashboard", ui_lang), use_container_width=True, key="btn_dash"):
@@ -787,13 +787,10 @@ def _render_sidebar(user: dict, conv_id: str, messages: list, ui_lang: str):
 
 # ══════════════════════════════════════════════════════════════════════════════
 # FRAGMENT: HISTÓRICO DE MENSAGENS
-# Rerenderiza sozinho quando chega nova mensagem.
-# Não recarrega sidebar, inputs ou header.
 # ══════════════════════════════════════════════════════════════════════════════
 
 @st.fragment
 def _render_messages(username: str, conv_id: str):
-    """Renderiza o histórico de mensagens. Reroda sozinho após cada envio."""
     messages = cached_load_conversation(username, conv_id)
 
     _tati_mini   = get_tati_mini_b64()
@@ -837,7 +834,7 @@ def _render_messages(username: str, conv_id: str):
                 unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Indicador "digitando" — aparece enquanto Claude processa
+    # Indicador "digitando"
     if st.session_state.get("speaking"):
         components.html("""<!DOCTYPE html><html><head>
 <style>*{margin:0;padding:0;box-sizing:border-box;}html,body{background:transparent;overflow:hidden;font-family:'Sora',sans-serif;}
@@ -869,8 +866,6 @@ def _render_messages(username: str, conv_id: str):
 
 # ══════════════════════════════════════════════════════════════════════════════
 # FRAGMENT: INPUTS (chat + mic + arquivo)
-# Rerenderiza sozinho após envio. Não toca nas mensagens nem na sidebar.
-# É aqui que fica o loop principal de interação.
 # ══════════════════════════════════════════════════════════════════════════════
 
 @st.fragment
@@ -902,7 +897,7 @@ def _render_inputs(user: dict, conv_id: str, ui_lang: str):
             st.session_state.pop("_last_files_key", None)
             st.rerun()
 
-    # Chat input — principal ponto de entrada
+    # Chat input
     prompt = st.chat_input(t("type_message", ui_lang))
     if prompt:
         staged = st.session_state.get("staged_file")
@@ -922,9 +917,8 @@ def _render_inputs(user: dict, conv_id: str, ui_lang: str):
                 st.error(f"❌ {e}")
             st.session_state.speaking = False
 
-        # Invalida cache e reroda só o fragment de mensagens
         cached_load_conversation.clear()
-        st.rerun()  
+        st.rerun()
 
     # Gravador de áudio nativo
     audio_val = st.audio_input(
@@ -935,6 +929,7 @@ def _render_inputs(user: dict, conv_id: str, ui_lang: str):
         st.session_state["_last_audio"] = audio_val
         with st.spinner("Transcrevendo..."):
             txt = transcribe_bytes(audio_val.read(), ".wav", None)
+        if txt and not txt.startswith("❌") and not txt.startswith("⚠️"):
             append_message(username, conv_id, "user", txt, audio=True)
             st.session_state.speaking = True
             try:
@@ -1010,7 +1005,6 @@ def _render_inputs(user: dict, conv_id: str, ui_lang: str):
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SHOW CHAT — orquestrador principal
-# Monta a página e chama cada fragment independente.
 # ══════════════════════════════════════════════════════════════════════════════
 
 def show_chat() -> None:
@@ -1029,17 +1023,28 @@ def show_chat() -> None:
     messages = cached_load_conversation(username, conv_id)
     speaking = st.session_state.get("speaking", False)
 
-    # Injeta cores personalizadas (roda uma vez, não precisa de fragment)
     _ac = profile.get("accent_color", "#f0a500")
     _ub = profile.get("user_bubble_color", "#2d6a4f")
     _ab = profile.get("ai_bubble_color", "#1a1f2e")
     _inject_colors(_ac, _ub, _ab)
 
-    # CSS global da tela de chat (roda uma vez por carregamento)
     st.markdown("""<style>
+/* ── Campo de digitação fixo no fundo ── */
 [data-testid="stChatInput"] textarea{max-height:120px!important;min-height:44px!important;font-size:.88rem!important;}
 [data-testid="stChatInputContainer"]{padding:6px 10px!important;}
-.main .block-container{padding-bottom:80px!important;}
+/* Fixa o bloco do chat_input na parte inferior */
+[data-testid="stBottom"]{
+    position:fixed!important;
+    bottom:0!important;
+    left:var(--sidebar-width,0px)!important;
+    right:0!important;
+    z-index:999!important;
+    background:#0d1117!important;
+    border-top:1px solid #21262d!important;
+    padding:0!important;
+}
+/* Compensa o espaço ocupado pelo campo fixo */
+.main .block-container{padding-bottom:100px!important;}
 .msg-row{display:flex;align-items:flex-end;gap:10px;margin:6px 0;}
 .msg-row.user-row{flex-direction:row-reverse;}
 .msg-row.user-row>div{display:flex;flex-direction:column;align-items:flex-end;}
@@ -1064,7 +1069,7 @@ def show_chat() -> None:
 @media(max-width:768px){.msg-bubble{max-width:88%!important;font-size:.82rem!important;}}
 </style>""", unsafe_allow_html=True)
 
-    # ── Sidebar com seu próprio fragment ─────────────────────────────────────
+    # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
         st.markdown("""<style>
         section[data-testid="stSidebar"]{overflow:hidden;}
@@ -1073,7 +1078,7 @@ def show_chat() -> None:
         </style>""", unsafe_allow_html=True)
         _render_sidebar(user, conv_id, messages, ui_lang)
 
-    # ── Header (estático, não muda entre reruns) ──────────────────────────────
+    # ── Header ───────────────────────────────────────────────────────────────
     st.markdown(f"""<div class="prof-header">
         {avatar_html(56, speaking)}
         <div class="prof-info">
@@ -1081,17 +1086,18 @@ def show_chat() -> None:
             <p>Online · {user['level']} · {user['focus']}</p>
         </div></div>""", unsafe_allow_html=True)
 
-    # ── Mensagens: fragment independente ─────────────────────────────────────
+    # ── Mensagens ─────────────────────────────────────────────────────────────
     _render_messages(username, conv_id)
 
-    # ── Inputs: fragment independente ─────────────────────────────────────────
+    # ── Inputs ────────────────────────────────────────────────────────────────
     _render_inputs(user, conv_id, ui_lang)
 
 
 # ── Helper: injeção de cores CSS via JS ──────────────────────────────────────
 
 def _inject_colors(ac: str, ub: str, ab: str) -> None:
-    components.html(f"""<!DOCTYPE html><html><head>
+    components.html(
+        f"""<!DOCTYPE html><html><head>
 <style>html,body{{margin:0;padding:0;overflow:hidden;background:transparent;}}</style>
 </head><body><script>
 (function(){{
@@ -1107,8 +1113,9 @@ def _inject_colors(ac: str, ub: str, ab: str) -> None:
   r.style.setProperty('--ai-bubble-bg',ab);
   r.style.setProperty('--ai-bubble-text',luminance(ab)>128?'#111':'#e6edf3');
   r.style.setProperty('--ai-bubble-border','rgba('+hexToRgb(ab)+',.6)');
-  // Para todo áudio ao trocar de conversa
   var par=window.parent;
   if(par)par.document.querySelectorAll('audio').forEach(function(a){{a.pause();a.currentTime=0;}});
 }})();
-</script></body></html>""", height=1)
+</script></body></html>""",
+        height=1,
+    )

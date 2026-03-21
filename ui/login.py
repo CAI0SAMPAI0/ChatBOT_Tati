@@ -9,6 +9,8 @@ from utils.i18n import t
 
 PHOTO_PATH = os.getenv("PROFESSOR_PHOTO", "assets/tati.png")
 
+_DASHBOARD_ROLES = ("professor", "professora", "programador")
+
 
 def js_save_session(token: str) -> None:
     components.html(
@@ -142,10 +144,12 @@ p{{font-size:.7rem;color:#3a4e5e;text-align:center;}}
                     if user:
                         real_u = user.get("_resolved_username", u.lower())
                         clear_attempts(real_u)
+                        # ← CORRIGIDO: usa `in` para incluir "programador"
+                        page = "dashboard" if user["role"] in _DASHBOARD_ROLES else "chat"
                         st.session_state.update(
                             logged_in=True,
                             user={"username": real_u, **user},
-                            page="dashboard" if user["role"] == "professor" else "voice",
+                            page=page,
                             conv_id=None,
                         )
                         token = create_session(real_u)

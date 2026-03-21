@@ -1,0 +1,51 @@
+<!-- ── Login Page ── -->
+<div style="width: 100%; height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #060a10 0%, #0f1824 100%);">
+    <div class="login-container" style="width: 100%; max-width: 420px; padding: 0 16px;">
+        
+        <!-- Card com avatar e formulário -->
+        <div class="login-card">
+            <!-- Avatar -->
+            <div id="login-avatar-container">
+                <img 
+                    id="login-avatar-img" 
+                    class="login-avatar" 
+                    src="" 
+                    alt="Seu avatar"
+                    style="display: none;"
+                />
+                <div id="login-avatar-emoji" class="login-avatar-emoji">😊</div>
+            </div>
+
+            <!-- Título -->
+            <h1 class="login-title">Voice Chat</h1>
+            <p class="login-subtitle">Bem-vindo de volta!</p>
+        </div>
+
+        <!-- Formulário será injetado pelo Streamlit -->
+        <div id="login-form-container" style="margin-top: 20px;">
+            <!-- st.form() vem aqui -->
+        </div>
+
+        <!-- Link de ajuda (opcional) -->
+        <p style="text-align: center; font-size: 0.7rem; color: #4a5a6a; margin-top: 16px;">
+            Problemas ao entrar? <a href="#" style="color: #8b5cf6; text-decoration: none;">Restaurar acesso</a>
+        </p>
+    </div>
+</div>
+
+<style>
+.login-container {
+    animation: fadeInScale 0.4s ease-out;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+</style>

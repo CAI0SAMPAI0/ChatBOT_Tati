@@ -1,0 +1,137 @@
+[data-testid="stSidebar"] {
+  display: none !important;
+}
+
+.stApp {
+  background: var(--bg-primary) !important;
+}
+
+section[data-testid="stMain"],
+section[data-testid="stMain"] > div,
+.main .block-container {
+  padding: 0 !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* ── Centraliza formulário ─────────────────────────────────────── */
+section[data-testid="stMain"] > div > div > div {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+}
+
+div[data-testid="stVerticalBlock"] {
+  width: 100% !important;
+  max-width: 420px !important;
+  margin: 0 auto !important;
+  padding: 0 16px !important;
+}
+
+/* ── Iframes fantasma (auto-login) ─────────────────────────────── */
+iframe[height="1"] {
+  position: fixed !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  bottom: 0 !important;
+  left: 0 !important;
+}
+
+/* ── Botões de aba ────────────────────────────────────────────── */
+div[data-testid="stButton"] > button {
+  border-radius: var(--radius-md) !important;
+  font-weight: 600 !important;
+  border: 1px solid #2a2a4a !important;
+  background: transparent !important;
+  color: #6b7280 !important;
+  transition: all var(--transition-fast) !important;
+}
+
+/* ── Aba ativa ─────────────────────────────────────────────────── */
+div[data-testid="stButton"] > button[kind="primary"],
+div[data-testid="stButton"] > button[data-testid="baseButton-primary"] {
+  background: linear-gradient(135deg, var(--purple-dark), var(--purple-main)) !important;
+  border-color: #7c4dcc !important;
+  color: #fff !important;
+  box-shadow: var(--shadow-purple) !important;
+}
+
+div[data-testid="stButton"] > button[kind="primary"]:hover {
+  background: linear-gradient(135deg, #7c4dcc, #9d6ff7) !important;
+  box-shadow: 0 0 22px rgba(139,92,246,0.5) !important;
+}
+
+/* ── Botão submit do form ──────────────────────────────────────── */
+div[data-testid="stFormSubmitButton"] > button {
+  background: linear-gradient(135deg, var(--purple-dark), var(--purple-main)) !important;
+  border: 1px solid #7c4dcc !important;
+  color: #fff !important;
+  border-radius: var(--radius-md) !important;
+  font-weight: 700 !important;
+  box-shadow: var(--shadow-purple) !important;
+  transition: all var(--transition-fast) !important;
+}
+
+div[data-testid="stFormSubmitButton"] > button:hover {
+  background: linear-gradient(135deg, #7c4dcc, #9d6ff7) !important;
+  box-shadow: 0 0 22px rgba(139,92,246,0.5) !important;
+}
+
+/* ── Card do avatar ────────────────────────────────────────────── */
+.login-card {
+  background: linear-gradient(180deg, var(--bg-secondary), var(--bg-input));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 28px 24px 20px;
+  width: 100%;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.login-avatar {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: top center;
+  border: 2.5px solid var(--purple-main);
+  box-shadow: 0 0 0 6px rgba(139,92,246,0.12), 0 0 28px rgba(139,92,246,0.25);
+  display: block;
+  margin-bottom: 12px;
+  transition: box-shadow var(--transition-mid);
+}
+
+.login-avatar:hover {
+  box-shadow: 0 0 0 8px rgba(139,92,246,0.18), 0 0 36px rgba(139,92,246,0.35);
+}
+
+.login-avatar-emoji {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--purple-dark), var(--purple-main));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38px;
+  margin-bottom: 12px;
+}
+
+.login-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  text-align: center;
+  margin: 0 0 3px;
+  background: linear-gradient(135deg, var(--purple-main) 30%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.login-subtitle {
+  font-size: .7rem;
+  color: var(--text-muted);
+  text-align: center;
+}

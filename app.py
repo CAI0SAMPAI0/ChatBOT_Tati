@@ -1,8 +1,3 @@
-"""
-app.py — Teacher Tati · Roteador principal.
-Responsável apenas por: configuração, session state e roteamento de páginas.
-"""
-
 import os
 from pathlib import Path
 
@@ -75,6 +70,9 @@ components.html("""<!DOCTYPE html><html><head>
 # ── Banco de dados ────────────────────────────────────────────────────────────
 init_db()
 
+# ── Roles que têm acesso ao dashboard ────────────────────────────────────────
+_DASHBOARD_ROLES = ("professor", "professora", "programador")
+
 # ── Session state defaults ────────────────────────────────────────────────────
 _DEFAULTS = {
     "logged_in":        False,
@@ -103,7 +101,8 @@ if not st.session_state.logged_in:
             if _uname:
                 st.session_state.logged_in         = True
                 st.session_state.user              = {"username": _uname, **_udata}
-                st.session_state.page              = "dashboard" if _udata.get("role") == "professor" else "chat"
+                # ← CORRIGIDO: usa `in` ao invés de `==`
+                st.session_state.page              = "dashboard" if _udata.get("role") in _DASHBOARD_ROLES else "chat"
                 st.session_state.conv_id           = None
                 st.session_state["_session_token"] = _s
         else:

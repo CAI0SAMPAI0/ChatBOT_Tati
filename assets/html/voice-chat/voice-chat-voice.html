@@ -1,0 +1,72 @@
+<div class="voice-app">
+    <!-- ── Seção do Avatar ── -->
+    <div class="avatar-section">
+        <div class="avatar-wrap">
+            <div class="avatar-ring" id="avatar-ring"></div>
+            <!-- Imagem ou emoji do avatar -->
+            <img 
+                id="avatar-img" 
+                class="avatar-img" 
+                src="" 
+                alt="Avatar" 
+                style="display: none;"
+            />
+            <div id="avatar-emoji" class="avatar-emoji" style="display: flex;">😊</div>
+        </div>
+        <h2 class="prof-name">Assistant</h2>
+        <p class="voice-status" id="voice-status">Pronto para ouvir</p>
+    </div>
+
+    <!-- ── Histórico de Mensagens ── -->
+    <div class="history-wrap" id="history-wrap">
+        <!-- Bolhas vão ser adicionadas aqui -->
+    </div>
+
+    <!-- ── Controles de Áudio ── -->
+    <div class="mic-footer">
+        <!-- Erro display (se houver) -->
+        <div id="voice-error" class="voice-error" style="display: none;"></div>
+
+        <!-- Controles de áudio -->
+        <div class="audio-controls" id="audio-controls">
+            <span class="ctrl-label">Vel:</span>
+            <input 
+                type="range" 
+                class="ctrl-range" 
+                min="0.5" 
+                max="2" 
+                step="0.1" 
+                value="1"
+                data-label="speed"
+            />
+            <span class="ctrl-val">1.0x</span>
+
+            <span class="ctrl-label">Vol:</span>
+            <input 
+                type="range" 
+                class="ctrl-range" 
+                min="0" 
+                max="100" 
+                value="80"
+                data-label="volume"
+            />
+            <span class="ctrl-val">80%</span>
+
+            <button id="global-play-btn">▶ Ouvir tudo</button>
+        </div>
+
+        <!-- Botão mic grande -->
+        <button class="mic-btn" id="mic-btn" title="Gravar (Ctrl+M)">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v12a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+        </button>
+
+        <p class="mic-hint">
+            <span id="mic-hint-text">Clique no mic ou pressione Ctrl+M</span>
+        </p>
+    </div>
+</div>
