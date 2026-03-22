@@ -80,7 +80,31 @@ div[data-testid="stButton"]>button[kind="primary"],
 div[data-testid="stButton"]>button[data-testid="baseButton-primary"]{background:linear-gradient(135deg,#6c3fc5,#8b5cf6)!important;border-color:#7c4dcc!important;color:#fff!important;box-shadow:0 0 14px rgba(139,92,246,.35)!important;}
 div[data-testid="stFormSubmitButton"]>button{background:linear-gradient(135deg,#6c3fc5,#8b5cf6)!important;border:1px solid #7c4dcc!important;color:#fff!important;border-radius:10px!important;font-weight:700!important;box-shadow:0 0 14px rgba(139,92,246,.3)!important;}
 div[data-testid="stFormSubmitButton"]>button:hover{background:linear-gradient(135deg,#7c4dcc,#9d6ff7)!important;box-shadow:0 0 22px rgba(139,92,246,.5)!important;}
-iframe[height="1"]{position:fixed!important;opacity:0!important;pointer-events:none!important;bottom:0!important;left:0!important;}
+iframe[height="1"]{position:fixed!important;opacity:0!important;pointer-events:none!important;bottom:0!important;left:0!important;};
+                /* Inputs escuros */
+[data-testid="stTextInput"] input{
+    background:#0d1117!important;
+    color:#e6edf3!important;
+    border:1px solid #30363d!important;
+    border-radius:10px!important;
+}
+[data-testid="stTextInput"] input:focus{
+    border-color:#8b5cf6!important;
+    box-shadow:0 0 0 2px rgba(139,92,246,.2)!important;
+}
+[data-testid="stTextInput"] input::placeholder{
+    color:#4a5a6a!important;
+}
+/* Label dos inputs */
+[data-testid="stTextInput"] label p{
+    color:#8b949e!important;
+    font-size:.82rem!important;
+}
+/* Remove o fundo branco do wrapper */
+[data-testid="stTextInput"]>div>div{
+    background:#0d1117!important;
+    border-radius:10px!important;
+}
 </style>""", unsafe_allow_html=True)
 
     # Auto-login via localStorage
