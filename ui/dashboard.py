@@ -403,7 +403,7 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
 
     st.caption(f"👥 {L('click_expand')}")
 
-    for s in sorted_stats:
+    for idx, s in enumerate(sorted_stats):
         name  = s.get("name", "—")
         uname = s.get("username", "")
         level = s.get("level", "—")
@@ -489,7 +489,7 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
                     unsafe_allow_html=True,
                 )
 
-            if st.button(L("gen_insight"), key=f"ins_{uname}"):
+            if st.button(L("gen_insight"), key=f"ins_{uname}_{idx}"):
                 with st.spinner(L("analyzing")):
                     try:
                         convs_list = list_conversations(uname)
@@ -519,10 +519,10 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
                 cur_idx   = level_opts.index(level) if level in level_opts else 0
                 new_level = st.selectbox(
                     L("change_level"), level_opts, index=cur_idx,
-                    key=f"lvl_{uname}",
+                    key=f"lvl_{uname}_{idx}",
                 )
             if new_level != level:
-                if st.button(L("save"), key=f"slvl_{uname}"):
+                if st.button(L("save"), key=f"slvl_{uname}_{idx}"):
                     update_profile(uname, {"level": new_level})
                     st.success(L("level_saved"))
                     st.rerun()
@@ -534,10 +534,10 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
             new_prompt = st.text_area(
                 "prompt", value=saved_prompt,
                 placeholder=L("prompt_hint"),
-                key=f"tp_{uname}", height=65,
+                key=f"tp_{uname}_{idx}", height=65,
                 label_visibility="collapsed",
             )
-            if st.button(L("save"), key=f"sp_{uname}"):
+            if st.button(L("save"), key=f"sp_{uname}_{idx}"):
                 update_profile(uname, {"custom_prompt": new_prompt})
                 st.session_state.pop(insight_key, None)
                 st.success(L("prompt_saved"))
