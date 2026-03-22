@@ -30,4 +30,4 @@ faster_whisper_models/
 *.mp3
 streamlit.txt
 
-.streamlit/
+.streamlit/secrets.toml

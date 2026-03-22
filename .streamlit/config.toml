@@ -1,0 +1,17 @@
+[theme]
+base            = "dark"
+primaryColor    = "#8c0099"
+textColor       = "#e6edf3"
+font            = "Helvetica"
+
+[server]
+headless             = true
+enableCORS           = false
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
+
+[client]
+showSidebarNavigation = false
+toolbarMode           = "minimal"
