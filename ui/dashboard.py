@@ -212,7 +212,7 @@ def _extract_errors_and_hits(msgs: list) -> tuple[list, list]:
     return ue[:5], uh[:3]
 
 
-def _get_ai_insight(student: dict, msgs: list, custom_prompt: str = "") -> tuple[str, str]:
+def _get_ai_insight(student: dict, msgs: list, custom_prompt: str = "", lang: str = "pt-BR") -> tuple[str, str]:
     """Gera um parágrafo de insight sobre o aluno usando Claude."""
     try:
         api_key = _get_api_key()
@@ -225,15 +225,23 @@ def _get_ai_insight(student: dict, msgs: list, custom_prompt: str = "") -> tuple
         )
         if not convo.strip():
             return "", "no_history"
-        prompt = (
-            f"Analyse this English student and write ONE short paragraph (max 3 sentences) with: "
-            f"1 strength, 1 difficulty and 1 practical suggestion. No headings.\n\n"
-            f"Student: {student.get('name','')} | Level: {student.get('level','')} | "
-            f"Focus: {student.get('focus','')} | Messages: {student.get('messages', 0)}\n"
-        )
+        if lang == "pt-BR":
+            prompt = (
+                f"Analise este aluno de inglês e escreva UM parágrafo curto (máximo 3 frases) "
+                f"com: 1 ponto forte, 1 dificuldade e 1 sugestão prática. Sem títulos.\n\n"
+                f"Aluno: {student.get('name','')} | Nível: {student.get('level','')} | "
+                f"Foco: {student.get('focus','')} | Msgs: {student.get('total_messages',0)}\n"
+            )
+        else:
+            prompt = (
+                f"Analyse this English student and write ONE short paragraph (max 3 sentences) "
+                f"with: 1 strength, 1 difficulty and 1 practical suggestion. No headings.\n\n"
+                f"Student: {student.get('name','')} | Level: {student.get('level','')} | "
+                f"Focus: {student.get('focus','')} | Messages: {student.get('total_messages',0)}\n"
+            )
         if custom_prompt:
-            prompt += f"Teacher instruction: {custom_prompt}\n"
-        prompt += f"\nConversation sample:\n{convo}"
+            prompt += f"{'Instrução do professor' if lang == 'pt-BR' else 'Teacher instruction'}: {custom_prompt}\n"
+        prompt += f"\n{'Conversa' if lang == 'pt-BR' else 'Conversation'}:\n{convo}"
 
         client = anthropic.Anthropic(api_key=api_key)
         resp   = client.messages.create(
