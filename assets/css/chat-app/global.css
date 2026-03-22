@@ -1,19 +1,275 @@
-/* Prefix específico para evitar conflitos */
-.chat-app {
-  --bg-primary:         #060a10;
-  --bg-secondary:       #0f1824;
-  /* ... resto das variáveis */
+/* ══════════════════════════════════════════════════════════════
+   styles/global.css — Teacher Tati · Estilos Globais
+   Carregado em app.py para todas as telas.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────
+   VARIÁVEIS GLOBAIS
+   ─────────────────────────────────────────────*/
+:root {
+    /* Fundos */
+    --bg-primary:   #060a10;
+    --bg-secondary: #0f1824;
+    --bg-card:      #0d1420;
+    --bg-input:     #0a1020;
+
+    /* Bordas */
+    --border-subtle: #1a2535;
+    --border-medium: #252d3d;
+
+    /* Texto */
+    --text-primary:   #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted:     #4a5a6a;
+
+    /* Destaques */
+    --accent:        #f0a500;
+    --accent-glow:   rgba(240,165,0,.25);
+    --accent-subtle: rgba(240,165,0,.08);
+
+    /* Roxo */
+    --purple-main: #8b5cf6;
+    --purple-dark: #6c3fc5;
+    --purple-glow: rgba(139,92,246,.35);
+
+    /* Estados */
+    --danger:        #e05c2a;
+    --danger-subtle: rgba(224,92,42,.1);
+    --success:       #2d6a4f;
+
+    /* Raios de borda */
+    --radius-sm:   8px;
+    --radius-md:   12px;
+    --radius-lg:   16px;
+    --radius-xl:   24px;
+    --radius-full: 9999px;
+
+    /* Sombras */
+    --shadow-card:   0 4px 24px rgba(0,0,0,.4);
+    --shadow-accent: 0 0 14px rgba(240,165,0,.25);
+    --shadow-purple: 0 0 14px rgba(139,92,246,.35);
+
+    /* Transições */
+    --transition-fast: 0.15s ease;
+    --transition-mid:  0.25s ease;
+    --transition-slow: 0.4s ease;
 }
 
-/* Aplicar apenas dentro de .chat-app */
-.chat-app #MainMenu, 
-.chat-app footer, 
-.chat-app header {
-  display: none !important;
+
+/* ══════════════════════════════════════════════
+   RESET STREAMLIT
+   ══════════════════════════════════════════════ */
+
+#MainMenu, footer, header,
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stHeader"] {
+    display: none !important;
 }
 
-.chat-app section[data-testid="stMain"] > div,
-.chat-app .main .block-container {
-  max-width: 100% !important;
-  padding: 0 !important;
+html { height: -webkit-fill-available; }
+body {
+    min-height: 100vh;
+    background: var(--bg-primary) !important;
 }
+.stApp { min-height: 100vh; }
+
+section[data-testid="stMain"] > div,
+.main .block-container {
+    max-width: 100% !important;
+}
+
+
+/* ══════════════════════════════════════════════
+   SCROLLBAR
+   ══════════════════════════════════════════════ */
+
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: var(--border-subtle);
+    border-radius: var(--radius-full);
+}
+
+
+/* ══════════════════════════════════════════════
+   SIDEBAR
+   ══════════════════════════════════════════════ */
+
+section[data-testid="stSidebar"] {
+    background: #070c15 !important;
+    border-right: 1px solid var(--border-subtle) !important;
+    min-width: 220px !important;
+    max-width: 300px !important;
+}
+
+/* Botão genérico na sidebar */
+section[data-testid="stSidebar"]
+  div[data-testid="stButton"] > button {
+    border-radius: var(--radius-md) !important;
+    font-weight: 600 !important;
+    transition: all var(--transition-fast) !important;
+}
+
+/* Botão primário (página ativa) */
+section[data-testid="stSidebar"]
+  div[data-testid="stButton"] > button[kind="primary"] {
+    background: linear-gradient(135deg, var(--purple-dark), var(--purple-main)) !important;
+    border-color: #7c4dcc !important;
+    color: #fff !important;
+    box-shadow: var(--shadow-purple) !important;
+}
+
+
+/* ══════════════════════════════════════════════
+   BOTÕES GERAIS
+   ══════════════════════════════════════════════ */
+
+div[data-testid="stButton"] > button {
+    border-radius: var(--radius-md) !important;
+    font-weight: 600 !important;
+    transition: all var(--transition-fast) !important;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+div[data-testid="stFormSubmitButton"] > button {
+    background: linear-gradient(135deg, var(--purple-dark), var(--purple-main)) !important;
+    border: 1px solid #7c4dcc !important;
+    color: #fff !important;
+    border-radius: var(--radius-md) !important;
+    font-weight: 700 !important;
+    box-shadow: var(--shadow-purple) !important;
+}
+
+
+/* ══════════════════════════════════════════════
+   CABEÇALHO DA PROFESSORA (prof-header)
+   ══════════════════════════════════════════════ */
+
+.prof-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.prof-info h1 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.prof-info p {
+    margin: 2px 0 0;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+}
+
+/* Anel animado ao redor do avatar quando "falando" */
+.avatar-wrap.speaking::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    animation: ring-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes ring-pulse {
+    0%, 100% { opacity: .5; transform: scale(1);    }
+    50%       { opacity: 1; transform: scale(1.04); }
+}
+
+
+/* ══════════════════════════════════════════════
+   INPUTS & FORMULÁRIOS
+   ══════════════════════════════════════════════ */
+
+[data-testid="stTextInput"] input,
+[data-testid="stPasswordInput"] input,
+[data-testid="stNumberInput"] input {
+    background: var(--bg-input) !important;
+    border: 1px solid var(--border-subtle) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--radius-md) !important;
+}
+
+[data-testid="stTextArea"] textarea {
+    background: var(--bg-input) !important;
+    border: 1px solid var(--border-subtle) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--radius-md) !important;
+}
+
+div[data-baseweb="select"] {
+    background: var(--bg-input) !important;
+    border-color: var(--border-subtle) !important;
+}
+
+div[data-baseweb="select"] button {
+    color: var(--text-primary) !important;
+}
+
+
+/* ══════════════════════════════════════════════
+   ALERTAS / TOAST
+   ══════════════════════════════════════════════ */
+
+[data-testid="stAlert"] {
+    border-radius: var(--radius-lg);
+}
+
+
+/* ══════════════════════════════════════════════
+   SPINNER — oculto (o app usa indicadores próprios)
+   ══════════════════════════════════════════════ */
+
+.stSpinner,
+[data-testid="stSpinner"] {
+    display: none !important;
+}
+
+
+/* ══════════════════════════════════════════════
+   IFRAMES FANTASMA (auto-login, injeções JS)
+   ══════════════════════════════════════════════ */
+
+iframe[height="1"] {
+    position: fixed !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 1px !important;
+    height: 1px !important;
+}
+
+
+/* ══════════════════════════════════════════════
+   DEPLOY BUTTON — oculto
+   ══════════════════════════════════════════════ */
+
+[data-testid="manage-app-button"],
+.stAppDeployButton,
+button[kind="managedDeployButton"] {
+    display: none !important;
+}
+
+
+/* ══════════════════════════════════════════════
+   TRANSIÇÕES — remove flash entre páginas
+   ══════════════════════════════════════════════ */
+
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+section[data-testid="stMain"] > div {
+    transition: none !important;
+    animation: none !important;
+}
+
+[data-testid="stAppViewBlockContainer"] { opacity: 1 !important; }
+div[data-stale="true"]                  { opacity: 1 !important; transition: none !important; }
