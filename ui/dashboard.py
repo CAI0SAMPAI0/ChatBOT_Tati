@@ -1,19 +1,3 @@
-"""
-ui/dashboard.py — Painel do Professor.
-Design baseado na imagem de referência:
-  - Cards de métricas no topo
-  - Class Insights (expansível)
-  - Lista de alunos (expansível) com:
-      - Métricas individuais
-      - Tags de erros e acertos
-      - Insight IA por aluno (botão "Gerar")
-      - Prompt personalizado
-      - Alterar nível
-  - Student Management (expansível)
-  - Class Summary (expansível)
-Suporte completo pt-BR / en-US.
-"""
-
 import os
 import streamlit as st
 from datetime import datetime, date
