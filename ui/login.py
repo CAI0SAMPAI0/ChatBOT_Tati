@@ -67,17 +67,20 @@ def show_login() -> None:
 #MainMenu,footer,header{display:none!important;}
 [data-testid="stToolbar"],[data-testid="stHeader"],[data-testid="stDecoration"]{display:none!important;}
 .stApp{background:#060a10!important;}
-section[data-testid="stMain"],
-section[data-testid="stMain"]>div,
-.main .block-container{padding:0!important;margin:0!important;max-width:100%!important;width:100%!important;}
+
+/* Centraliza o bloco principal */
+.main .block-container{
+    max-width:420px!important;
+    margin:0 auto!important;
+    padding:1rem 16px!important;
+}
+
 div[data-testid="stButton"]>button{border-radius:10px!important;font-weight:600!important;border:1px solid #2a2a4a!important;background:transparent!important;color:#6b7280!important;}
 div[data-testid="stButton"]>button[kind="primary"],
 div[data-testid="stButton"]>button[data-testid="baseButton-primary"]{background:linear-gradient(135deg,#6c3fc5,#8b5cf6)!important;border-color:#7c4dcc!important;color:#fff!important;box-shadow:0 0 14px rgba(139,92,246,.35)!important;}
 div[data-testid="stFormSubmitButton"]>button{background:linear-gradient(135deg,#6c3fc5,#8b5cf6)!important;border:1px solid #7c4dcc!important;color:#fff!important;border-radius:10px!important;font-weight:700!important;box-shadow:0 0 14px rgba(139,92,246,.3)!important;}
 div[data-testid="stFormSubmitButton"]>button:hover{background:linear-gradient(135deg,#7c4dcc,#9d6ff7)!important;box-shadow:0 0 22px rgba(139,92,246,.5)!important;}
 iframe[height="1"]{position:fixed!important;opacity:0!important;pointer-events:none!important;bottom:0!important;left:0!important;}
-[data-testid="stMain"] [data-testid="stVerticalBlock"]{width:100%!important;max-width:420px!important;margin:0 auto!important;padding:0 16px!important;}
-[data-testid="stMain"] [data-testid="block-container"]{display:flex!important;flex-direction:column!important;align-items:center!important;padding-top:40px!important;}
 </style>""", unsafe_allow_html=True)
 
     # Auto-login via localStorage
