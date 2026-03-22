@@ -5,11 +5,40 @@ from core.database import authenticate, register_student, create_session
 from core.auth import is_rate_limited, register_attempt, clear_attempts, remaining_attempts
 from utils.helpers import get_photo_b64, PROF_NAME
 from utils.i18n import t
+from datetime import datetime
 
 
 PHOTO_PATH = os.getenv("PROFESSOR_PHOTO", "assets/tati.png")
 
 _DASHBOARD_ROLES = ("professor", "professora", "programador")
+
+# ═════════════════════════════════════════════════════════════════════════
+# RATE LIMITING
+# ═════════════════════════════════════════════════════════════════════════
+
+def _is_rate_limited() -> tuple[bool, str | None]:
+    """Limita tentativas de login por sessão (5 tentativas, bloqueio de 60s)."""
+    max_attempts = 5
+    block_secs   = 60
+
+    attempts      = st.session_state.get("_login_attempts", 0)
+    blocked_until = st.session_state.get("_login_block_until")
+    now           = datetime.utcnow().timestamp()
+
+    if blocked_until and now < blocked_until:
+        remaining = int(blocked_until - now)
+        return True, f"Muitas tentativas. Aguarde {remaining}s para tentar novamente."
+
+    if attempts >= max_attempts:
+        st.session_state["_login_block_until"] = now + block_secs
+        st.session_state["_login_attempts"]    = 0
+        return True, f"Muitas tentativas. Aguarde {block_secs}s para tentar novamente."
+
+    return False, None
+
+
+def _register_failed_attempt() -> None:
+    st.session_state["_login_attempts"] = st.session_state.get("_login_attempts", 0) + 1
 
 
 def js_save_session(token: str) -> None:
@@ -129,7 +158,7 @@ p{{font-size:.7rem;color:#3a4e5e;text-align:center;}}
     if tab == "login":
         with st.form("form_login", clear_on_submit=True):
             u = st.text_input(t("username"), placeholder="seu.usuario")
-            p = st.text_input(t("password"), type="password", placeholder="••••••••")
+            p = st.text_input(t("password"), type="password", placeholder="*******")
             if st.form_submit_button(t("enter"), use_container_width=True):
                 if not u or not p:
                     st.session_state["_login_err"] = "Preencha todos os campos."
@@ -172,6 +201,17 @@ p{{font-size:.7rem;color:#3a4e5e;text-align:center;}}
             re_ = st.text_input(t("email"),      placeholder="joao@email.com")
             ru  = st.text_input(t("username"),   placeholder="joao.silva")
             rp  = st.text_input("Senha", type="password", placeholder="mínimo 6 caracteres")
+            level_opts = [
+                "Beginner", "Pre-Intermediate", "Intermediate",
+                "Advanced", "Business English",
+            ]
+            level = st.selectbox("Nível de inglês", level_opts, index=0)
+            birth = st.date_input(
+                "Data de nascimento",
+                format="DD/MM/YYYY",
+                min_value=datetime(1950, 1, 1),
+                max_value=datetime.today(),
+            )
             if st.form_submit_button(t("create_account"), use_container_width=True):
                 if not rn or not re_ or not ru or not rp:
                     st.session_state["_reg_err"] = "Preencha todos os campos."
