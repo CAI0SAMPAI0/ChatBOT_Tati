@@ -76,8 +76,8 @@ div[data-testid="stButton"]>button[data-testid="baseButton-primary"]{background:
 div[data-testid="stFormSubmitButton"]>button{background:linear-gradient(135deg,#6c3fc5,#8b5cf6)!important;border:1px solid #7c4dcc!important;color:#fff!important;border-radius:10px!important;font-weight:700!important;box-shadow:0 0 14px rgba(139,92,246,.3)!important;}
 div[data-testid="stFormSubmitButton"]>button:hover{background:linear-gradient(135deg,#7c4dcc,#9d6ff7)!important;box-shadow:0 0 22px rgba(139,92,246,.5)!important;}
 iframe[height="1"]{position:fixed!important;opacity:0!important;pointer-events:none!important;bottom:0!important;left:0!important;}
-section[data-testid="stMain"]>div>div>div{display:flex!important;flex-direction:column!important;align-items:center!important;}
-div[data-testid="stVerticalBlock"]{width:100%!important;max-width:420px!important;margin:0 auto!important;padding:0 16px!important;}
+[data-testid="stMain"] [data-testid="stVerticalBlock"]{width:100%!important;max-width:420px!important;margin:0 auto!important;padding:0 16px!important;}
+[data-testid="stMain"] [data-testid="block-container"]{display:flex!important;flex-direction:column!important;align-items:center!important;padding-top:40px!important;}
 </style>""", unsafe_allow_html=True)
 
     # Auto-login via localStorage
