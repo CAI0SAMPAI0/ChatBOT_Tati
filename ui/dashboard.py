@@ -498,7 +498,7 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
                             ml.extend(load_conversation(uname, cv["id"]))
                         user_profile   = (all_users.get(uname, {}).get("profile") or {})
                         custom_p       = user_profile.get("custom_prompt", "")
-                        texto, erro    = _get_ai_insight(s, ml, custom_p)
+                        texto, erro    = _get_ai_insight(s, ml, custom_p, lang=lang)
                     except Exception as e:
                         texto, erro = "", str(e)
                 if erro == "no_history":
@@ -532,10 +532,12 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
             saved_prompt = user_profile.get("custom_prompt", "")
             st.markdown(f" {L('cust_prompt')}")
             new_prompt = st.text_area(
-                "prompt", value=saved_prompt,
+                label=L("cust_prompt"),
+                value=saved_prompt,
                 placeholder=L("prompt_hint"),
-                key=f"tp_{uname}_{idx}", height=65,
-                label_visibility="collapsed",
+                key=f"tp_{uname}_{idx}",
+                height=65,
+                label_visibility="hidden",
             )
             if st.button(L("save"), key=f"sp_{uname}_{idx}"):
                 update_profile(uname, {"custom_prompt": new_prompt})
