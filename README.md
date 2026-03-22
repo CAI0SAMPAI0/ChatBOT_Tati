@@ -1,244 +1,260 @@
 # 🎓 Teacher Tati — AI English Coach
 
-> A conversational English learning platform powered by Claude AI, featuring voice interaction, animated avatar, bilingual teaching policy, and a full student management dashboard.
+<div align="center">
 
-![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.38+-FF4B4B?logo=streamlit&logoColor=white)
-![Claude](https://img.shields.io/badge/Claude-Haiku-orange?logo=anthropic&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white)
-![License](https://img.shields.io/badge/license-MIT-green)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.38+-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![Claude AI](https://img.shields.io/badge/Claude-Haiku-orange?logo=anthropic&logoColor=white)](https://www.anthropic.com/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
----
+**Plataforma conversacional de ensino de inglês com IA, recursos de voz, avatar animado e dashboard de gerenciamento de alunos.**
 
-## ✨ Overview
+[Demo](#) · [Documentação](#-guia-de-instalação) · [Reportar Bug](https://github.com/CAI0SAMPAI0/ChatBOT_Tati/issues)
 
-**Teacher Tati** is a full-stack AI-powered English tutoring app built with Streamlit. Students chat with a digital avatar of a real English teacher — via text or voice — and receive pedagogically-structured responses adapted to their level, from Beginner to Business English. The professor can monitor all students through a real-time analytics dashboard.
-
----
-
-## 🚀 Features
-
-### 🤖 AI Teaching Engine
-- Powered by **Claude Haiku** (Anthropic) with a rich system prompt encoding 25+ years of teaching methodology
-- **Bilingual policy**: adapts between Portuguese and English based on the student's proficiency level
-- **Neuro-learning approach**: guides students to self-correct rather than simply providing answers
-- Generates complete exercises, worksheets, and activities on demand — downloadable as **PDF** or **DOCX**
-
-### 🎙️ Voice Mode
-- Full-screen immersive voice interface with an animated talking avatar
-- **Faster-Whisper** local transcription (no external API, no cost)
-- Bilingual VAD (Voice Activity Detection) with automatic language detection
-- **gTTS** text-to-speech for AI responses, with playback speed and volume controls
-- Mouth-sync animation driven by real-time audio volume analysis
-
-### 💬 Chat Interface
-- ChatGPT-style message bubbles with per-message audio playback
-- Supports file attachments: **PDF**, **DOCX**, **TXT**, **images** (JPG/PNG/WEBP), and **audio**
-- Inline TTS audio player with seek bar, playback speed (0.75× – 1.5×), and volume control
-- Persistent conversation history with title preview and per-conversation delete
-
-### 👤 User System
-- Secure authentication with **bcrypt-style SHA-256** password hashing
-- Persistent sessions via **token stored in localStorage + HTTP cookie** (survives page refresh and browser restart)
-- Auto-login on return visit (token-based, works on Safari/iOS)
-- User profile with avatar photo (stored in **Supabase Storage**), nickname, occupation, English level, focus area, and AI style preferences
-
-### 📊 Professor Dashboard
-- Real-time stats: total students, total messages, corrections made, students active today
-- Per-student breakdown: level, focus, message count, correction count, last active date
-- Switch between dashboard and student-mode chat seamlessly
-
-### 🌐 Internationalization
-- Full UI translation: **pt-BR**, **en-US**, **en-UK**
-- Per-user language preference saved to profile
-- Customizable accent color theme
+</div>
 
 ---
 
-## 🧱 Tech Stack
+## 📋 Índice
 
-| Layer | Technology |
-|---|---|
-| Frontend / UI | Streamlit ≥ 1.38, HTML/CSS/JS via `components.html` |
-| AI Model | Anthropic Claude Haiku (`claude-haiku-4-5`) |
-| Speech-to-Text | Faster-Whisper (local, CPU, `small` model) |
-| Text-to-Speech | gTTS (Google TTS, free, no API key) |
-| Database | Supabase (PostgreSQL) |
-| File Storage | Supabase Storage (avatars bucket) |
-| PDF Generation | ReportLab |
-| DOCX Generation | python-docx |
-| PDF Extraction | pdfplumber |
-| Auth Sessions | Secrets token + localStorage + HTTP cookie |
-| Deployment | Streamlit Community Cloud / Docker |
+- [Sobre o Projeto](#-sobre-o-projeto)
+- [Problema que Resolve](#-problema-que-resolve)
+- [Principais Funcionalidades](#-principais-funcionalidades)
+- [Stack Tecnológica](#-stack-tecnológica)
+- [Guia de Instalação](#-guia-de-instalação)
+- [Uso](#-uso)
+- [Roadmap](#-roadmap)
 
 ---
 
-## 📁 Project Structure
+## 🎯 Sobre o Projeto
 
-```
-voice_chat/
-├── app.py               # Main application — routing, chat UI, voice mode
-├── database.py          # Supabase backend — users, sessions, conversations, messages
-├── transcriber.py       # Faster-Whisper STT with bilingual detection
-├── tts.py               # gTTS text-to-speech wrapper
-├── file_reader.py       # File extraction — PDF, DOCX, TXT, images, audio
-├── assets/
-│   ├── professor.jpg             # Professor photo (chat avatar)
-│   ├── tati.png                  # Mini avatar for chat bubbles
-│   ├── avatar_tati_normal.png    # Voice mode avatar — mouth closed
-│   ├── avatar_tati_closed.png    # Voice mode avatar — lips sealed
-│   ├── avatar_tati_meio.png      # Voice mode avatar — half open
-│   ├── avatar_tati_bem_aberta.png# Voice mode avatar — wide open
-│   └── sem_foto.png              # Placeholder for users without photo
-├── styles/
-│   └── style.css        # Global CSS (dark theme, bubbles, stat cards)
-├── data/
-│   └── generated/       # Temporary PDF/DOCX files generated by AI
-├── .env                 # Environment variables (not committed)
-├── .gitignore
-├── requirements.txt
-└── README.md
-```
+**Teacher Tati** é uma plataforma full-stack de tutoria de inglês alimentada por inteligência artificial. Oferece experiência de aprendizado personalizada através de conversação por texto ou voz, com avatar digital interativo que simula uma professora de inglês real.
+
+### ✨ Diferenciais
+
+- 🧠 **IA Pedagógica**: Claude Haiku com metodologia estruturada de 25+ anos
+- 🎙️ **Modo Voz Imersivo**: Interface full-screen com avatar animado sincronizado
+- 📊 **Dashboard Professor**: Analytics em tempo real de progresso dos alunos
+- 🌐 **Sistema Bilíngue**: Adaptação automática PT/EN baseada no nível
+- 📝 **Geração de Conteúdo**: Exercícios e atividades em PDF/DOCX
 
 ---
 
-## ⚙️ Setup
+## 🔧 Problema que Resolve
 
-### 1. Clone the repository
+### Desafios do Ensino Tradicional de Idiomas
+
+1. **Alto Custo**: Aulas custam R$ 80-200/hora
+2. **Falta de Prática**: Poucas oportunidades fora das aulas semanais
+3. **Feedback Limitado**: Correções apenas durante sessões agendadas
+4. **Barreira de Timidez**: Vergonha de praticar com outras pessoas
+5. **Falta de Personalização**: Métodos genéricos não adaptáveis
+
+### Solução Automatizada
+
+✅ **Disponibilidade 24/7** - Pratique a qualquer hora  
+✅ **Custo Zero** - Escala sem custos variáveis  
+✅ **Feedback Imediato** - Correções em tempo real  
+✅ **Ambiente Seguro** - Sem julgamento ou pressão  
+✅ **Adaptação Inteligente** - Ajuste automático ao nível  
+✅ **Rastreamento Completo** - Monitoramento sem esforço manual  
+
+### Casos de Uso
+
+- **Escolas de Idiomas**: Complemento com prática ilimitada
+- **Professores Independentes**: Gerenciamento de múltiplos alunos
+- **Empresas**: Treinamento corporativo com analytics
+- **Autodidatas**: Plataforma completa para aprendizado autônomo
+
+---
+
+## 🚀 Principais Funcionalidades
+
+### 🤖 Motor de IA Pedagógica
+
+- **Claude Haiku** com prompt pedagógico estruturado
+- **Política Bilíngue**: Transição PT-EN por proficiência
+- **Neuro-aprendizagem**: Guia à autocorreção
+- **Geração de Material**: Worksheets em PDF/DOCX
+
+### 🎙️ Modo Voz Completo
+
+- Interface full-screen com avatar animado
+- **Faster-Whisper** para transcrição local (sem custos)
+- VAD bilíngue com detecção automática
+- **gTTS** text-to-speech com controles de velocidade
+- Animação sincronizada com volume de áudio
+
+### 💬 Interface de Chat
+
+- Bolhas estilo ChatGPT com áudio por mensagem
+- Anexos: PDF, DOCX, TXT, imagens e áudio
+- Player TTS inline com controles completos
+- Histórico persistente de conversas
+
+### 👤 Sistema de Usuários
+
+- Autenticação SHA-256 segura
+- Sessões persistentes (localStorage + cookie)
+- Auto-login em retornos
+- Perfil com avatar, nível, foco e preferências
+
+### 📊 Dashboard do Professor
+
+- Stats em tempo real: alunos, mensagens, correções
+- Breakdown individual por aluno
+- Alternância fluida entre modos
+
+---
+
+## 🛠️ Stack Tecnológica
+
+| Camada | Tecnologia | Função |
+|--------|-----------|---------|
+| **Frontend** | Streamlit 1.38+ | Interface interativa |
+| **IA** | Claude Haiku | Motor conversacional |
+| **STT** | Faster-Whisper | Transcrição local |
+| **TTS** | gTTS | Síntese de voz |
+| **Database** | Supabase PostgreSQL | Persistência |
+| **Storage** | Supabase Storage | Avatares |
+| **PDF** | ReportLab | Geração documentos |
+| **DOCX** | python-docx | Geração Word |
+
+---
+
+## 🚀 Guia de Instalação
+
+### Pré-requisitos
+
+- Python 3.11+
+- Conta Supabase (free tier OK)
+- API Key Anthropic Claude
+
+### 1. Clone e Configure
 
 ```bash
-git clone https://github.com/CAI0SAMPAI0/Voice-Chat.git
-cd Voice-Chat
-```
-
-### 2. Create a virtual environment and install dependencies
-
-```bash
+git clone https://github.com/CAI0SAMPAI0/ChatBOT_Tati.git
+cd ChatBOT_Tati
 python -m venv .venv
-source .venv/bin/activate       # Windows: .venv\Scripts\activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure environment variables
+### 2. Variáveis de Ambiente
 
-Create a `.env` file in the project root:
+Crie `.env`:
 
 ```env
-# Anthropic
 ANTHROPIC_API_KEY=sk-ant-...
-
-# Supabase
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=e190gfGci...
-
-# Optional customization
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_KEY=eyJ...
 PROFESSOR_NAME=Teacher Tati
-PROFESSOR_PHOTO=assets/professor.jpg
 ```
 
-> For Streamlit Cloud deployment, add these as **Secrets** in the app settings.
+### 3. Setup Supabase
 
-### 4. Set up Supabase
-
-Run the following SQL in your Supabase SQL Editor to create the required tables and RPC functions:
-
-<details>
-<summary>Click to expand SQL schema</summary>
+Execute no SQL Editor:
 
 ```sql
--- Users
-create table users (
-  username   text primary key,
-  name       text,
-  password   text,
-  role       text default 'student',
-  email      text default '',
-  level      text default 'Beginner',
-  focus      text default 'General Conversation',
-  created_at text,
-  profile    jsonb default '{}'
+CREATE TABLE users (
+  username TEXT PRIMARY KEY,
+  name TEXT, password TEXT,
+  role TEXT DEFAULT 'student',
+  level TEXT DEFAULT 'Beginner',
+  created_at TEXT,
+  profile JSONB DEFAULT '{}'
 );
 
--- Sessions
-create table sessions (
-  token      text primary key,
-  username   text references users(username) on delete cascade,
-  created_at text,
-  last_seen  text
+CREATE TABLE sessions (
+  token TEXT PRIMARY KEY,
+  username TEXT REFERENCES users(username) ON DELETE CASCADE,
+  created_at TEXT, last_seen TEXT
 );
 
--- Conversations
-create table conversations (
-  id         text,
-  username   text references users(username) on delete cascade,
-  created_at text,
-  primary key (id, username)
+CREATE TABLE conversations (
+  id TEXT, username TEXT,
+  created_at TEXT,
+  PRIMARY KEY (id, username)
 );
 
--- Messages
-create table messages (
-  id        bigserial primary key,
-  conv_id   text,
-  username  text references users(username) on delete cascade,
-  role      text,
-  content   text,
-  audio     boolean default false,
-  is_file   boolean default false,
-  tts_b64   text    default '',
-  time      text,
-  date      text,
-  timestamp text
+CREATE TABLE messages (
+  id BIGSERIAL PRIMARY KEY,
+  conv_id TEXT, username TEXT,
+  role TEXT, content TEXT,
+  audio BOOLEAN DEFAULT FALSE,
+  timestamp TEXT
 );
-
--- Avatars storage bucket (create via Supabase dashboard: Storage > New bucket > "avatars", public)
 ```
 
-</details>
+Crie bucket "avatars" em Storage (público).
 
-### 5. Run the app
+### 4. Execute
 
 ```bash
 streamlit run app.py
 ```
 
-Open [http://localhost:8501](http://localhost:8501) in your browser.
+Acesse: **http://localhost:8501**
 
 ---
 
-## 🔐 Default Credentials
+## 📖 Uso
 
-| Role | Username | Password |
-|---|---|---|
+### Credenciais Padrão
+
+| Papel | Username | Senha |
+|-------|----------|-------|
 | Professor | `professor` | `prof123` |
 | Dev | `programador` | `cai0_based` |
 
-> Change these immediately after first login via **Profile → Change Password**.
+⚠️ Altere após primeiro login!
 
----
+### Para Alunos
 
-## 🌍 Deployment (Streamlit Cloud)
+1. Registre-se com username único
+2. Configure nível e preferências
+3. Chat por texto ou voz
+4. Acesse histórico na sidebar
 
-1. Push your repo to GitHub
-2. Go to [share.streamlit.io](https://share.streamlit.io) and connect your repo
-3. Set the main file to `app.py`
-4. Add all `.env` variables as **Secrets** in the app settings
-5. Deploy 🚀
+### Para Professores
 
-> The `faster_whisper_models/` directory is excluded from git. The model (~500 MB) downloads automatically on first startup.
+1. Login com credenciais de professor
+2. Visualize dashboard de analytics
+3. Monitore progresso individual
+4. Teste experiência em modo aluno
 
 ---
 
 ## 🗺️ Roadmap
 
-- [ ] Gamification — XP, streaks, badges, fluency level graph
-- [ ] Daily challenges per level and topic
-- [ ] Streaming TTS (chunk-by-chunk, lower latency)
-- [ ] D-ID / Wav2Lip realistic talking avatar
-- [ ] Student progress reports (PDF export)
-- [ ] Scheduled lessons with calendar integration
+- [ ] Sistema de gamificação (XP, badges, streaks)
+- [ ] Desafios diários por nível
+- [ ] TTS streaming (menor latência)
+- [ ] Avatar realista (D-ID/Wav2Lip)
+- [ ] Relatórios PDF de progresso
+- [ ] Integração com calendário
+- [ ] App mobile nativo
 
 ---
 
-## 📄 License
+## 📄 Licença
 
-MIT © 2025 — Teacher Tati Project
+MIT © 2025 Teacher Tati Project
+
+---
+
+## 👨‍💻 Autor
+
+**Caio Sampaio** - [@CAI0SAMPAI0](https://github.com/CAI0SAMPAI0)
+
+---
+
+<div align="center">
+
+**⭐ Se foi útil, dê uma estrela!**
+
+Made with ❤️ in Brazil
+
+</div>
