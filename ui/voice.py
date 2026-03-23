@@ -135,7 +135,11 @@ html,body{overflow:hidden!important;}
     has_anim = bool(frames["normal"])
 
     # Serializa para JS
-    history_js       = json.dumps(history)
+    history_slim = [
+        {"role": m.get("role", ""), "content": m.get("content", ""), "tts_b64": ""}
+        for m in history
+    ]
+    history_js = json.dumps(history_slim)
     tts_js           = json.dumps(tts_b64)
     reply_js         = json.dumps(reply)
     err_js           = json.dumps(vm_error)
