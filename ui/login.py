@@ -5,40 +5,11 @@ from core.database import authenticate, register_student, create_session
 from core.auth import is_rate_limited, register_attempt, clear_attempts, remaining_attempts
 from utils.helpers import get_photo_b64, PROF_NAME
 from utils.i18n import t
-from datetime import datetime
 
 
 PHOTO_PATH = os.getenv("PROFESSOR_PHOTO", "assets/tati.png")
 
 _DASHBOARD_ROLES = ("professor", "professora", "programador")
-
-# ═════════════════════════════════════════════════════════════════════════
-# RATE LIMITING
-# ═════════════════════════════════════════════════════════════════════════
-
-def _is_rate_limited() -> tuple[bool, str | None]:
-    """Limita tentativas de login por sessão (5 tentativas, bloqueio de 60s)."""
-    max_attempts = 5
-    block_secs   = 60
-
-    attempts      = st.session_state.get("_login_attempts", 0)
-    blocked_until = st.session_state.get("_login_block_until")
-    now           = datetime.utcnow().timestamp()
-
-    if blocked_until and now < blocked_until:
-        remaining = int(blocked_until - now)
-        return True, f"Muitas tentativas. Aguarde {remaining}s para tentar novamente."
-
-    if attempts >= max_attempts:
-        st.session_state["_login_block_until"] = now + block_secs
-        st.session_state["_login_attempts"]    = 0
-        return True, f"Muitas tentativas. Aguarde {block_secs}s para tentar novamente."
-
-    return False, None
-
-
-def _register_failed_attempt() -> None:
-    st.session_state["_login_attempts"] = st.session_state.get("_login_attempts", 0) + 1
 
 
 def js_save_session(token: str) -> None:
@@ -67,79 +38,17 @@ def show_login() -> None:
 #MainMenu,footer,header{display:none!important;}
 [data-testid="stToolbar"],[data-testid="stHeader"],[data-testid="stDecoration"]{display:none!important;}
 .stApp{background:#060a10!important;}
-
-/* Centraliza o bloco principal */
-.main .block-container{
-    max-width:420px!important;
-    margin:0 auto!important;
-    padding:1rem 16px!important;
-}
-
+section[data-testid="stMain"],
+section[data-testid="stMain"]>div,
+.main .block-container{padding:0!important;margin:0!important;max-width:100%!important;width:100%!important;}
 div[data-testid="stButton"]>button{border-radius:10px!important;font-weight:600!important;border:1px solid #2a2a4a!important;background:transparent!important;color:#6b7280!important;}
 div[data-testid="stButton"]>button[kind="primary"],
 div[data-testid="stButton"]>button[data-testid="baseButton-primary"]{background:linear-gradient(135deg,#6c3fc5,#8b5cf6)!important;border-color:#7c4dcc!important;color:#fff!important;box-shadow:0 0 14px rgba(139,92,246,.35)!important;}
 div[data-testid="stFormSubmitButton"]>button{background:linear-gradient(135deg,#6c3fc5,#8b5cf6)!important;border:1px solid #7c4dcc!important;color:#fff!important;border-radius:10px!important;font-weight:700!important;box-shadow:0 0 14px rgba(139,92,246,.3)!important;}
 div[data-testid="stFormSubmitButton"]>button:hover{background:linear-gradient(135deg,#7c4dcc,#9d6ff7)!important;box-shadow:0 0 22px rgba(139,92,246,.5)!important;}
-iframe[height="1"]{position:fixed!important;opacity:0!important;pointer-events:none!important;bottom:0!important;left:0!important;};
-/* ── Inputs escuros ── */
-[data-testid="stTextInput"] input,
-[data-testid="stTextInput"] input:focus,
-[data-testid="stTextInput"] input:active,
-[data-testid="stTextInput"] input:hover,
-[data-testid="stTextInput"] input:-webkit-autofill,
-[data-testid="stTextInput"] input:-webkit-autofill:hover,
-[data-testid="stTextInput"] input:-webkit-autofill:focus {
-    background:#1c2130!important;
-    background-color:#1c2130!important;
-    -webkit-box-shadow:0 0 0 1000px #1c2130 inset!important;
-    box-shadow:0 0 0 1000px #1c2130 inset!important;
-    color:#e6edf3!important;
-    -webkit-text-fill-color:#e6edf3!important;
-    border:1px solid #30363d!important;
-    border-radius:8px!important;
-    caret-color:#e6edf3!important;
-}
-[data-testid="stTextInput"]>div,
-[data-testid="stTextInput"]>div>div {
-    background:#1c2130!important;
-    border:1px solid #30363d!important;
-    border-radius:8px!important;
-    box-shadow:none!important;
-}
-[data-testid="stTextInput"]>div:focus-within {
-    border-color:#8b5cf6!important;
-    box-shadow:0 0 0 2px rgba(139,92,246,.2)!important;
-}
-[data-testid="stTextInput"] label p { color:#8b949e!important; }
-
-/* ── Selectbox escuro ── */
-[data-testid="stSelectbox"]>div>div,
-[data-testid="stSelectbox"]>div>div>div {
-    background:#1c2130!important;
-    color:#e6edf3!important;
-    border:1px solid #30363d!important;
-    border-radius:8px!important;
-    box-shadow:none!important;
-}
-[data-testid="stSelectbox"] span { color:#e6edf3!important; }
-[data-testid="stSelectbox"] svg  { fill:#8b949e!important; }
-[data-baseweb="popover"] ul,
-[data-baseweb="menu"]       { background:#1c2130!important; border:1px solid #30363d!important; }
-[data-baseweb="menu"] li    { background:#1c2130!important; color:#e6edf3!important; }
-[data-baseweb="menu"] li:hover { background:#2d3748!important; }
-[data-testid="stSelectbox"] label p { color:#8b949e!important; }
-
-/* ── Date input escuro ── */
-[data-testid="stDateInput"] input,
-[data-testid="stDateInput"]>div>div {
-    background:#1c2130!important;
-    -webkit-box-shadow:0 0 0 1000px #1c2130 inset!important;
-    color:#e6edf3!important;
-    -webkit-text-fill-color:#e6edf3!important;
-    border:1px solid #30363d!important;
-    border-radius:8px!important;
-}
-[data-testid="stDateInput"] label p { color:#8b949e!important; }
+iframe[height="1"]{position:fixed!important;opacity:0!important;pointer-events:none!important;bottom:0!important;left:0!important;}
+section[data-testid="stMain"]>div>div>div{display:flex!important;flex-direction:column!important;align-items:center!important;}
+div[data-testid="stVerticalBlock"]{width:100%!important;max-width:420px!important;margin:0 auto!important;padding:0 16px!important;}
 </style>""", unsafe_allow_html=True)
 
     # Auto-login via localStorage
@@ -220,7 +129,7 @@ p{{font-size:.7rem;color:#3a4e5e;text-align:center;}}
     if tab == "login":
         with st.form("form_login", clear_on_submit=True):
             u = st.text_input(t("username"), placeholder="seu.usuario")
-            p = st.text_input(t("password"), type="password", placeholder="*******")
+            p = st.text_input(t("password"), type="password", placeholder="••••••••")
             if st.form_submit_button(t("enter"), use_container_width=True):
                 if not u or not p:
                     st.session_state["_login_err"] = "Preencha todos os campos."
@@ -263,17 +172,6 @@ p{{font-size:.7rem;color:#3a4e5e;text-align:center;}}
             re_ = st.text_input(t("email"),      placeholder="joao@email.com")
             ru  = st.text_input(t("username"),   placeholder="joao.silva")
             rp  = st.text_input("Senha", type="password", placeholder="mínimo 6 caracteres")
-            level_opts = [
-                "Beginner", "Pre-Intermediate", "Intermediate",
-                "Advanced", "Business English",
-            ]
-            level = st.selectbox("Nível de inglês", level_opts, index=0)
-            birth = st.date_input(
-                "Data de nascimento",
-                format="DD/MM/YYYY",
-                min_value=datetime(1950, 1, 1),
-                max_value=datetime.today(),
-            )
             if st.form_submit_button(t("create_account"), use_container_width=True):
                 if not rn or not re_ or not ru or not rp:
                     st.session_state["_reg_err"] = "Preencha todos os campos."

@@ -1,3 +1,19 @@
+"""
+ui/dashboard.py — Painel do Professor.
+Design baseado na imagem de referência:
+  - Cards de métricas no topo
+  - Class Insights (expansível)
+  - Lista de alunos (expansível) com:
+      - Métricas individuais
+      - Tags de erros e acertos
+      - Insight IA por aluno (botão "Gerar")
+      - Prompt personalizado
+      - Alterar nível
+  - Student Management (expansível)
+  - Class Summary (expansível)
+Suporte completo pt-BR / en-US.
+"""
+
 import os
 import streamlit as st
 from datetime import datetime, date
@@ -212,7 +228,7 @@ def _extract_errors_and_hits(msgs: list) -> tuple[list, list]:
     return ue[:5], uh[:3]
 
 
-def _get_ai_insight(student: dict, msgs: list, custom_prompt: str = "", lang: str = "pt-BR") -> tuple[str, str]:
+def _get_ai_insight(student: dict, msgs: list, custom_prompt: str = "") -> tuple[str, str]:
     """Gera um parágrafo de insight sobre o aluno usando Claude."""
     try:
         api_key = _get_api_key()
@@ -225,23 +241,15 @@ def _get_ai_insight(student: dict, msgs: list, custom_prompt: str = "", lang: st
         )
         if not convo.strip():
             return "", "no_history"
-        if lang == "pt-BR":
-            prompt = (
-                f"Analise este aluno de inglês e escreva UM parágrafo curto (máximo 3 frases) "
-                f"com: 1 ponto forte, 1 dificuldade e 1 sugestão prática. Sem títulos.\n\n"
-                f"Aluno: {student.get('name','')} | Nível: {student.get('level','')} | "
-                f"Foco: {student.get('focus','')} | Msgs: {student.get('total_messages',0)}\n"
-            )
-        else:
-            prompt = (
-                f"Analyse this English student and write ONE short paragraph (max 3 sentences) "
-                f"with: 1 strength, 1 difficulty and 1 practical suggestion. No headings.\n\n"
-                f"Student: {student.get('name','')} | Level: {student.get('level','')} | "
-                f"Focus: {student.get('focus','')} | Messages: {student.get('total_messages',0)}\n"
-            )
+        prompt = (
+            f"Analyse this English student and write ONE short paragraph (max 3 sentences) with: "
+            f"1 strength, 1 difficulty and 1 practical suggestion. No headings.\n\n"
+            f"Student: {student.get('name','')} | Level: {student.get('level','')} | "
+            f"Focus: {student.get('focus','')} | Messages: {student.get('messages', 0)}\n"
+        )
         if custom_prompt:
-            prompt += f"{'Instrução do professor' if lang == 'pt-BR' else 'Teacher instruction'}: {custom_prompt}\n"
-        prompt += f"\n{'Conversa' if lang == 'pt-BR' else 'Conversation'}:\n{convo}"
+            prompt += f"Teacher instruction: {custom_prompt}\n"
+        prompt += f"\nConversation sample:\n{convo}"
 
         client = anthropic.Anthropic(api_key=api_key)
         resp   = client.messages.create(
@@ -403,7 +411,7 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
 
     st.caption(f"👥 {L('click_expand')}")
 
-    for idx, s in enumerate(sorted_stats):
+    for s in sorted_stats:
         name  = s.get("name", "—")
         uname = s.get("username", "")
         level = s.get("level", "—")
@@ -489,7 +497,7 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
                     unsafe_allow_html=True,
                 )
 
-            if st.button(L("gen_insight"), key=f"ins_{uname}_{idx}"):
+            if st.button(L("gen_insight"), key=f"ins_{uname}"):
                 with st.spinner(L("analyzing")):
                     try:
                         convs_list = list_conversations(uname)
@@ -498,7 +506,7 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
                             ml.extend(load_conversation(uname, cv["id"]))
                         user_profile   = (all_users.get(uname, {}).get("profile") or {})
                         custom_p       = user_profile.get("custom_prompt", "")
-                        texto, erro    = _get_ai_insight(s, ml, custom_p, lang=lang)
+                        texto, erro    = _get_ai_insight(s, ml, custom_p)
                     except Exception as e:
                         texto, erro = "", str(e)
                 if erro == "no_history":
@@ -519,10 +527,10 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
                 cur_idx   = level_opts.index(level) if level in level_opts else 0
                 new_level = st.selectbox(
                     L("change_level"), level_opts, index=cur_idx,
-                    key=f"lvl_{uname}_{idx}",
+                    key=f"lvl_{uname}",
                 )
             if new_level != level:
-                if st.button(L("save"), key=f"slvl_{uname}_{idx}"):
+                if st.button(L("save"), key=f"slvl_{uname}"):
                     update_profile(uname, {"level": new_level})
                     st.success(L("level_saved"))
                     st.rerun()
@@ -532,14 +540,12 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
             saved_prompt = user_profile.get("custom_prompt", "")
             st.markdown(f" {L('cust_prompt')}")
             new_prompt = st.text_area(
-                label=L("cust_prompt"),
-                value=saved_prompt,
+                "prompt", value=saved_prompt,
                 placeholder=L("prompt_hint"),
-                key=f"tp_{uname}_{idx}",
-                height=65,
-                label_visibility="hidden",
+                key=f"tp_{uname}", height=65,
+                label_visibility="collapsed",
             )
-            if st.button(L("save"), key=f"sp_{uname}_{idx}"):
+            if st.button(L("save"), key=f"sp_{uname}"):
                 update_profile(uname, {"custom_prompt": new_prompt})
                 st.session_state.pop(insight_key, None)
                 st.success(L("prompt_saved"))
