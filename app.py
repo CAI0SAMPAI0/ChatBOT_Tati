@@ -101,7 +101,6 @@ if not st.session_state.logged_in:
             if _uname:
                 st.session_state.logged_in         = True
                 st.session_state.user              = {"username": _uname, **_udata}
-                # ← CORRIGIDO: usa `in` ao invés de `==`
                 st.session_state.page              = "chat" if _udata.get("role") in _DASHBOARD_ROLES else "chat"
                 st.session_state.conv_id           = None
                 st.session_state["_session_token"] = _s
