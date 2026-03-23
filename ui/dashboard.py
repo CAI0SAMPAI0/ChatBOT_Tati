@@ -1,24 +1,6 @@
-"""
-ui/dashboard.py — Painel do Professor.
-Design baseado na imagem de referência:
-  - Cards de métricas no topo
-  - Class Insights (expansível)
-  - Lista de alunos (expansível) com:
-      - Métricas individuais
-      - Tags de erros e acertos
-      - Insight IA por aluno (botão "Gerar")
-      - Prompt personalizado
-      - Alterar nível
-  - Student Management (expansível)
-  - Class Summary (expansível)
-Suporte completo pt-BR / en-US.
-"""
-
 import os
 import streamlit as st
 from datetime import datetime, date
-
-import anthropic
 
 from core.database import (
     get_all_students_stats, delete_session,
@@ -174,7 +156,6 @@ def _days_inactive(last: str):
 
 
 def _student_badge(msgs: int, last: str, lang: str) -> tuple[str, str]:
-    """Retorna (label, cor_hex)."""
     if msgs == 0:
         return _L_("new", lang), "#c084fc"
     d = _days_inactive(last)
@@ -228,12 +209,9 @@ def _extract_errors_and_hits(msgs: list) -> tuple[list, list]:
     return ue[:5], uh[:3]
 
 
-def _get_ai_insight(student: dict, msgs: list, custom_prompt: str = "") -> tuple[str, str]:
-    """Gera um parágrafo de insight sobre o aluno usando Claude."""
+def _get_ai_insight(student: dict, msgs: list, custom_prompt: str = "", lang: str = "pt-BR") -> tuple[str, str]:
     try:
-        api_key = _get_api_key()
-        if not api_key:
-            return "", "ANTHROPIC_API_KEY not found."
+        from core.ai_router import chat_completion
         sample = msgs[-30:]
         convo  = "\n".join(
             f"{'Student' if m['role']=='user' else 'Teacher'}: {m.get('content','')[:200]}"
@@ -241,27 +219,39 @@ def _get_ai_insight(student: dict, msgs: list, custom_prompt: str = "") -> tuple
         )
         if not convo.strip():
             return "", "no_history"
-        prompt = (
-            f"Analyse this English student and write ONE short paragraph (max 3 sentences) with: "
-            f"1 strength, 1 difficulty and 1 practical suggestion. No headings.\n\n"
-            f"Student: {student.get('name','')} | Level: {student.get('level','')} | "
-            f"Focus: {student.get('focus','')} | Messages: {student.get('messages', 0)}\n"
-        )
+        if lang == "pt-BR":
+            prompt = (
+                f"Analise este aluno de inglês e escreva UM parágrafo curto (máximo 3 frases) "
+                f"com: 1 ponto forte, 1 dificuldade e 1 sugestão prática. Sem títulos.\n\n"
+                f"Aluno: {student.get('name','')} | Nível: {student.get('level','')} | "
+                f"Foco: {student.get('focus','')} | Msgs: {student.get('total_messages',0)}\n"
+            )
+        else:
+            prompt = (
+                f"Analyse this English student and write ONE short paragraph (max 3 sentences) "
+                f"with: 1 strength, 1 difficulty and 1 practical suggestion. No headings.\n\n"
+                f"Student: {student.get('name','')} | Level: {student.get('level','')} | "
+                f"Focus: {student.get('focus','')} | Messages: {student.get('total_messages',0)}\n"
+            )
         if custom_prompt:
-            prompt += f"Teacher instruction: {custom_prompt}\n"
-        prompt += f"\nConversation sample:\n{convo}"
+            prompt += f"{'Instrução do professor' if lang == 'pt-BR' else 'Teacher instruction'}: {custom_prompt}\n"
+        prompt += f"\n{'Conversa' if lang == 'pt-BR' else 'Conversation'}:\n{convo}"
 
-        client = anthropic.Anthropic(api_key=api_key)
-        resp   = client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=450,
+        text = chat_completion(
             messages=[{"role": "user", "content": prompt}],
+            system="You are a pedagogical assistant. Be concise and practical.",
+            max_tokens=450,
         )
-        return resp.content[0].text.strip(), ""
+        return text.strip(), ""
     except Exception as e:
         return "", str(e)
 
 
+def _safe_key(uname: str, suffix: str) -> str:
+    """Generate a stable widget key using username + suffix only (no unstable idx)."""
+    import hashlib
+    h = hashlib.md5(uname.encode()).hexdigest()[:10]
+    return f"{suffix}_{h}"
 
 
 def show_dashboard() -> None:
@@ -328,7 +318,7 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
             </div></div><hr style="border-color:#30363d;margin:4px 0 10px">""",
             unsafe_allow_html=True,
         )
-        if st.button("📊 Dashboard", use_container_width=True, type="primary"):
+        if st.button("📊 Dashboard", use_container_width=True, type="primary", key="db_dash_active"):
             pass
         if st.button(f"🎙️ {L('voice_mode')}", use_container_width=True, key="db_voice"):
             st.session_state.page = "chat"
@@ -344,7 +334,6 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
     # ── Dados ─────────────────────────────────────────────────────────────────
     all_users = load_students()
     stats     = get_all_students_stats()
-    # filtra só alunos
     stats     = [s for s in stats if all_users.get(s.get("username",""), {}).get("role") == "student"]
     today     = datetime.now().strftime("%Y-%m-%d")
 
@@ -363,7 +352,7 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
     with col_t:
         st.markdown(f'<div class="db-title">🎓 {L("title")}</div>', unsafe_allow_html=True)
     with col_b:
-        if st.button(f"💬 {L('enter_chat')}", use_container_width=True):
+        if st.button(f"💬 {L('enter_chat')}", use_container_width=True, key="db_enter_chat"):
             st.session_state.page = "chat"; st.rerun()
 
     # ── Metric cards ─────────────────────────────────────────────────────────
@@ -423,6 +412,8 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
 
         badge_txt, _  = _student_badge(msgs, last, lang)
         last_fmt      = last[:10] if last and last != "---" else "—"
+
+        # Stable keys using only uname (no idx that can shift on rerun)
         insight_key   = f"_insight_{uname}"
         errors_key    = f"_errors_{uname}"
         hits_key      = f"_hits_{uname}"
@@ -497,7 +488,7 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
                     unsafe_allow_html=True,
                 )
 
-            if st.button(L("gen_insight"), key=f"ins_{uname}"):
+            if st.button(L("gen_insight"), key=_safe_key(uname, "ins")):
                 with st.spinner(L("analyzing")):
                     try:
                         convs_list = list_conversations(uname)
@@ -506,7 +497,7 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
                             ml.extend(load_conversation(uname, cv["id"]))
                         user_profile   = (all_users.get(uname, {}).get("profile") or {})
                         custom_p       = user_profile.get("custom_prompt", "")
-                        texto, erro    = _get_ai_insight(s, ml, custom_p)
+                        texto, erro    = _get_ai_insight(s, ml, custom_p, lang=lang)
                     except Exception as e:
                         texto, erro = "", str(e)
                 if erro == "no_history":
@@ -527,10 +518,10 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
                 cur_idx   = level_opts.index(level) if level in level_opts else 0
                 new_level = st.selectbox(
                     L("change_level"), level_opts, index=cur_idx,
-                    key=f"lvl_{uname}",
+                    key=_safe_key(uname, "lvl"),
                 )
             if new_level != level:
-                if st.button(L("save"), key=f"slvl_{uname}"):
+                if st.button(L("save"), key=_safe_key(uname, "slvl")):
                     update_profile(uname, {"level": new_level})
                     st.success(L("level_saved"))
                     st.rerun()
@@ -538,14 +529,16 @@ section[data-testid="stSidebar"] div[data-testid="stButton"]>button[kind="primar
             # ── Prompt personalizado ───────────────────────────────────────
             user_profile = (all_users.get(uname, {}).get("profile") or {})
             saved_prompt = user_profile.get("custom_prompt", "")
-            st.markdown(f" {L('cust_prompt')}")
+            st.markdown(f"**{L('cust_prompt')}**")
             new_prompt = st.text_area(
-                "prompt", value=saved_prompt,
+                label="custom_prompt_input",
+                value=saved_prompt,
                 placeholder=L("prompt_hint"),
-                key=f"tp_{uname}", height=65,
+                key=_safe_key(uname, "tp"),
+                height=68,
                 label_visibility="collapsed",
             )
-            if st.button(L("save"), key=f"sp_{uname}"):
+            if st.button(L("save"), key=_safe_key(uname, "sp")):
                 update_profile(uname, {"custom_prompt": new_prompt})
                 st.session_state.pop(insight_key, None)
                 st.success(L("prompt_saved"))
