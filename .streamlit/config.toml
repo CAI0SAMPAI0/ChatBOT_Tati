@@ -2,7 +2,7 @@
 base            = "dark"
 primaryColor    = "#8c0099"
 textColor       = "#e6edf3"
-font            = "Helvetica"
+font            = "sans serif"
 
 [server]
 headless             = true
