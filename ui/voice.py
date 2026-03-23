@@ -644,7 +644,18 @@ header[data-testid="stHeader"],#MainMenu,footer,header{
         for k in ["_vm_reply", "_vm_tts_b64", "_vm_user_said", "_vm_error"]:
             st.session_state.pop(k, None)
         audio_bytes = audio_val.read()
-        process_voice(audio_bytes, conv_id)
+
+        # Roda em thread separada com timeout para não travar o Streamlit
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            future = ex.submit(process_voice, audio_bytes, conv_id)
+            try:
+                future.result(timeout=45)  # 45s máximo
+            except concurrent.futures.TimeoutError:
+                st.session_state["_vm_error"] = "⏱ Tempo esgotado. Tente novamente."
+            except Exception as e:
+                st.session_state["_vm_error"] = f"❌ Erro: {e}"
+
         st.session_state.audio_key += 1
         st.rerun()
 
